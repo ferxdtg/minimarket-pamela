@@ -17,25 +17,29 @@ export default function Products() {
 
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
 
-        <ProductCard
-          name="Arroz Costeño"
-          price="5.90"
-        />
+<ProductCard
+ id={1}
+ name="Arroz Costeño"
+ price="5.90"
+/>
 
-        <ProductCard
-          name="Aceite Primor"
-          price="10.90"
-        />
+<ProductCard
+ id={2}
+ name="leche gloria"
+ price="3.20"
+/>
 
-        <ProductCard
-          name="Leche Gloria"
-          price="4.50"
-        />
+<ProductCard
+ id={3}
+ name="Fideos arabe"
+ price="6.90"
+/>
 
-        <ProductCard
-          name="Fideos Don Vittorio"
-          price="3.80"
-        />
+<ProductCard
+ id={4}
+ name="Biscocho bimbo"
+ price="7.90"
+/>
 
       </div>
 
