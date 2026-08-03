@@ -8,16 +8,10 @@ import { useState } from "react";
 export default function Navbar(){
 
 
-  const {
-    cart
-  } = useCart();
+  const { cart } = useCart();
 
 
-
-  const {
-    openCart
-  } = useCartUI();
-
+  const { openCart } = useCartUI();
 
 
   const [menu,setMenu] = useState(false);
@@ -37,257 +31,229 @@ export default function Navbar(){
 
 
 
-  return (
+return (
 
-    <header
-      className="
-        sticky
-        top-0
-        z-40
-        bg-white
-        shadow-md
-      "
-    >
+<header
 
+className="
+sticky
+top-0
+z-40
+bg-white
+shadow-md
+"
 
-      <nav
+>
 
-        className="
-          max-w-7xl
-          mx-auto
-          px-5
-          py-4
-          flex
-          items-center
-          justify-between
-        "
 
-      >
+<nav
 
+className="
+max-w-7xl
+mx-auto
+px-5
+py-3
+flex
+items-center
+justify-between
+gap-5
+"
 
+>
 
 
-        {/* LOGO */}
 
-        <div
-          className="
-            flex
-            items-center
-            gap-2
-          "
-        >
+{/* LOGO */}
 
-          <div
-            className="
-              bg-red-600
-              text-white
-              w-11
-              h-11
-              rounded-full
-              flex
-              items-center
-              justify-center
-              text-xl
-            "
-          >
+<div
 
-            🛒
+className="
+flex
+items-center
+gap-3
+"
 
-          </div>
+>
 
 
-          <div>
+<div
 
+className="
+w-12
+h-12
+rounded-2xl
+bg-gradient-to-br
+from-red-600
+to-orange-500
+flex
+items-center
+justify-center
+text-2xl
+shadow-lg
+"
 
-            <h1
-              className="
-                text-xl
-                md:text-2xl
-                font-black
-                text-gray-900
-              "
-            >
+>
 
-              Pamela Market
+🛒
 
-            </h1>
+</div>
 
 
-            <p
-              className="
-                text-xs
-                text-gray-500
-              "
-            >
 
-              Tu compra, más fácil
+<div>
 
-            </p>
 
+<h1
 
-          </div>
+className="
+text-xl
+md:text-2xl
+font-black
+text-gray-900
+leading-none
+"
 
+>
 
-        </div>
+Pamela Market
 
+</h1>
 
 
+<p
 
+className="
+text-xs
+text-gray-500
+mt-1
+"
 
+>
 
+Compra rápido, recibe mejor
 
-        {/* BUSCADOR DESKTOP */}
+</p>
 
 
-        <div
+</div>
 
-          className="
-            hidden
-            md:flex
-            flex-1
-            max-w-xl
-            mx-10
-          "
 
-        >
 
-          <div
-            className="
-              w-full
-              bg-gray-100
-              rounded-full
-              px-5
-              py-3
-              flex
-              items-center
-              gap-3
-            "
-          >
+</div>
 
-            🔎
 
 
-            <input
 
-              placeholder="
-              ¿Qué estás buscando?
-              "
 
-              className="
-                bg-transparent
-                outline-none
-                w-full
-                text-gray-700
-              "
 
-            />
 
+{/* BUSCADOR */}
 
-          </div>
 
+<div
 
-        </div>
+className="
+hidden
+md:flex
+flex-1
+max-w-xl
+"
 
+>
 
 
+<div
 
+className="
+w-full
+bg-gray-100
+rounded-full
+px-5
+py-3
+flex
+items-center
+gap-3
+"
 
+>
 
 
+<span>
 
+🔎
 
-        {/* MENU DESKTOP */}
+</span>
 
-        <div
 
-          className="
-            hidden
-            md:flex
-            items-center
-            gap-6
-          "
+<input
 
-        >
+placeholder="
+Busca arroz, bebidas, snacks...
+"
 
+className="
+bg-transparent
+outline-none
+w-full
+text-gray-700
+"
 
-          <button
+/>
 
-            className="
-              text-gray-700
-              font-semibold
-              hover:text-red-600
-            "
 
-          >
+</div>
 
-            Ofertas
 
-          </button>
+</div>
 
 
 
 
 
-          <button
 
-            onClick={openCart}
 
-            className="
-              relative
-              bg-red-600
-              text-white
-              px-5
-              py-3
-              rounded-full
-              font-bold
-              hover:scale-105
-              transition
-            "
+{/* INFO DELIVERY */}
 
-          >
+<div
 
-            🛒 Carrito
+className="
+hidden
+lg:flex
+flex-col
+text-xs
+font-bold
+"
 
+>
 
-            {
-              totalItems > 0 &&
 
-              (
+<span
 
-                <span
+className="
+text-gray-800
+"
 
-                  className="
-                    absolute
-                    -top-2
-                    -right-2
-                    bg-yellow-400
-                    text-black
-                    text-xs
-                    w-6
-                    h-6
-                    rounded-full
-                    flex
-                    items-center
-                    justify-center
-                    font-bold
-                  "
+>
 
-                >
+📍 Tu zona
 
-                  {totalItems}
+</span>
 
-                </span>
 
-              )
+<span
 
-            }
+className="
+text-green-600
+"
 
+>
 
-          </button>
+🚚 Delivery activo
 
+</span>
 
-        </div>
 
+</div>
 
 
 
@@ -296,118 +262,191 @@ export default function Navbar(){
 
 
 
-        {/* MOBILE BUTTON */}
+{/* CARRITO */}
 
 
-        <button
+<button
 
-          className="
-            md:hidden
-            text-3xl
-          "
+onClick={openCart}
 
-          onClick={()=>
-            setMenu(!menu)
-          }
+className="
+relative
+bg-red-600
+text-white
+px-5
+py-3
+rounded-full
+font-black
+hover:scale-105
+transition
+shadow-lg
+"
 
-        >
+>
 
-          ☰
 
-        </button>
+🛒
 
 
+<span className="hidden md:inline">
 
-      </nav>
+ Carrito
 
+</span>
 
 
 
+{
 
+totalItems > 0 &&
 
 
+<span
 
-      {/* MOBILE MENU */}
+className="
+absolute
+-top-2
+-right-2
+bg-yellow-400
+text-black
+text-xs
+w-6
+h-6
+rounded-full
+flex
+items-center
+justify-center
+font-black
+"
 
+>
 
-      {
-        menu &&
 
-        (
+{totalItems}
 
-          <div
 
-            className="
-              md:hidden
-              bg-white
-              border-t
-              px-5
-              py-5
-              space-y-4
-            "
+</span>
 
-          >
 
+}
 
-            <button
-              className="
-                block
-                text-gray-800
-                font-bold
-              "
-            >
 
-              Productos
 
-            </button>
+</button>
 
 
-            <button
 
-              className="
-                block
-                text-gray-800
-                font-bold
-              "
 
-            >
 
-              Ofertas
 
-            </button>
+{/* MOBILE */}
 
+<button
 
-            <button
+className="
+md:hidden
+text-3xl
+"
 
-              onClick={openCart}
+onClick={()=>setMenu(!menu)}
 
-              className="
-                block
-                text-red-600
-                font-bold
-              "
+>
 
-            >
+☰
 
-              🛒 Mi carrito
+</button>
 
-            </button>
 
 
-          </div>
+</nav>
 
 
-        )
 
-      }
 
 
 
+{/* MENU MOBILE */}
 
-    </header>
 
+{
 
-  );
+menu &&
+
+<div
+
+className="
+md:hidden
+border-t
+px-5
+py-5
+space-y-4
+bg-white
+"
+
+>
+
+
+<button
+
+className="
+block
+font-bold
+text-gray-800
+"
+
+>
+
+Productos
+
+</button>
+
+
+
+<button
+
+className="
+block
+font-bold
+text-gray-800
+"
+
+>
+
+Ofertas 🔥
+
+</button>
+
+
+
+<button
+
+onClick={openCart}
+
+className="
+block
+font-bold
+text-red-600
+"
+
+>
+
+🛒 Mi carrito
+
+</button>
+
+
+
+</div>
+
+
+}
+
+
+
+</header>
+
+
+);
 
 
 }
