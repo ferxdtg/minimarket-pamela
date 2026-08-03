@@ -1,33 +1,36 @@
 import Navbar from "../components/Navbar";
 import Hero from "../components/Hero";
+import Features from "../components/Features";
+import Categories from "../components/Categories";
 import Products from "../components/Products";
 import Footer from "../components/Footer";
-import CartDrawer from "../components/CartDrawer";
-
 
 
 export default function Home(){
 
 
-  return (
+return (
 
-    <>
-
-      <Navbar />
-
-      <Hero />
-
-      <Products />
-
-      <Footer />
+<>
 
 
-      <CartDrawer />
+<Navbar />
+
+<Hero />
+
+<Features />
+
+<Categories />
+
+<Products />
+
+<Footer />
 
 
+</>
 
-    </>
 
-  );
+);
+
 
 }

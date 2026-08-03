@@ -5,59 +5,84 @@ import "./globals.css";
 import { CartProvider } from "@/lib/CartContext";
 import { CartUIProvider } from "@/lib/CartUIContext";
 
+import CartDrawer from "@/components/CartDrawer";
+import CartNotificationWrapper from "@/components/CartNotificationWrapper";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  subsets:["latin"],
 });
 
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable:"--font-geist-mono",
+  subsets:["latin"],
 });
 
 
 
 export const metadata: Metadata = {
-  title: "Minimarket Pamela",
-  description: "Compra productos para tu hogar",
+
+  title:"Pamela Market",
+
+  description:"Minimarket online"
+
 };
 
 
 
+
+
 export default function RootLayout({
+
   children,
+
 }: Readonly<{
-  children: React.ReactNode;
+
+  children:React.ReactNode;
+
 }>) {
 
 
-  return (
+return (
 
-    <html
-      lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+<html lang="es">
 
-      <body className="min-h-full flex flex-col">
-
-
-        <CartProvider>
-
-          <CartUIProvider>
-
-            {children}
-
-          </CartUIProvider>
-
-        </CartProvider>
+<body
+className="
+min-h-screen
+"
+>
 
 
-      </body>
+<CartProvider>
 
-    </html>
 
-  );
+<CartUIProvider>
+
+
+{children}
+
+
+<CartDrawer />
+
+
+<CartNotificationWrapper />
+
+
+</CartUIProvider>
+
+
+</CartProvider>
+
+
+</body>
+
+
+</html>
+
+);
+
 
 }

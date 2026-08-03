@@ -2,35 +2,47 @@
 
 import { useCart } from "@/lib/CartContext";
 import { useCartUI } from "@/lib/CartUIContext";
+import CheckoutModal from "./CheckoutModal";
+import Image from "next/image";
 
 
-export default function CartDrawer() {
+export default function CartDrawer(){
 
 
   const {
+
     cart,
+
+    increaseQuantity,
+
+    decreaseQuantity,
+
     removeFromCart,
-    updateQuantity
+
+    total
+
   } = useCart();
 
 
+
   const {
+
     cartOpen,
+
     closeCart
+
   } = useCartUI();
 
 
 
 
-  const total = cart.reduce(
-    (sum, item) =>
-      sum + item.price * item.quantity,
-    0
-  );
 
+  if(!cartOpen){
 
+    return null;
 
-  if (!cartOpen) return null;
+  }
+
 
 
 
@@ -42,283 +54,503 @@ export default function CartDrawer() {
         fixed
         inset-0
         z-50
+        bg-black/40
         flex
         justify-end
       "
     >
 
 
-      {/* Fondo oscuro */}
-      <div
-        onClick={closeCart}
-        className="
-          absolute
-          inset-0
-          bg-black/40
-        "
-      />
 
-
-
-
-      {/* Panel lateral */}
       <div
         className="
-          relative
           w-full
           max-w-md
           h-full
-          bg-white
+          bg-orange-50
           shadow-2xl
           p-6
-          overflow-y-auto
+          flex
+          flex-col
         "
       >
 
 
-        <div className="
-          flex
-          justify-between
-          items-center
-          mb-6
-        ">
 
 
-          <h2 className="
-            text-2xl
-            font-bold
-            text-black
-          ">
+
+        <div
+          className="
+            flex
+            justify-between
+            items-center
+            mb-6
+          "
+        >
+
+
+          <h2
+            className="
+              text-2xl
+              font-bold
+              text-black
+            "
+          >
+
             🛒 Mi carrito
+
           </h2>
 
 
 
+
           <button
+
             onClick={closeCart}
+
             className="
-              text-red-600
-              text-2xl
+              text-black
+              text-3xl
               font-bold
             "
           >
-            ✕
+
+            ×
+
           </button>
 
 
         </div>
+
+
+
+
 
 
 
 
 
         {
-          cart.length === 0 ? (
+          cart.length === 0
 
-            <p className="
-              text-black
-              font-bold
-            ">
+          ?
+
+          (
+
+            <div
+
+              className="
+                flex-1
+                flex
+                items-center
+                justify-center
+                text-black
+                font-bold
+              "
+
+            >
+
               Tu carrito está vacío
-            </p>
 
-          ) : (
+            </div>
 
-
-            cart.map(item => (
-
-              <div
-                key={item.id}
-                className="
-                  border
-                  rounded-xl
-                  p-4
-                  mb-4
-                  bg-orange-50
-                "
-              >
+          )
 
 
-                <h3 className="
-                  text-black
-                  font-bold
-                  text-lg
-                ">
-                  {item.name}
-                </h3>
+          :
 
 
-                <p className="
-                  text-black
-                  font-bold
-                ">
-                  S/ {item.price.toFixed(2)}
-                </p>
+          (
+
+            <div
+              className="
+                flex-1
+                overflow-y-auto
+                space-y-4
+              "
+            >
 
 
 
+              {
 
-                <div className="
-                  flex
-                  justify-between
-                  items-center
-                  mt-4
-                ">
+                cart.map(item=>(
 
 
-                  <div className="
-                    flex
-                    items-center
-                    gap-3
-                  ">
+                  <div
+
+                    key={item.id}
+
+                    className="
+                      bg-white
+                      rounded-xl
+                      shadow
+                      p-4
+                    "
+
+                  >
 
 
-                    <button
-                      onClick={() =>
-                        updateQuantity(
-                          item.id,
-                          Math.max(
-                            1,
-                            item.quantity - 1
-                          )
-                        )
-                      }
+
+
+<div className="flex gap-4">
+
+  <div
+    className="
+      relative
+      w-20
+      h-20
+      bg-gray-100
+      rounded-lg
+      overflow-hidden
+      flex-shrink-0
+    "
+  >
+    <Image
+      src={item.image}
+      alt={item.name}
+      fill
+      className="object-contain p-2"
+    />
+  </div>
+
+  <div className="flex-1">
+
+    <h3
+      className="
+        text-lg
+        font-bold
+        text-black
+      "
+    >
+      {item.name}
+    </h3>
+
+    
+
+  </div>
+
+</div>
+
+
+
+
+
+
+
+                    <p
+
                       className="
-                        w-9
-                        h-9
-                        rounded-full
-                        bg-red-600
-                        text-white
+                        text-red-600
                         font-bold
-                        text-xl
+                        mt-1
                       "
+
                     >
-                      -
-                    </button>
 
+                      S/ {(item.price * item.quantity).toFixed(2)}
 
-
-
-                    <span className="
-                      text-black
-                      font-bold
-                    ">
-                      {item.quantity}
-                    </span>
+                    </p>
 
 
 
 
 
-                    <button
-                      onClick={() =>
-                        updateQuantity(
-                          item.id,
-                          item.quantity + 1
-                        )
-                      }
+
+
+
+
+                    <div
+
                       className="
-                        w-9
-                        h-9
-                        rounded-full
-                        bg-red-600
-                        text-white
-                        font-bold
-                        text-xl
+                        flex
+                        items-center
+                        justify-between
+                        mt-4
                       "
+
                     >
-                      +
-                    </button>
+
+
+
+
+                      <div
+
+                        className="
+                          flex
+                          items-center
+                          gap-3
+                        "
+
+                      >
+
+
+
+                        <button
+
+                          onClick={()=>
+                            decreaseQuantity(item.id)
+                          }
+
+                          className="
+                            w-8
+                            h-8
+                            rounded-full
+                            bg-red-600
+                            text-white
+                            font-bold
+                            text-lg
+                            flex
+                            items-center
+                            justify-center
+                          "
+
+                        >
+
+                          -
+
+                        </button>
+
+
+
+
+
+
+
+                        <span
+
+                          className="
+                            text-black
+                            font-bold
+                            w-6
+                            text-center
+                          "
+
+                        >
+
+                          {item.quantity}
+
+                        </span>
+
+
+
+
+
+
+
+                        <button
+
+                          onClick={()=>
+                            increaseQuantity(item.id)
+                          }
+
+                          className="
+                            w-8
+                            h-8
+                            rounded-full
+                            bg-red-600
+                            text-white
+                            font-bold
+                            text-lg
+                            flex
+                            items-center
+                            justify-center
+                          "
+
+                        >
+
+                          +
+
+                        </button>
+
+
+
+
+                      </div>
+
+
+
+
+
+
+
+
+                      <button
+
+                        onClick={()=>
+                          removeFromCart(item.id)
+                        }
+
+                        className="
+                          text-red-600
+                          font-bold
+                          text-sm
+                        "
+
+                      >
+
+                        🗑 Eliminar
+
+                      </button>
+
+
+
+
+                    </div>
+
+
+
 
 
                   </div>
 
 
+                ))
+
+              }
 
 
 
-                  <button
-                    onClick={() =>
-                      removeFromCart(item.id)
-                    }
-                    className="
-                      text-red-600
-                      font-bold
-                    "
-                  >
-                    Eliminar
-                  </button>
 
-
-
-                </div>
-
-
-              </div>
-
-
-            ))
+            </div>
 
 
           )
+
         }
 
 
 
 
 
-        <div className="
-          border-t
-          pt-5
-          mt-6
-        ">
-
-
-          <div className="
-            text-xl
-            font-bold
-            text-black
-          ">
-
-            Total:
-
-            <span className="
-              text-red-600
-            ">
-              {" "}S/ {total.toFixed(2)}
-            </span>
-
-
-          </div>
 
 
 
 
-          <button
-            className="
-              mt-5
-              w-full
-              bg-green-600
-              text-white
-              py-3
-              rounded-xl
-              font-bold
-              hover:bg-green-700
-            "
-          >
-            💳 Proceder al pago
-          </button>
+        {
+
+          cart.length > 0 &&
+
+          (
+
+            <div
+
+              className="
+                mt-6
+                border-t
+                pt-5
+              "
+
+            >
 
 
-        </div>
+
+
+
+              <div
+
+                className="
+                  flex
+                  justify-between
+                  mb-5
+                "
+
+              >
+
+
+
+                <span
+
+                  className="
+                    text-xl
+                    font-bold
+                    text-black
+                  "
+
+                >
+
+                  Total:
+
+                </span>
+
+
+
+
+
+                <span
+
+                  className="
+                    text-xl
+                    font-bold
+                    text-red-600
+                  "
+
+                >
+
+                  S/ {total.toFixed(2)}
+
+                </span>
+
+
+
+              </div>
+
+
+
+
+
+
+
+
+              <button
+
+                onClick={closeCart}
+
+                className="
+                  w-full
+                  py-3
+                  rounded-xl
+                  bg-gray-800
+                  text-white
+                  font-bold
+                  mb-3
+                "
+
+              >
+
+                ← Seguir comprando
+
+              </button>
+
+
+
+
+
+
+
+              <CheckoutModal />
+
+
+
+
+
+            </div>
+
+
+          )
+
+        }
 
 
 
       </div>
 
 
+
     </div>
 
+
   );
+
 
 }
