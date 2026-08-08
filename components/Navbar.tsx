@@ -34,24 +34,36 @@ export default function Navbar() {
           <SearchBar />
         </div>
 
-        {/* BOTÓN DE CARRITO */}
-        <button
-          onClick={() => {
-            if (typeof openCart === 'function') {
-              openCart();
-            } else {
-              window.dispatchEvent(new CustomEvent('open_cart'));
-            }
-          }}
-          className="relative bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-black flex items-center gap-2 transition shadow-lg cursor-pointer"
-        >
-          <span>🛒 Carrito</span>
-          {totalItems > 0 && (
-            <span className="absolute -top-2 -right-2 bg-yellow-400 text-gray-900 text-xs w-6 h-6 rounded-full flex items-center justify-center font-black shadow">
-              {totalItems}
-            </span>
-          )}
-        </button>
+        {/* CONTENEDOR DERECHO: CARRITO + ACCESO ADMIN SUTIL */}
+        <div className="flex items-center gap-3">
+          {/* BOTÓN DE CARRITO */}
+          <button
+            onClick={() => {
+              if (typeof openCart === 'function') {
+                openCart();
+              } else {
+                window.dispatchEvent(new CustomEvent('open_cart'));
+              }
+            }}
+            className="relative bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-black flex items-center gap-2 transition shadow-lg cursor-pointer"
+          >
+            <span>🛒 Carrito</span>
+            {totalItems > 0 && (
+              <span className="absolute -top-2 -right-2 bg-yellow-400 text-gray-900 text-xs w-6 h-6 rounded-full flex items-center justify-center font-black shadow">
+                {totalItems}
+              </span>
+            )}
+          </button>
+
+          {/* ACCESO ADMIN SUTIL (Tuerca discreta) */}
+          <a
+            href="/admin"
+            className="text-gray-400 hover:text-gray-900 transition-all p-2 text-sm opacity-20 hover:opacity-100 cursor-pointer"
+            title="Panel Admin"
+          >
+            ⚙️
+          </a>
+        </div>
 
       </div>
 
