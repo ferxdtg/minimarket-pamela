@@ -14,9 +14,10 @@ import {
 import Image from "next/image";
 
 export default function AdminProductsPage() {
-  // Estado de Navegación por Pestañas
+  // Navegación principal
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos">("inventario");
 
+  // Estados de Inventario
   const [products, setProducts] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -31,11 +32,15 @@ export default function AdminProductsPage() {
   const [image, setImage] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Estados de Pedidos
+  const [orders, setOrders] = useState<any[]>([]);
+  const [orderFilter, setOrderFilter] = useState<"todos" | "pendiente" | "entregado">("todos");
+
   // Referencias para carga de imágenes
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Cargar productos en tiempo real desde Firestore
+  // 1. Cargar Productos en tiempo real desde Firestore
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -44,7 +49,16 @@ export default function AdminProductsPage() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Manejo de conversión de imagen a Base64
+  // 2. Cargar Pedidos en tiempo real desde Firestore
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "orders"), (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setOrders(list);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Conversión de Imagen a Base64
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -56,7 +70,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  // 3. Limpiar formulario
+  // Limpiar formulario
   const resetForm = () => {
     setEditingId(null);
     setName("");
@@ -68,7 +82,7 @@ export default function AdminProductsPage() {
     setImage("");
   };
 
-  // 4. Cargar datos del producto seleccionado para editar
+  // Cargar datos en el formulario para editar
   const handleEdit = (product: any) => {
     setEditingId(product.id);
     setName(product.name || "");
@@ -81,7 +95,7 @@ export default function AdminProductsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // 5. Guardar (Crear o Actualizar)
+  // Guardar (Crear o Actualizar) corrigiendo campos undefined
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price) {
@@ -91,24 +105,23 @@ export default function AdminProductsPage() {
 
     setLoading(true);
     try {
-      const productData = {
+      // Objeto limpio para evitar errores en Firestore por campos undefined
+      const productData: any = {
         name: name.trim(),
-        price: parseFloat(price),
+        price: parseFloat(price) || 0,
         stock: parseInt(stock) || 0,
-        category: category.toLowerCase().trim(),
-        isOnSale,
-        isFeatured,
-        image: image.trim(),
+        category: (category || "abarrotes").toLowerCase().trim(),
+        isOnSale: Boolean(isOnSale),
+        isFeatured: Boolean(isFeatured),
+        image: image ? image.trim() : "",
         updatedAt: serverTimestamp(),
       };
 
       if (editingId) {
         await updateDoc(doc(db, "products", editingId), productData);
       } else {
-        await addDoc(collection(db, "products"), {
-          ...productData,
-          createdAt: serverTimestamp(),
-        });
+        productData.createdAt = serverTimestamp();
+        await addDoc(collection(db, "products"), productData);
       }
 
       resetForm();
@@ -120,7 +133,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  // 6. Eliminar producto
+  // Eliminar producto
   const handleDelete = async (id: string, productName: string) => {
     if (confirm(`¿Estás seguro de que deseas eliminar "${productName}"?`)) {
       try {
@@ -132,10 +145,31 @@ export default function AdminProductsPage() {
     }
   };
 
-  // Filtrar productos por búsqueda
+  // Cambiar estado de un pedido (Pendiente <-> Entregado)
+  const toggleOrderStatus = async (orderId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "entregado" ? "pendiente" : "entregado";
+    try {
+      await updateDoc(doc(db, "orders", orderId), { status: newStatus });
+    } catch (error) {
+      console.error("Error al actualizar el estado del pedido:", error);
+    }
+  };
+
+  // Filtrar Productos
   const filteredProducts = products.filter((p) =>
     p.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Filtrar Pedidos
+  const filteredOrders = orders.filter((o) => {
+    if (orderFilter === "todos") return true;
+    const status = (o.status || "pendiente").toLowerCase();
+    return status === orderFilter;
+  });
+
+  const pendingCount = orders.filter(
+    (o) => (o.status || "pendiente").toLowerCase() === "pendiente"
+  ).length;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-6 max-w-7xl mx-auto space-y-6">
@@ -157,7 +191,7 @@ export default function AdminProductsPage() {
         </div>
       </div>
 
-      {/* Pestañas de Navegación (INVENTARIO / PEDIDOS) */}
+      {/* Pestañas de Navegación */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => setActiveTab("inventario")}
@@ -177,14 +211,14 @@ export default function AdminProductsPage() {
               : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
           }`}
         >
-          🧾 PEDIDOS (5)
+          🧾 PEDIDOS ({pendingCount})
         </button>
       </div>
 
-      {/* Vista de Inventario */}
+      {/* VISTA 1: INVENTARIO */}
       {activeTab === "inventario" ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Formulario (Izquierda) */}
+          {/* Formulario */}
           <div className="lg:col-span-5 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl h-fit space-y-5">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold">
@@ -283,13 +317,11 @@ export default function AdminProductsPage() {
                 </label>
               </div>
 
-              {/* Sección de Imagen del Producto */}
               <div>
                 <label className="text-[11px] font-bold uppercase text-zinc-400 block mb-1.5">
                   Imagen del Producto
                 </label>
 
-                {/* Inputs ocultos de archivo y cámara */}
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -306,7 +338,6 @@ export default function AdminProductsPage() {
                   className="hidden"
                 />
 
-                {/* Previsualización si existe imagen cargada */}
                 {image && (
                   <div className="relative w-full h-36 bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden mb-3 flex items-center justify-center">
                     <Image
@@ -325,7 +356,6 @@ export default function AdminProductsPage() {
                   </div>
                 )}
 
-                {/* Botones de acción de imagen */}
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -358,7 +388,7 @@ export default function AdminProductsPage() {
             </form>
           </div>
 
-          {/* Lista del Catálogo (Derecha) */}
+          {/* Catálogo de Productos */}
           <div className="lg:col-span-7 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-4">
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-lg font-bold">
@@ -424,7 +454,6 @@ export default function AdminProductsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 ml-4">
-                      {/* Botón de Editar */}
                       <button
                         onClick={() => handleEdit(p)}
                         title="Editar producto"
@@ -437,7 +466,6 @@ export default function AdminProductsPage() {
                         ✏️
                       </button>
 
-                      {/* Botón de Eliminar */}
                       <button
                         onClick={() => handleDelete(p.id, p.name)}
                         title="Eliminar producto"
@@ -453,12 +481,153 @@ export default function AdminProductsPage() {
           </div>
         </div>
       ) : (
-        /* Vista de Pedidos */
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 text-center space-y-3">
-          <p className="text-2xl font-bold">Gestión de Pedidos Recibidos</p>
-          <p className="text-sm text-zinc-400">
-            Aquí podrás visualizar las compras enviadas por tus clientes vía WhatsApp o sistema.
-          </p>
+        /* VISTA 2: GESTIÓN DE PEDIDOS */
+        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-6">
+          {/* Barra de Filtros de Pedidos */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
+            <div>
+              <h2 className="text-lg font-bold">Pedidos Recibidos</h2>
+              <p className="text-xs text-zinc-400">
+                Administra los estados de entrega e información de envío de los clientes.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 bg-zinc-950 p-1 rounded-2xl border border-zinc-800 self-start sm:self-auto">
+              <button
+                onClick={() => setOrderFilter("todos")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  orderFilter === "todos"
+                    ? "bg-zinc-800 text-white shadow-md"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                Todos ({orders.length})
+              </button>
+              <button
+                onClick={() => setOrderFilter("pendiente")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  orderFilter === "pendiente"
+                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                ⏳ Pendientes ({pendingCount})
+              </button>
+              <button
+                onClick={() => setOrderFilter("entregado")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  orderFilter === "entregado"
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                ✅ Entregados ({orders.length - pendingCount})
+              </button>
+            </div>
+          </div>
+
+          {/* Lista de Pedidos */}
+          {filteredOrders.length === 0 ? (
+            <div className="text-center py-16 bg-zinc-950 rounded-2xl border border-dashed border-zinc-800 space-y-2">
+              <p className="text-lg font-bold text-zinc-400">No hay pedidos disponibles</p>
+              <p className="text-xs text-zinc-600">
+                Los pedidos registrados en la tienda aparecerán en este panel.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredOrders.map((order) => {
+                const isPickup =
+                  order.shippingType?.toLowerCase().includes("tienda") ||
+                  order.deliveryType?.toLowerCase().includes("tienda") ||
+                  order.isPickup;
+
+                const isDelivered = (order.status || "pendiente").toLowerCase() === "entregado";
+
+                return (
+                  <div
+                    key={order.id}
+                    className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-lg hover:border-zinc-700 transition"
+                  >
+                    <div className="space-y-3">
+                      {/* Cabecera del Pedido */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-base font-bold text-white">
+                            {order.customerName || "Cliente"}
+                          </h3>
+                          <p className="text-xs text-zinc-500">
+                            {order.phone || "Sin teléfono"}
+                          </p>
+                        </div>
+
+                        {/* Etiqueta de Tipo de Envío */}
+                        {isPickup ? (
+                          <span className="bg-[#00FF66] text-black font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-[0_0_12px_rgba(0,255,102,0.4)] tracking-wide">
+                            🏬 Recojo en Tienda
+                          </span>
+                        ) : (
+                          <span className="bg-orange-600 text-white font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-[0_0_12px_rgba(234,88,12,0.5)] tracking-wide">
+                            🛵 Envío a Domicilio
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Dirección en caso de domicilio */}
+                      {!isPickup && order.address && (
+                        <p className="text-xs text-zinc-400 bg-zinc-900 p-2.5 rounded-xl border border-zinc-800">
+                          📍 <span className="font-medium">{order.address}</span>
+                        </p>
+                      )}
+
+                      {/* Lista de productos comprados */}
+                      <div className="border-t border-zinc-800/80 pt-3 space-y-1.5">
+                        <p className="text-[11px] font-bold text-zinc-400 uppercase">
+                          Productos:
+                        </p>
+                        <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                          {order.items?.map((item: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="flex justify-between items-center text-xs text-zinc-300"
+                            >
+                              <span className="truncate pr-2">
+                                {item.quantity}x {item.name}
+                              </span>
+                              <span className="font-bold text-zinc-400 shrink-0">
+                                S/ {Number(item.price * item.quantity).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pie de Pedido y Cambio de Estado */}
+                    <div className="border-t border-zinc-800 pt-3 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-zinc-400">Total:</span>
+                        <span className="text-lg font-black text-red-500">
+                          S/ {Number(order.total || 0).toFixed(2)}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => toggleOrderStatus(order.id, order.status || "pendiente")}
+                        className={`w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                          isDelivered
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30"
+                            : "bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30"
+                        }`}
+                      >
+                        {isDelivered ? "✅ Marcar como Pendiente" : "⏳ Marcar como Entregado"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
