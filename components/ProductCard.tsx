@@ -3,7 +3,19 @@
 import { useCart } from "@/lib/CartContext";
 import Image from "next/image";
 
-export default function ProductCard({ product }: { product: any }) {
+// Interfaz para evitar errores de tipado en rojo
+interface Product {
+  id: string | number;
+  name: string;
+  price: number;
+  stock: number;
+  image?: string;
+  isFeatured?: boolean;
+  isOnSale?: boolean;
+  category?: string;
+}
+
+export default function ProductCard({ product }: { product: Product }) {
   const { cart, increaseQuantity, decreaseQuantity, addToCart } = useCart() as any;
   
   const cartItem = cart?.find((item: any) => item.id === product.id);
@@ -12,7 +24,8 @@ export default function ProductCard({ product }: { product: any }) {
   return (
     <div 
       id={`product-${product.id}`}
-      className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 flex flex-col justify-between shadow-xl transition-all duration-300"
+      // La clase scroll-mt-32 asegura que el buscador no deje la tarjeta escondida bajo el navbar
+      className="scroll-mt-32 bg-zinc-900 border border-zinc-800 rounded-3xl p-5 flex flex-col justify-between shadow-xl transition-all duration-300"
     >
       <div>
         <div className="relative w-full h-48 bg-zinc-800/50 rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
