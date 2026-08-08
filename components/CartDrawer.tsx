@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useCart } from "@/lib/CartContext";
 import { useCartUI } from "@/lib/CartUIContext";
 import CheckoutModal from "./CheckoutModal";
+import WhatsAppCheckout from "./WhatsAppCheckout"; // 1. Importamos el componente que creaste
 import Image from "next/image";
 
 export default function CartDrawer() {
@@ -136,14 +137,17 @@ export default function CartDrawer() {
 
             <button
               onClick={() => setShowCheckout(true)}
-              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold mb-3 transition cursor-pointer shadow-md"
+              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold mb-2 transition cursor-pointer shadow-md"
             >
               Procesar Pedido
             </button>
 
+            {/* 2. Aquí insertamos el botón directo de WhatsApp */}
+            <WhatsAppCheckout />
+
             <button
               onClick={closeCart}
-              className="w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-900 text-white font-bold transition cursor-pointer"
+              className="w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-900 text-white font-bold transition cursor-pointer mt-3"
             >
               ← Seguir comprando
             </button>
