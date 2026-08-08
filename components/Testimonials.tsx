@@ -5,7 +5,7 @@ export default function Testimonials() {
     {
       id: 1,
       nombre: "María Sánchez",
-      zona: "お客様 (Vecina de la Urb. Principal)",
+      zona: "Vecina de la Urb. Principal",
       comentario: "¡Increíble servicio! Pedí abarrotes y productos de limpieza y llegaron en menos de 25 minutos. Todo fresco y muy ordenado.",
       estrellas: 5,
     },
@@ -41,11 +41,11 @@ export default function Testimonials() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
           {opiniones.map((item) => (
             <div 
               key={item.id}
-              className="bg-zinc-800/60 border border-zinc-700/60 rounded-2xl p-6 backdrop-blur-sm flex flex-col justify-between hover:border-red-500/50 transition duration-300 shadow-xl"
+              className="bg-zinc-800/60 border border-zinc-700/60 rounded-2xl p-6 backdrop-blur-sm flex flex-col justify-between hover:border-red-500/50 transition duration-300 shadow-xl h-full"
             >
               <div>
                 <div className="flex text-yellow-400 text-sm mb-4">
@@ -61,7 +61,7 @@ export default function Testimonials() {
                   <h4 className="font-bold text-white text-sm">{item.nombre}</h4>
                   <p className="text-xs text-zinc-400">{item.zona}</p>
                 </div>
-                <span className="w-8 h-8 rounded-full bg-red-600/20 text-red-500 font-bold flex items-center justify-center text-xs">
+                <span className="w-8 h-8 rounded-full bg-red-600/20 text-red-500 font-bold flex items-center justify-center text-xs shrink-0">
                   ✓
                 </span>
               </div>
