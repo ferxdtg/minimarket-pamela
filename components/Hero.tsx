@@ -13,8 +13,6 @@ export default function Hero() {
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-red-600 via-orange-600 to-zinc-900 text-white shadow-xl pb-10">
       
-      <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14 grid md:grid-cols-12 gap-8 items-center relative z-10">
         
         <div className="md:col-span-7 text-center md:text-left">
