@@ -22,13 +22,37 @@ export default function CartDrawer() {
 
   const [showCheckout, setShowCheckout] = useState(false);
 
-  if (!cartOpen) {
-    return null;
-  }
-
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex justify-end">
-      <div className="w-full max-w-md h-full bg-orange-50 shadow-2xl p-6 flex flex-col">
+    <div
+      className={`
+        fixed
+        inset-0
+        z-50
+        bg-black/40
+        flex
+        justify-end
+        transition-opacity
+        duration-300
+        ${cartOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}
+      `}
+    >
+      <div
+        className={`
+          w-full
+          max-w-md
+          h-full
+          bg-orange-50
+          shadow-2xl
+          p-6
+          flex
+          flex-col
+          transform
+          transition-transform
+          duration-300
+          ease-in-out
+          ${cartOpen ? "translate-x-0" : "translate-x-full"}
+        `}
+      >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-black">🛒 Mi carrito</h2>
           <button
@@ -112,7 +136,7 @@ export default function CartDrawer() {
 
             <button
               onClick={() => setShowCheckout(true)}
-              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold mb-3 transition cursor-pointer"
+              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold mb-3 transition cursor-pointer shadow-md"
             >
               Procesar Pedido
             </button>
@@ -127,6 +151,9 @@ export default function CartDrawer() {
             {showCheckout && (
               <CheckoutModal
                 cartItems={cart}
+                onSuccess={() => {
+                  cart.forEach(item => removeFromCart(item.id));
+                }}
                 onClose={() => {
                   setShowCheckout(false);
                   closeCart();
