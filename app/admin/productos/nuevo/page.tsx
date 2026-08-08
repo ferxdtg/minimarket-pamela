@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, addDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 
 const defaultProducts = [
-  { id: 101, name: "Arroz Costeño", price: 5.90, stock: 50, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/arrozcosteno.jpg", salesCount: 120 },
-  { id: 102, name: "Leche Gloria", price: 4.50, stock: 30, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/lechegloria.jpg", salesCount: 120 },
-  { id: 103, name: "Sopa Maruchan", price: 6.90, stock: 25, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/maruchan.jpg", salesCount: 120 },
-  { id: 104, name: "Bizcocho Bimbo", price: 7.50, stock: 20, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/bizcochobimbo.jpg", salesCount: 120 },
+  { id: 101, name: "Arroz Costeño", price: 5.90, stock: 50, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/arrozcosteno.jpg" },
+  { id: 102, name: "Leche Gloria", price: 4.50, stock: 30, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/lechegloria.jpg" },
+  { id: 103, name: "Sopa Maruchan", price: 6.90, stock: 25, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/maruchan.jpg" },
+  { id: 104, name: "Bizcocho Bimbo", price: 7.50, stock: 20, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/bizcochobimbo.jpg" },
 ];
 
 export default function AdminPage() {
@@ -26,20 +28,30 @@ export default function AdminPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('minimarket_products');
-    let existingProducts = saved ? JSON.parse(saved) : [];
+  // Cargar productos desde Firestore
+  const fetchProducts = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "products"));
+      const list: any[] = [];
+      querySnapshot.forEach((docSnap) => {
+        list.push({ firebaseId: docSnap.id, ...docSnap.data() });
+      });
 
-    // Verificamos si los productos por defecto ya están incluidos
-    const hasDefaults = existingProducts.some((p: any) => p.id >= 101 && p.id <= 104);
-
-    if (!hasDefaults) {
-      // Si no están, los combinamos al inicio o final de los productos existentes
-      existingProducts = [...defaultProducts, ...existingProducts];
-      localStorage.setItem('minimarket_products', JSON.stringify(existingProducts));
+      // Si está vacío, inicializamos con los productos por defecto en Firestore
+      if (list.length === 0) {
+        for (const p of defaultProducts) {
+          await setDoc(doc(db, "products", String(p.id)), p);
+          list.push(p);
+        }
+      }
+      setRecentProducts(list);
+    } catch (error) {
+      console.error("Error al cargar de Firestore:", error);
     }
+  };
 
-    setRecentProducts(existingProducts);
+  useEffect(() => {
+    fetchProducts();
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,15 +157,13 @@ export default function AdminPage() {
     };
 
     try {
-      const existing = JSON.parse(localStorage.getItem('minimarket_products') || '[]');
-      const updatedList = [newProduct, ...existing];
-
-      localStorage.setItem('minimarket_products', JSON.stringify(updatedList));
-      setRecentProducts(updatedList);
-      window.dispatchEvent(new Event('product_added'));
+      // Guardar en Firestore usando el id como nombre del documento
+      await setDoc(doc(db, "products", String(newProduct.id)), newProduct);
+      
+      await fetchProducts();
 
       setIsLoading(false);
-      setSuccessMessage('¡Producto guardado y publicado con éxito!');
+      setSuccessMessage('¡Producto guardado en la nube con éxito!');
       setName('');
       setPrice('');
       setStock('');
@@ -164,19 +174,21 @@ export default function AdminPage() {
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
       setIsLoading(false);
-      alert('El almacenamiento local se ha llenado.');
+      alert('Error al guardar en la base de datos.');
       console.error(error);
     }
   };
 
-  const handleDeleteProduct = (id: number) => {
-    const updatedList = recentProducts.filter((p) => p.id !== id);
-    setRecentProducts(updatedList);
-    localStorage.setItem('minimarket_products', JSON.stringify(updatedList));
-    window.dispatchEvent(new Event('product_added'));
-    
-    setSuccessMessage('¡Producto eliminado correctamente!');
-    setTimeout(() => setSuccessMessage(''), 3000);
+  const handleDeleteProduct = async (id: number, firebaseId?: string) => {
+    try {
+      await deleteDoc(doc(db, "products", String(id)));
+      await fetchProducts();
+      
+      setSuccessMessage('¡Producto eliminado de la nube!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+    }
   };
 
   const filteredAdminProducts = recentProducts.filter((p) =>
@@ -189,11 +201,11 @@ export default function AdminPage() {
         
         <header className="flex items-center justify-between border-b border-zinc-800 pb-6">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-red-500">Panel de Administración</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-red-500">Panel de Administración Cloud</span>
             <h1 className="text-3xl font-black text-white mt-1">Minimarket Pamela</h1>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-2xl text-xs font-bold text-zinc-400">
-            🔒 Modo Admin
+          <div className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-2xl text-xs font-bold text-emerald-400">
+            ☁️ Firebase Conectado
           </div>
         </header>
 
@@ -334,7 +346,7 @@ export default function AdminPage() {
                 disabled={isLoading}
                 className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black shadow-xl transition-all text-sm tracking-wide mt-4 cursor-pointer"
               >
-                {isLoading ? 'Guardando...' : 'Guardar y Publicar en la Web'}
+                {isLoading ? 'Guardando en la nube...' : 'Guardar y Publicar en la Web'}
               </button>
             </form>
           </div>

@@ -1,15 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 import ProductCard from "./ProductCard";
 import SectionTitle from "./SectionTitle";
-
-const defaultProducts = [
-  { id: 101, name: "Arroz Costeño", price: 5.90, stock: 50, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/arrozcosteno.jpg", salesCount: 120 },
-  { id: 102, name: "Leche Gloria", price: 4.50, stock: 30, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/lechegloria.jpg", salesCount: 120 },
-  { id: 103, name: "Sopa Maruchan", price: 6.90, stock: 25, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/maruchan.jpg", salesCount: 120 },
-  { id: 104, name: "Bizcocho Bimbo", price: 7.50, stock: 20, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/bizcochobimbo.jpg", salesCount: 120 },
-];
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([]);
@@ -20,26 +15,16 @@ export default function Products() {
   useEffect(() => {
     setMounted(true);
 
-    const loadProducts = () => {
-      const saved = localStorage.getItem("minimarket_products");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setProducts(parsed);
-        } catch (e) {
-          setProducts(defaultProducts);
-        }
-      } else {
-        setProducts(defaultProducts);
-        localStorage.setItem("minimarket_products", JSON.stringify(defaultProducts));
-      }
-    };
+    // Conexión en tiempo real con Firestore
+    const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
+      const productsData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setProducts(productsData);
+    });
 
-    loadProducts();
-
-    window.addEventListener("storage", loadProducts);
-    window.addEventListener("product_added", loadProducts);
-
+    // Escuchadores de eventos para filtros
     const handleFilterCategory = (e: any) => {
       if (e.detail) {
         setSelectedCategory(e.detail.toLowerCase().trim());
@@ -57,8 +42,7 @@ export default function Products() {
     window.addEventListener("search_product", handleSearchProduct as EventListener);
 
     return () => {
-      window.removeEventListener("storage", loadProducts);
-      window.removeEventListener("product_added", loadProducts);
+      unsubscribe(); // Limpiar la conexión al desmontar
       window.removeEventListener("filter_category", handleFilterCategory as EventListener);
       window.removeEventListener("search_product", handleSearchProduct as EventListener);
     };
