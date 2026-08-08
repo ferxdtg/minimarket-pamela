@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import Image from "next/image";
@@ -12,9 +11,8 @@ export default function SearchBar() {
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
-  // Cargar productos de Firestore al iniciar
+  // Cargar productos al iniciar
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -22,27 +20,23 @@ export default function SearchBar() {
         const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(list);
       } catch (error) {
-        console.error("Error al cargar productos para búsqueda:", error);
+        console.error("Error al cargar productos:", error);
       }
     };
     fetchProducts();
   }, []);
 
-  // Cerrar el buscador automáticamente al hacer clic fuera de él
+  // Cerrar al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filtrar productos según lo que escriba el usuario
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
@@ -62,7 +56,16 @@ export default function SearchBar() {
   const handleSelectProduct = (productId: string) => {
     setIsOpen(false);
     setQuery("");
-    // Opcional: Redirigir o hacer scroll al producto si lo deseas
+    
+    // Desplazarse suavemente hacia el producto en la página
+    const element = document.getElementById(`product-${productId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      element.classList.add("ring-4", "ring-red-600");
+      setTimeout(() => {
+        element.classList.remove("ring-4", "ring-red-600");
+      }, 2000);
+    }
   };
 
   return (
@@ -74,16 +77,16 @@ export default function SearchBar() {
           value={query}
           onChange={handleSearchChange}
           onFocus={() => {
-            if (query.trim() !== "") setIsOpen(true);
+            if (query.trim() !== "" && filteredProducts.length > 0) setIsOpen(true);
           }}
           className="w-full bg-zinc-900 border border-zinc-800 text-white px-4 py-3 pl-10 rounded-2xl text-sm outline-none focus:border-red-600 transition shadow-inner"
         />
         <span className="absolute left-3.5 top-3.5 text-zinc-500 text-sm">🔍</span>
       </div>
 
-      {/* Resultados desplegables */}
+      {/* Sugerencias desplegables con z-index alto para que nunca se oculten */}
       {isOpen && filteredProducts.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-72 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-[99999] max-h-72 overflow-y-auto">
           {filteredProducts.map(p => (
             <div
               key={p.id}
@@ -107,7 +110,7 @@ export default function SearchBar() {
       )}
 
       {isOpen && query.trim() !== "" && filteredProducts.length === 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-4 text-center text-xs text-zinc-400 z-50">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-4 text-center text-xs text-zinc-400 z-[99999]">
           No se encontraron productos
         </div>
       )}
