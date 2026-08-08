@@ -12,30 +12,30 @@ export default function SearchBar() {
   const [isOpen, setIsOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // 1. Cargar productos desde Firebase en tiempo real
+  // 1. Escuchar los productos de Firebase en tiempo real con IDs garantizados como String
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
-      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const list = snapshot.docs.map((doc) => ({
+        id: String(doc.id),
+        ...doc.data()
+      }));
       setProducts(list);
     });
     return () => unsubscribe();
   }, []);
 
-  // 2. Cierre automático al hacer clic fuera del buscador
+  // 2. Cerrar la lista únicamente al hacer clic fuera del componente
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 3. Filtrar sugerencias
+  // 3. Manejo del texto de búsqueda
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
@@ -52,23 +52,36 @@ export default function SearchBar() {
     }
   };
 
-  // 4. Seleccionar producto y hacer scroll
+  // 4. Traslado directo al producto (Lógica idéntica a los botones de categorías)
   const handleSelectProduct = (productId: string | number) => {
+    const targetId = `product-${String(productId)}`;
+    
+    // Cerrar el menú desplegable y limpiar
     setIsOpen(false);
     setQuery("");
 
-    // Pequeña espera para asegurar que el DOM responda correctamente
-    setTimeout(() => {
-      const element = document.getElementById(`product-${productId}`);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "center" });
-        
-        element.classList.add("ring-4", "ring-red-600");
-        setTimeout(() => {
-          element.classList.remove("ring-4", "ring-red-600");
-        }, 2000);
+    // Buscar el elemento por ID y realizar scroll
+    const element = document.getElementById(targetId);
+
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      // Animar el producto para resaltarlo
+      element.classList.add("ring-4", "ring-red-600");
+      setTimeout(() => {
+        element.classList.remove("ring-4", "ring-red-600");
+      }, 2000);
+    } else {
+      // Respaldo: Si la tarjeta no está visible, desplaza al catálogo de productos
+      const catalogSection = 
+        document.getElementById("productos") || 
+        document.getElementById("catalogo") || 
+        document.querySelector("section");
+      
+      if (catalogSection) {
+        catalogSection.scrollIntoView({ behavior: "smooth", block: "start" });
       }
-    }, 50);
+    }
   };
 
   return (
@@ -80,29 +93,25 @@ export default function SearchBar() {
           value={query}
           onChange={handleSearchChange}
           onFocus={() => {
-            if (query.trim() !== "" && filteredProducts.length > 0) {
-              setIsOpen(true);
-            }
+            if (query.trim() !== "" && filteredProducts.length > 0) setIsOpen(true);
           }}
           className="w-full bg-zinc-900 border border-zinc-800 text-white px-4 py-3 pl-10 rounded-2xl text-sm outline-none focus:border-red-600 transition shadow-inner"
         />
-        <span className="absolute left-3.5 top-3.5 text-zinc-500 text-sm">
-          🔍
-        </span>
+        <span className="absolute left-3.5 top-3.5 text-zinc-500 text-sm">🔍</span>
       </div>
 
-      {/* Menú Desplegable */}
+      {/* Lista de sugerencias */}
       {isOpen && query.trim() !== "" && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-[99999] max-h-72 overflow-y-auto">
           {filteredProducts.length > 0 ? (
             filteredProducts.map((p) => (
               <div
                 key={p.id}
+                // onMouseDown + preventDefault evita que el input pierda foco antes de hacer el scroll
                 onMouseDown={(e) => {
-                  // Previene interferencias con el foco
                   e.preventDefault();
+                  handleSelectProduct(p.id);
                 }}
-                onClick={() => handleSelectProduct(p.id)}
                 className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
               >
                 <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
