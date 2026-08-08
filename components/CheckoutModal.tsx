@@ -72,16 +72,14 @@ export default function CheckoutModal({ cartItems, onClose, onSuccess }: any) {
         });
       });
 
-      // Mensaje para WhatsApp
       const message = `Hola, nuevo pedido de *${name}* (${deliveryType === 'pickup' ? 'Recojo en tienda' : 'Envío a domicilio'}):\n` + 
                       cartItems.map((i: any) => `• ${i.quantity}x ${i.name}`).join('\n') +
                       `\n\nDirección/Modalidad: ${finalAddress}`;
       
-      window.open(`https://wa.me/519XXXXXXXXX?text=${encodeURIComponent(message)}`, '_blank');
+      window.open(`https://wa.me/51950323959?text=${encodeURIComponent(message)}`, '_blank');
 
       alert("¡Pedido realizado con éxito!");
       
-      // Limpiar el carrito y cerrar modales
       if (onSuccess) onSuccess();
       onClose();
     } catch (error) {
@@ -100,10 +98,23 @@ export default function CheckoutModal({ cartItems, onClose, onSuccess }: any) {
         </div>
 
         <form onSubmit={handleConfirmOrder} className="space-y-4">
-          <input required type="text" placeholder="Nombre completo" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-zinc-800 p-3 rounded-xl border border-zinc-700 text-sm outline-none text-white" />
-          <input required type="text" placeholder="Teléfono" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-zinc-800 p-3 rounded-xl border border-zinc-700 text-sm outline-none text-white" />
+          <input 
+            required 
+            type="text" 
+            placeholder="Nombre completo" 
+            value={name} 
+            onChange={(e) => setName(e.target.value)} 
+            className="w-full bg-zinc-800 p-3 rounded-xl border border-zinc-700 text-sm outline-none text-white" 
+          />
+          <input 
+            required 
+            type="text" 
+            placeholder="Teléfono" 
+            value={phone} 
+            onChange={(e) => setPhone(e.target.value)} 
+            className="w-full bg-zinc-800 p-3 rounded-xl border border-zinc-700 text-sm outline-none text-white" 
+          />
           
-          {/* Selector de Tipo de Entrega */}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -121,17 +132,31 @@ export default function CheckoutModal({ cartItems, onClose, onSuccess }: any) {
             </button>
           </div>
 
-          {/* Dirección o Ubicación condicional */}
           {deliveryType === 'delivery' && (
             <div className="space-y-2">
-              <input required type="text" placeholder="Dirección de entrega" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full bg-zinc-800 p-3 rounded-xl border border-zinc-700 text-sm outline-none text-white" />
-              <button type="button" onClick={getLocation} className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-xs font-bold transition cursor-pointer text-white">
+              <input 
+                required 
+                type="text" 
+                placeholder="Dirección de entrega" 
+                value={address} 
+                onChange={(e) => setAddress(e.target.value)} 
+                className="w-full bg-zinc-800 p-3 rounded-xl border border-zinc-700 text-sm outline-none text-white" 
+              />
+              <button 
+                type="button" 
+                onClick={getLocation} 
+                className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-xs font-bold transition cursor-pointer text-white"
+              >
                 {locLoading ? "Buscando ubicación..." : "📍 Usar mi ubicación actual"}
               </button>
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="w-full py-4 bg-red-600 rounded-xl font-black text-white hover:bg-red-700 cursor-pointer shadow-lg transition">
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className="w-full py-4 bg-red-600 rounded-xl font-black text-white hover:bg-red-700 cursor-pointer shadow-lg transition"
+          >
             {loading ? "Procesando..." : "Confirmar Pedido"}
           </button>
         </form>
