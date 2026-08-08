@@ -8,7 +8,7 @@ export default function ProductCard({ product }: { product: any }) {
   const { addToCart } = useCart() as any;
   const [isFavorite, setIsFavorite] = useState(false);
   
-  // Estado local del contador de la tarjeta
+  // Estado local del contador
   const [localQty, setLocalQty] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -22,7 +22,7 @@ export default function ProductCard({ product }: { product: any }) {
   const displayPrice = !isNaN(rawPrice) ? rawPrice.toFixed(2) : "0.00";
   const stockNumber = Number(product?.stock) || 0;
 
-  // Botón (+) de la cápsula local
+  // Botón (+) de la cápsula
   const handleIncrease = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (stockNumber > 0 && localQty < stockNumber) {
@@ -30,7 +30,7 @@ export default function ProductCard({ product }: { product: any }) {
     }
   };
 
-  // Botón (-) de la cápsula local
+  // Botón (-) de la cápsula
   const handleDecrease = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (localQty > 0) {
@@ -38,19 +38,19 @@ export default function ProductCard({ product }: { product: any }) {
     }
   };
 
-  // Disparador al hacer clic en "Selecciona cantidad"
+  // Acción de agregar al carrito
   const handleAddToCart = () => {
     if (stockNumber <= 0) return;
 
     const qtyToAdd = localQty === 0 ? 1 : localQty;
 
-    // 1. Iniciar animación de recorrido (Slider / Sweep)
+    // 1. Animación de barrido/deslizamiento
     setIsAnimating(true);
 
     setTimeout(() => {
       setIsAnimating(false);
 
-      // 2. Enviar datos al carrito
+      // 2. Guardar en el carrito global
       if (addToCart) {
         addToCart({
           id: productId,
@@ -62,15 +62,13 @@ export default function ProductCard({ product }: { product: any }) {
         });
       }
 
-      // 3. Mostrar la ventana emergente Pop-up
+      // 3. Abrir emergente
       setShowModal(true);
 
-      // 4. Resetear el contador de la tarjeta a 0 (regresa al estado pasivo)
+      // 4. Restablecer contador a 0 (vuelve a estar pasivo)
       setLocalQty(0);
     }, 400);
   };
-
-  const isSelected = localQty > 0;
 
   return (
     <>
@@ -79,7 +77,7 @@ export default function ProductCard({ product }: { product: any }) {
         className="scroll-mt-32 bg-white rounded-3xl p-5 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 transition-all duration-300 hover:shadow-lg relative"
       >
         <div>
-          {/* Banner Superior: Imagen, Badge e Ícono de Corazón */}
+          {/* Banner Superior */}
           <div className="relative w-full h-52 bg-gray-50/70 rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
             {(product?.isOnSale || product?.isFeatured) && (
               <span className="absolute top-3 left-3 bg-red-600 text-white text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 shadow-sm z-10">
@@ -106,18 +104,16 @@ export default function ProductCard({ product }: { product: any }) {
             )}
           </div>
 
-          {/* Nombre del Producto */}
+          {/* Detalles */}
           <h3 className="text-xl font-bold text-slate-900 mb-1 truncate">
             {product?.name || "Producto sin nombre"}
           </h3>
 
-          {/* Estrellas y Reseñas */}
           <div className="flex items-center gap-1 mb-3">
             <span className="text-amber-400 text-sm">⭐⭐⭐⭐⭐</span>
             <span className="text-xs text-gray-400 font-medium">(120)</span>
           </div>
 
-          {/* Precio y Badge de Stock */}
           <div className="flex items-center gap-3 mb-5">
             <span className="text-2xl font-black text-red-600">
               S/{displayPrice}
@@ -128,9 +124,8 @@ export default function ProductCard({ product }: { product: any }) {
           </div>
         </div>
 
-        {/* Cápsula de Controles y Botón Animado */}
+        {/* Cápsula de Controles */}
         <div className="space-y-4 flex flex-col items-center w-full">
-          {/* Cápsula Selector 3D */}
           <div className="flex items-center justify-between bg-slate-100/90 border border-slate-200/80 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] rounded-full p-1.5 w-48">
             <button
               onClick={handleDecrease}
@@ -153,21 +148,17 @@ export default function ProductCard({ product }: { product: any }) {
             </button>
           </div>
 
-          {/* Botón Principal (Se fuerza el cambio de color con inline-styles) */}
+          {/* Botón Principal (Se vuelve ROJO dinámicamente si localQty > 0) */}
           <button
             onClick={handleAddToCart}
             disabled={stockNumber <= 0}
-            style={{
-              backgroundColor: isSelected ? "#dc2626" : "#f1f5f9",
-              color: isSelected ? "#ffffff" : "#475569",
-              borderColor: isSelected ? "#dc2626" : "#cbd5e1",
-              boxShadow: isSelected
-                ? "0 4px 14px rgba(220, 38, 38, 0.4)"
-                : "0 2px 6px rgba(0, 0, 0, 0.04)",
-            }}
-            className="relative overflow-hidden w-full py-3.5 font-bold rounded-2xl transition-all duration-300 cursor-pointer text-sm border active:scale-[0.98]"
+            className={`relative overflow-hidden w-full py-3.5 font-bold rounded-2xl transition-all duration-300 cursor-pointer text-sm border active:scale-[0.98] ${
+              localQty > 0
+                ? "bg-red-600 text-white border-red-600 shadow-[0_4px_14px_rgba(220,38,38,0.35)] hover:bg-red-700"
+                : "bg-slate-100 text-slate-600 border-slate-200/60 hover:bg-slate-200/80 shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
+            }`}
           >
-            {/* Barrido / Animación de Slide de lado a lado */}
+            {/* Animación de barrido al dar clic */}
             <span
               className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent transition-transform duration-500 ease-in-out pointer-events-none ${
                 isAnimating ? "translate-x-full" : "-translate-x-full"
@@ -181,7 +172,7 @@ export default function ProductCard({ product }: { product: any }) {
         </div>
       </div>
 
-      {/* Ventana Emergente Pop-up */}
+      {/* Pop-up Modal de confirmación */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[999999]">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-200">
