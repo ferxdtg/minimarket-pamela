@@ -24,7 +24,7 @@ export default function Products() {
       setProducts(productsData);
     });
 
-    // Escuchadores de eventos para filtros
+    // Escuchadores de eventos globales para categorías y búsquedas
     const handleFilterCategory = (e: any) => {
       if (e.detail) {
         setSelectedCategory(e.detail.toLowerCase().trim());
@@ -48,12 +48,13 @@ export default function Products() {
     };
   }, []);
 
+  // Formatear datos manteniendo números estrictos para precios y stock
   const formattedProducts = products.map((p) => ({
     id: String(p.id),
     name: p.name || "",
-    price: Number(p.price || 0),
-    stock: Number(p.stock || 0),
-    image: p.image && p.image.trim() !== "" ? p.image : "",
+    price: typeof p.price === "number" ? p.price : parseFloat(p.price || 0),
+    stock: typeof p.stock === "number" ? p.stock : parseInt(p.stock || 0),
+    image: p.image && p.image.trim() !== "" ? p.image : "/placeholder.png",
     category: p.category ? p.category.toLowerCase().trim() : "abarrotes",
     isFeatured: Boolean(p.isFeatured),
     isOnSale: Boolean(p.isOnSale),
@@ -75,8 +76,8 @@ export default function Products() {
   });
 
   return (
-    <section id="productos-section" className="max-w-7xl mx-auto py-20 px-6 scroll-mt-10">
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+    <section id="productos-section" className="max-w-7xl mx-auto py-12 px-6 scroll-mt-10">
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
         <SectionTitle
           title={
             searchQuery
@@ -93,7 +94,7 @@ export default function Products() {
               setSelectedCategory("todos");
               setSearchQuery("");
             }}
-            className="text-xs font-black bg-red-100 text-red-600 px-5 py-2.5 rounded-full hover:bg-red-200 transition self-start md:self-auto cursor-pointer"
+            className="text-xs font-black bg-red-600/20 text-red-500 border border-red-600/30 px-5 py-2.5 rounded-full hover:bg-red-600/30 transition self-start md:self-auto cursor-pointer"
           >
             Ver todos los productos ✕
           </button>
@@ -101,12 +102,12 @@ export default function Products() {
       </div>
 
       {filteredProducts.length === 0 ? (
-        <div className="text-center py-20 bg-gray-50 rounded-3xl border border-dashed border-gray-300">
-          <p className="text-xl font-bold text-gray-700">No encontramos productos en esta sección.</p>
-          <p className="text-sm text-gray-500 mt-1">Intenta con otra categoría o término de búsqueda.</p>
+        <div className="text-center py-20 bg-zinc-900/50 rounded-3xl border border-dashed border-zinc-800">
+          <p className="text-lg font-bold text-zinc-400">No encontramos productos en esta sección.</p>
+          <p className="text-xs text-zinc-600 mt-1">Intenta con otra categoría o término de búsqueda.</p>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {mounted &&
             filteredProducts.map((p) => (
               <ProductCard key={p.id} product={p} />

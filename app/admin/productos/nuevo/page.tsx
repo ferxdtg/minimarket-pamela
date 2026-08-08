@@ -95,38 +95,50 @@ export default function AdminProductsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Guardar (Crear o Actualizar) corrigiendo campos undefined
+  // Guardar (Crear o Actualizar) con sanitización de valores anti-undefined
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!name.trim() || !price) {
       alert("Por favor completa el nombre y el precio del producto.");
       return;
     }
 
     setLoading(true);
+
     try {
-      // Objeto limpio para evitar errores en Firestore por campos undefined
-      const productData: any = {
+      // Construimos el objeto garantizando que NINGÚN campo sea 'undefined'
+      const productData: Record<string, any> = {
         name: name.trim(),
         price: parseFloat(price) || 0,
         stock: parseInt(stock) || 0,
-        category: (category || "abarrotes").toLowerCase().trim(),
+        category: category ? category.toLowerCase().trim() : "abarrotes",
         isOnSale: Boolean(isOnSale),
         isFeatured: Boolean(isFeatured),
-        image: image ? image.trim() : "",
+        image: image ? image : "",
         updatedAt: serverTimestamp(),
       };
 
+      // Limpieza preventiva
+      Object.keys(productData).forEach((key) => {
+        if (productData[key] === undefined) {
+          productData[key] = "";
+        }
+      });
+
       if (editingId) {
-        await updateDoc(doc(db, "products", editingId), productData);
+        // Actualizar producto existente
+        const docRef = doc(db, "products", editingId);
+        await updateDoc(docRef, productData);
       } else {
+        // Crear nuevo producto
         productData.createdAt = serverTimestamp();
         await addDoc(collection(db, "products"), productData);
       }
 
       resetForm();
     } catch (error) {
-      console.error("Error al guardar producto:", error);
+      console.error("Error al guardar en Firestore:", error);
       alert("Ocurrió un error al guardar el producto.");
     } finally {
       setLoading(false);
@@ -185,7 +197,7 @@ export default function AdminProductsPage() {
           <span className="text-xs text-zinc-400 bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
             ferxdtg@gmail.com
           </span>
-          <button className="text-xs bg-zinc-900 hover:bg-zinc-800 text-red-400 px-4 py-2 rounded-full font-bold border border-zinc-800 transition">
+          <button className="text-xs bg-zinc-900 hover:bg-zinc-800 text-red-400 px-4 py-2 rounded-full font-bold border border-zinc-800 transition cursor-pointer">
             Cerrar Sesión
           </button>
         </div>
@@ -228,7 +240,7 @@ export default function AdminProductsPage() {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 rounded-full transition"
+                  className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 rounded-full transition cursor-pointer"
                 >
                   Cancelar Edición ✕
                 </button>
@@ -302,7 +314,7 @@ export default function AdminProductsPage() {
                     type="checkbox"
                     checked={isOnSale}
                     onChange={(e) => setIsOnSale(e.target.checked)}
-                    className="w-4 h-4 accent-red-600"
+                    className="w-4 h-4 accent-red-600 cursor-pointer"
                   />
                 </label>
 
@@ -312,7 +324,7 @@ export default function AdminProductsPage() {
                     type="checkbox"
                     checked={isFeatured}
                     onChange={(e) => setIsFeatured(e.target.checked)}
-                    className="w-4 h-4 accent-red-600"
+                    className="w-4 h-4 accent-red-600 cursor-pointer"
                   />
                 </label>
               </div>
