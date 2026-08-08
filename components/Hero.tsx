@@ -11,7 +11,7 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white shadow-xl border-b-8 border-zinc-900">
+    <section className="relative overflow-hidden bg-gradient-to-b from-red-600 via-orange-600 to-zinc-900 text-white shadow-xl pb-10">
       
       <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
 
