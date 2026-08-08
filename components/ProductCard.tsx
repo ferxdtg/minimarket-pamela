@@ -8,59 +8,60 @@ export default function ProductCard({ product }: { product: any }) {
   const { cart, increaseQuantity, decreaseQuantity, addToCart } = useCart() as any;
   const [isFavorite, setIsFavorite] = useState(false);
 
-  // 1. Sanitización de ID y Cantidad (Previene 'NaN' de forma absoluta)
-  const productIdStr = String(product?.id ?? "");
-  const cartItem = cart?.find((item: any) => String(item.id) === productIdStr);
-  
-  const rawQuantity = cartItem?.quantity;
-  const quantity = typeof rawQuantity === "number" && !isNaN(rawQuantity) ? rawQuantity : 0;
+  // Normalización estricta de ID para sincronizar con el CartContext
+  const rawId = product?.id ?? "";
+  const productId = typeof rawId === "number" ? rawId : String(rawId);
 
-  // 2. Sanitización de Precio y Stock
+  // Buscar el producto en el carrito
+  const cartItem = cart?.find((item: any) => String(item.id) === String(productId));
+  const quantity = cartItem && typeof cartItem.quantity === "number" ? cartItem.quantity : 0;
+
+  // Sanitización de Precio y Stock
   const rawPrice = Number(product?.price);
   const displayPrice = !isNaN(rawPrice) ? rawPrice.toFixed(2) : "0.00";
   const stockNumber = Number(product?.stock) || 0;
 
-  // Handlers seguros para el carrito
+  // Handlers sincronizados
   const handleAddToCart = () => {
     if (!addToCart) return;
     addToCart({
       ...product,
-      id: product.id,
+      id: productId,
       price: !isNaN(rawPrice) ? rawPrice : 0,
       stock: stockNumber,
     });
   };
 
-  const handleIncrease = () => {
+  const handleIncrease = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (quantity === 0) {
       handleAddToCart();
     } else if (increaseQuantity) {
-      increaseQuantity(product.id);
+      increaseQuantity(productId);
     }
   };
 
-  const handleDecrease = () => {
+  const handleDecrease = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (decreaseQuantity && quantity > 0) {
-      decreaseQuantity(product.id);
+      decreaseQuantity(productId);
     }
   };
 
   return (
     <div
-      id={`product-${product.id}`}
+      id={`product-${productId}`}
       className="scroll-mt-32 bg-white rounded-3xl p-5 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 transition-all duration-300 hover:shadow-lg"
     >
       <div>
         {/* Banner Superior: Imagen, Badge e Ícono de Corazón */}
         <div className="relative w-full h-52 bg-gray-50/70 rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
-          {/* Badge 'Más vendido' / 'Oferta' */}
           {(product.isOnSale || product.isFeatured) && (
             <span className="absolute top-3 left-3 bg-red-600 text-white text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 shadow-sm z-10">
               🔥 {product.isOnSale ? "Oferta" : "Más vendido"}
             </span>
           )}
 
-          {/* Botón de Favorito */}
           <button
             onClick={() => setIsFavorite(!isFavorite)}
             className="absolute top-3 right-3 w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.08)] text-gray-400 hover:text-red-500 transition z-10 cursor-pointer"
@@ -68,7 +69,6 @@ export default function ProductCard({ product }: { product: any }) {
             {isFavorite ? "❤️" : "🤍"}
           </button>
 
-          {/* Imagen del Producto */}
           {product.image && product.image !== "/placeholder.png" ? (
             <Image
               src={product.image}
@@ -103,11 +103,10 @@ export default function ProductCard({ product }: { product: any }) {
         </div>
       </div>
 
-      {/* Controles con Profundidad 3D y Cápsula Estilizada */}
+      {/* Cápsula de Controles y Botón Animado */}
       <div className="space-y-4 flex flex-col items-center w-full">
-        {/* Cápsula de Selector con Profundidad e Inset Shadow */}
+        {/* Cápsula Selector 3D */}
         <div className="flex items-center justify-between bg-slate-100/90 border border-slate-200/80 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] rounded-full p-1.5 w-48">
-          {/* Botón (-) Blanco con Sombra 3D */}
           <button
             onClick={handleDecrease}
             disabled={quantity <= 0}
@@ -116,12 +115,10 @@ export default function ProductCard({ product }: { product: any }) {
             -
           </button>
 
-          {/* Valor de Cantidad Garantizado Numérico */}
           <span className="text-slate-900 font-black text-lg px-2 select-none">
             {quantity}
           </span>
 
-          {/* Botón (+) Rojo con Relieve y Sombra de Color */}
           <button
             onClick={handleIncrease}
             disabled={stockNumber > 0 && quantity >= stockNumber}
@@ -131,21 +128,26 @@ export default function ProductCard({ product }: { product: any }) {
           </button>
         </div>
 
-        {/* Botón Inferior "Selecciona cantidad" */}
+        {/* Botón con animación de brillo / slider en hover/click */}
         <button
           onClick={handleIncrease}
           disabled={stockNumber <= 0}
-          className={`w-full py-3.5 font-bold rounded-2xl transition cursor-pointer text-sm border shadow-[0_2px_6px_rgba(0,0,0,0.04)] ${
+          className={`relative group overflow-hidden w-full py-3.5 font-bold rounded-2xl transition-all duration-300 cursor-pointer text-sm border shadow-[0_2px_6px_rgba(0,0,0,0.04)] ${
             quantity > 0
-              ? "bg-red-600 text-white border-red-600 shadow-[0_4px_14px_rgba(220,38,38,0.35)] hover:bg-red-700"
-              : "bg-slate-100 text-slate-500 border-slate-200/60 hover:bg-slate-200/80"
+              ? "bg-red-600 text-white border-red-600 shadow-[0_4px_14px_rgba(220,38,38,0.35)]"
+              : "bg-slate-100 text-slate-600 border-slate-200/60 hover:bg-slate-200/80"
           }`}
         >
-          {stockNumber <= 0
-            ? "Agotado"
-            : quantity > 0
-            ? `Agregado (${quantity})`
-            : "Selecciona cantidad"}
+          {/* Capa animada del slider (Efecto resplandor de lado a lado) */}
+          <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
+
+          <span className="relative z-10">
+            {stockNumber <= 0
+              ? "Agotado"
+              : quantity > 0
+              ? `Agregado (${quantity})`
+              : "Selecciona cantidad"}
+          </span>
         </button>
       </div>
     </div>
