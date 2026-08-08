@@ -12,15 +12,14 @@ export default function ProductCard({ product }: { product: any }) {
   // 1. Normalización estricta de ID
   const productId = String(product?.id ?? "");
 
-  // 2. Obtención ultra-segura de la cantidad desde el Carrito
+  // 2. Obtención de cantidad desde el Carrito
   const cartItem = cart?.find((item: any) => String(item.id) === productId);
-  
-  // Garantiza que la variable 'quantity' JAMÁS sea NaN, undefined o null
+
   const parseQty = (val: any) => {
     const num = parseInt(val, 10);
     return isNaN(num) || num < 0 ? 0 : num;
   };
-  
+
   const quantity = parseQty(cartItem?.quantity);
 
   // 3. Normalización de Precio y Stock
@@ -33,32 +32,45 @@ export default function ProductCard({ product }: { product: any }) {
   const displayPrice = rawPrice.toFixed(2);
   const stockNumber = parseQty(product?.stock);
 
-  // Handlers de la lógica de negocio
-  const handleAddToCart = () => {
-    if (!addToCart) return;
-
-    // Animación de deslizamiento al presionar el botón
+  // Animación de deslizamiento de la barra
+  const triggerSliderAnimation = () => {
     setIsAnimating(true);
-    setTimeout(() => setIsAnimating(false), 500);
-
-    addToCart({
-      ...product,
-      id: productId,
-      price: rawPrice,
-      stock: stockNumber,
-      quantity: 1,
-    });
+    setTimeout(() => setIsAnimating(false), 600);
   };
 
-  const handleIncrease = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Acción del botón principal "Selecciona cantidad"
+  const handleMainButtonClick = () => {
+    if (stockNumber <= 0) return;
+
+    triggerSliderAnimation();
+
     if (quantity === 0) {
-      handleAddToCart();
-    } else if (increaseQuantity) {
-      increaseQuantity(productId);
+      // Agrega por primera vez (1 unidad)
+      if (addToCart) {
+        addToCart({
+          ...product,
+          id: productId,
+          price: rawPrice,
+          stock: stockNumber,
+          quantity: 1,
+        });
+      }
     }
   };
 
+  // Botón (+) de la cápsula
+  const handleIncrease = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (stockNumber > 0 && quantity < stockNumber) {
+      if (quantity === 0) {
+        handleMainButtonClick();
+      } else if (increaseQuantity) {
+        increaseQuantity(productId);
+      }
+    }
+  };
+
+  // Botón (-) de la cápsula
   const handleDecrease = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (decreaseQuantity && quantity > 0) {
@@ -133,7 +145,6 @@ export default function ProductCard({ product }: { product: any }) {
             -
           </button>
 
-          {/* Renderizado Seguro: Imposible que se muestre NaN */}
           <span className="text-slate-900 font-black text-lg px-2 select-none">
             {quantity}
           </span>
@@ -147,9 +158,9 @@ export default function ProductCard({ product }: { product: any }) {
           </button>
         </div>
 
-        {/* Botón con animación tipo Slider de lado a lado */}
+        {/* Botón Principal con animación Slider de lado a lado */}
         <button
-          onClick={handleIncrease}
+          onClick={handleMainButtonClick}
           disabled={stockNumber <= 0}
           className={`relative overflow-hidden w-full py-3.5 font-bold rounded-2xl transition-all duration-300 cursor-pointer text-sm border shadow-[0_2px_6px_rgba(0,0,0,0.04)] ${
             quantity > 0
@@ -157,7 +168,7 @@ export default function ProductCard({ product }: { product: any }) {
               : "bg-slate-100 text-slate-600 border-slate-200/60 hover:bg-slate-200/80"
           }`}
         >
-          {/* Slider de barrido animado de izquierda a derecha al hacer clic */}
+          {/* Animación del barrido / slider brillante */}
           <span
             className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-out pointer-events-none ${
               isAnimating ? "translate-x-full" : "-translate-x-full"
@@ -168,7 +179,7 @@ export default function ProductCard({ product }: { product: any }) {
             {stockNumber <= 0
               ? "Agotado"
               : quantity > 0
-              ? `Agregado (${quantity})`
+              ? `Agregado al carrito (${quantity})`
               : "Selecciona cantidad"}
           </span>
         </button>
