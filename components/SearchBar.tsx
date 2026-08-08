@@ -26,13 +26,17 @@ export default function SearchBar() {
 
   // 2. Cerrar si se hace clic fuera del buscador
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   // 3. Filtrar sugerencias
@@ -58,19 +62,23 @@ export default function SearchBar() {
     setQuery("");
 
     const targetId = `product-${productId}`;
-    const element = document.getElementById(targetId);
+    
+    // Usamos un pequeño retraso para asegurar que el DOM móvil procese el cierre del menú de forma fluida
+    setTimeout(() => {
+      const element = document.getElementById(targetId);
 
-    if (element) {
-      // Si la tarjeta está montada en la pantalla, hace scroll hasta ella
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
-      element.classList.add("ring-4", "ring-red-600");
-      setTimeout(() => {
-        element.classList.remove("ring-4", "ring-red-600");
-      }, 2000);
-    } else {
-      // Si el producto no está dibujado por filtros de categoría, navega al ancla directa
-      window.location.hash = targetId;
-    }
+      if (element) {
+        // Si la tarjeta está montada en la pantalla, hace scroll hasta ella
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.classList.add("ring-4", "ring-red-600");
+        setTimeout(() => {
+          element.classList.remove("ring-4", "ring-red-600");
+        }, 2000);
+      } else {
+        // Si el producto no está dibujado por filtros de categoría, navega al ancla directa
+        window.location.hash = targetId;
+      }
+    }, 50);
   };
 
   return (
@@ -96,12 +104,12 @@ export default function SearchBar() {
             filteredProducts.map((p) => (
               <div
                 key={p.id}
-                onMouseDown={(e) => {
-                  // Cancela la pérdida de foco prematura del input
+                onPointerDown={(e) => {
+                  // onPointerDown unifica de forma perfecta el clic de PC y el toque de Celular
                   e.preventDefault();
                   handleSelectProduct(p.id);
                 }}
-                className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
+                className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none active:bg-zinc-700"
               >
                 <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
                   {p.image ? (
