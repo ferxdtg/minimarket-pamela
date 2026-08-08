@@ -149,7 +149,6 @@ export default function AdminProductsPage() {
     setLoading(true);
 
     try {
-      // Forzamos tipos primitivos explícitos
       const cleanName = String(name || "").trim();
       const cleanPrice = Number(parseFloat(price) || 0);
       const cleanStock = Number(parseInt(stock, 10) || 0);
@@ -160,7 +159,6 @@ export default function AdminProductsPage() {
       const nowIso = new Date().toISOString();
 
       if (editingId) {
-        // Actualizar documento existente
         const productRef = doc(db, "products", String(editingId));
         await updateDoc(productRef, {
           name: cleanName,
@@ -173,7 +171,6 @@ export default function AdminProductsPage() {
           updatedAt: nowIso,
         });
       } else {
-        // Crear nuevo documento
         await addDoc(collection(db, "products"), {
           name: cleanName,
           price: cleanPrice,
@@ -598,12 +595,24 @@ export default function AdminProductsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredOrders.map((order) => {
+                // Verificación ultra flexible para detectar Recojo en Tienda
+                const shippingRaw = String(
+                  order.shippingType ||
+                  order.deliveryType ||
+                  order.tipoEnvio ||
+                  order.metodoEntrega ||
+                  order.metodoEnvio ||
+                  ""
+                ).toLowerCase();
+
                 const isPickup =
-                  order.shippingType?.toLowerCase().includes("tienda") ||
-                  order.deliveryType?.toLowerCase().includes("tienda") ||
-                  order.isPickup;
+                  order.isPickup === true ||
+                  shippingRaw.includes("tienda") ||
+                  shippingRaw.includes("recojo") ||
+                  shippingRaw.includes("pickup");
 
                 const isDelivered = (order.status || "pendiente").toLowerCase() === "entregado";
+                const itemList = order.items || order.productos || order.cart || [];
 
                 return (
                   <div
@@ -614,48 +623,56 @@ export default function AdminProductsPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <h3 className="text-base font-bold text-white">
-                            {order.customerName || "Cliente"}
+                            {order.customerName || order.cliente || order.nombre || "Cliente"}
                           </h3>
                           <p className="text-xs text-zinc-500">
-                            {order.phone || "Sin teléfono"}
+                            {order.phone || order.telefono || "Sin teléfono"}
                           </p>
                         </div>
 
+                        {/* Etiqueta Destacada */}
                         {isPickup ? (
-                          <span className="bg-[#00FF66] text-black font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-[0_0_12px_rgba(0,255,102,0.4)] tracking-wide">
+                          <span className="bg-[#00FF66] text-black font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-[0_0_12px_rgba(0,255,102,0.4)] tracking-wide shrink-0">
                             🏬 Recojo en Tienda
                           </span>
                         ) : (
-                          <span className="bg-orange-600 text-white font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-[0_0_12px_rgba(234,88,12,0.5)] tracking-wide">
+                          <span className="bg-orange-600 text-white font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-[0_0_12px_rgba(234,88,12,0.5)] tracking-wide shrink-0">
                             🛵 Envío a Domicilio
                           </span>
                         )}
                       </div>
 
-                      {!isPickup && order.address && (
+                      {/* Dirección solo si es envío a domicilio */}
+                      {!isPickup && (order.address || order.direccion) && (
                         <p className="text-xs text-zinc-400 bg-zinc-900 p-2.5 rounded-xl border border-zinc-800">
-                          📍 <span className="font-medium">{order.address}</span>
+                          📍 <span className="font-medium">{order.address || order.direccion}</span>
                         </p>
                       )}
 
                       <div className="border-t border-zinc-800/80 pt-3 space-y-1.5">
                         <p className="text-[11px] font-bold text-zinc-400 uppercase">
-                          Productos:
+                          Productos ({itemList.length}):
                         </p>
                         <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
-                          {order.items?.map((item: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="flex justify-between items-center text-xs text-zinc-300"
-                            >
-                              <span className="truncate pr-2">
-                                {item.quantity}x {item.name}
-                              </span>
-                              <span className="font-bold text-zinc-400 shrink-0">
-                                S/ {Number(item.price * item.quantity).toFixed(2)}
-                              </span>
-                            </div>
-                          ))}
+                          {itemList.map((item: any, idx: number) => {
+                            const qty = item.quantity || item.cantidad || 1;
+                            const prc = item.price || item.precio || item.precioUnitario || 0;
+                            const name = item.name || item.nombre || "Producto";
+
+                            return (
+                              <div
+                                key={idx}
+                                className="flex justify-between items-center text-xs text-zinc-300"
+                              >
+                                <span className="truncate pr-2">
+                                  {qty}x {name}
+                                </span>
+                                <span className="font-bold text-zinc-400 shrink-0">
+                                  S/ {Number(prc * qty).toFixed(2)}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -664,7 +681,7 @@ export default function AdminProductsPage() {
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-bold text-zinc-400">Total:</span>
                         <span className="text-lg font-black text-red-500">
-                          S/ {Number(order.total || 0).toFixed(2)}
+                          S/ {Number(order.total || order.totalPagar || 0).toFixed(2)}
                         </span>
                       </div>
 
