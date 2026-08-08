@@ -8,18 +8,51 @@ export default function ProductCard({ product }: { product: any }) {
   const { cart, increaseQuantity, decreaseQuantity, addToCart } = useCart() as any;
   const [isFavorite, setIsFavorite] = useState(false);
 
-  // Garantizamos comparación con IDs en formato string/número
-  const cartItem = cart?.find((item: any) => String(item.id) === String(product.id));
-  const quantity = cartItem ? cartItem.quantity : 0;
+  // 1. Sanitización de ID y Cantidad (Previene 'NaN' de forma absoluta)
+  const productIdStr = String(product?.id ?? "");
+  const cartItem = cart?.find((item: any) => String(item.id) === productIdStr);
+  
+  const rawQuantity = cartItem?.quantity;
+  const quantity = typeof rawQuantity === "number" && !isNaN(rawQuantity) ? rawQuantity : 0;
+
+  // 2. Sanitización de Precio y Stock
+  const rawPrice = Number(product?.price);
+  const displayPrice = !isNaN(rawPrice) ? rawPrice.toFixed(2) : "0.00";
+  const stockNumber = Number(product?.stock) || 0;
+
+  // Handlers seguros para el carrito
+  const handleAddToCart = () => {
+    if (!addToCart) return;
+    addToCart({
+      ...product,
+      id: product.id,
+      price: !isNaN(rawPrice) ? rawPrice : 0,
+      stock: stockNumber,
+    });
+  };
+
+  const handleIncrease = () => {
+    if (quantity === 0) {
+      handleAddToCart();
+    } else if (increaseQuantity) {
+      increaseQuantity(product.id);
+    }
+  };
+
+  const handleDecrease = () => {
+    if (decreaseQuantity && quantity > 0) {
+      decreaseQuantity(product.id);
+    }
+  };
 
   return (
     <div
       id={`product-${product.id}`}
-      className="scroll-mt-32 bg-white rounded-3xl p-5 flex flex-col justify-between shadow-sm border border-gray-100 transition-all duration-300 hover:shadow-md"
+      className="scroll-mt-32 bg-white rounded-3xl p-5 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100 transition-all duration-300 hover:shadow-lg"
     >
       <div>
         {/* Banner Superior: Imagen, Badge e Ícono de Corazón */}
-        <div className="relative w-full h-52 bg-gray-50/50 rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
+        <div className="relative w-full h-52 bg-gray-50/70 rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
           {/* Badge 'Más vendido' / 'Oferta' */}
           {(product.isOnSale || product.isFeatured) && (
             <span className="absolute top-3 left-3 bg-red-600 text-white text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 shadow-sm z-10">
@@ -30,7 +63,7 @@ export default function ProductCard({ product }: { product: any }) {
           {/* Botón de Favorito */}
           <button
             onClick={() => setIsFavorite(!isFavorite)}
-            className="absolute top-3 right-3 w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-sm text-gray-400 hover:text-red-500 transition z-10 cursor-pointer"
+            className="absolute top-3 right-3 w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.08)] text-gray-400 hover:text-red-500 transition z-10 cursor-pointer"
           >
             {isFavorite ? "❤️" : "🤍"}
           </button>
@@ -49,7 +82,9 @@ export default function ProductCard({ product }: { product: any }) {
         </div>
 
         {/* Nombre del Producto */}
-        <h3 className="text-xl font-bold text-slate-900 mb-1 truncate">{product.name}</h3>
+        <h3 className="text-xl font-bold text-slate-900 mb-1 truncate">
+          {product.name || "Producto sin nombre"}
+        </h3>
 
         {/* Estrellas y Reseñas */}
         <div className="flex items-center gap-1 mb-3">
@@ -60,40 +95,37 @@ export default function ProductCard({ product }: { product: any }) {
         {/* Precio y Badge de Stock */}
         <div className="flex items-center gap-3 mb-5">
           <span className="text-2xl font-black text-red-600">
-            S/{Number(product.price || 0).toFixed(2)}
+            S/{displayPrice}
           </span>
-          <span className="text-xs text-emerald-700 bg-emerald-100 font-bold px-3 py-1 rounded-full">
-            Stock: {product.stock}
+          <span className="text-xs text-emerald-700 bg-emerald-100/80 border border-emerald-200 font-bold px-3 py-1 rounded-full">
+            Stock: {stockNumber}
           </span>
         </div>
       </div>
 
-      {/* Selector de Cantidad + Botón (Estilo de la imagen) */}
-      <div className="space-y-4 flex flex-col items-center">
-        {/* Control de incremento (+) y decremento (-) circular sobre barra gris */}
-        <div className="flex items-center justify-between bg-slate-100/80 p-1.5 rounded-full w-48">
+      {/* Controles con Profundidad 3D y Cápsula Estilizada */}
+      <div className="space-y-4 flex flex-col items-center w-full">
+        {/* Cápsula de Selector con Profundidad e Inset Shadow */}
+        <div className="flex items-center justify-between bg-slate-100/90 border border-slate-200/80 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] rounded-full p-1.5 w-48">
+          {/* Botón (-) Blanco con Sombra 3D */}
           <button
-            onClick={() => decreaseQuantity && decreaseQuantity(product.id)}
+            onClick={handleDecrease}
             disabled={quantity <= 0}
-            className="w-10 h-10 rounded-full bg-white text-slate-500 font-black text-lg flex items-center justify-center shadow-sm hover:bg-slate-200 disabled:opacity-40 transition cursor-pointer"
+            className="w-10 h-10 rounded-full bg-white text-slate-600 font-black text-xl flex items-center justify-center shadow-[0_2px_5px_rgba(0,0,0,0.12)] hover:bg-slate-50 active:scale-95 disabled:opacity-40 transition cursor-pointer"
           >
             -
           </button>
 
-          <span className="text-slate-900 font-black text-lg px-2">
+          {/* Valor de Cantidad Garantizado Numérico */}
+          <span className="text-slate-900 font-black text-lg px-2 select-none">
             {quantity}
           </span>
 
+          {/* Botón (+) Rojo con Relieve y Sombra de Color */}
           <button
-            onClick={() => {
-              if (quantity === 0) {
-                addToCart && addToCart(product);
-              } else {
-                increaseQuantity && increaseQuantity(product.id);
-              }
-            }}
-            disabled={quantity >= product.stock}
-            className="w-10 h-10 rounded-full bg-red-600 text-white font-black text-lg flex items-center justify-center shadow-md hover:bg-red-700 disabled:opacity-50 transition cursor-pointer"
+            onClick={handleIncrease}
+            disabled={stockNumber > 0 && quantity >= stockNumber}
+            className="w-10 h-10 rounded-full bg-red-600 text-white font-black text-xl flex items-center justify-center shadow-[0_3px_8px_rgba(220,38,38,0.4)] hover:bg-red-700 active:scale-95 disabled:opacity-50 transition cursor-pointer"
           >
             +
           </button>
@@ -101,19 +133,15 @@ export default function ProductCard({ product }: { product: any }) {
 
         {/* Botón Inferior "Selecciona cantidad" */}
         <button
-          onClick={() => {
-            if (quantity === 0) {
-              addToCart && addToCart(product);
-            }
-          }}
-          disabled={product.stock <= 0}
-          className={`w-full py-3.5 font-bold rounded-2xl transition cursor-pointer text-sm ${
+          onClick={handleIncrease}
+          disabled={stockNumber <= 0}
+          className={`w-full py-3.5 font-bold rounded-2xl transition cursor-pointer text-sm border shadow-[0_2px_6px_rgba(0,0,0,0.04)] ${
             quantity > 0
-              ? "bg-red-600 text-white shadow-md shadow-red-900/20"
-              : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              ? "bg-red-600 text-white border-red-600 shadow-[0_4px_14px_rgba(220,38,38,0.35)] hover:bg-red-700"
+              : "bg-slate-100 text-slate-500 border-slate-200/60 hover:bg-slate-200/80"
           }`}
         >
-          {product.stock <= 0
+          {stockNumber <= 0
             ? "Agotado"
             : quantity > 0
             ? `Agregado (${quantity})`
