@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import Image from "next/image";
@@ -10,7 +10,6 @@ export default function SearchBar() {
   const [products, setProducts] = useState<any[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
 
   // Cargar productos al montar el componente
   useEffect(() => {
@@ -24,17 +23,6 @@ export default function SearchBar() {
       }
     };
     fetchProducts();
-  }, []);
-
-  // Cerrar sugerencias al hacer clic fuera
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,7 +57,7 @@ export default function SearchBar() {
   };
 
   return (
-    <div ref={searchRef} className="relative w-full max-w-md">
+    <div className="relative w-full max-w-md">
       <div className="relative">
         <input
           type="text"
@@ -79,40 +67,37 @@ export default function SearchBar() {
           onFocus={() => {
             if (query.trim() !== "" && filteredProducts.length > 0) setIsOpen(true);
           }}
+          onBlur={() => {
+            // Retraso para asegurar que el clic en la sugerencia ocurra antes de cerrar
+            setTimeout(() => setIsOpen(false), 200);
+          }}
           className="w-full bg-zinc-900 border border-zinc-800 text-white px-4 py-3 pl-10 rounded-2xl text-sm outline-none focus:border-red-600 transition shadow-inner"
         />
         <span className="absolute left-3.5 top-3.5 text-zinc-500 text-sm">🔍</span>
       </div>
 
       {/* Menú de sugerencias desplegable */}
-      {isOpen && query.trim() !== "" && (
+      {isOpen && query.trim() !== "" && filteredProducts.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-[99999] max-h-72 overflow-y-auto">
-          {filteredProducts.length > 0 ? (
-            filteredProducts.map(p => (
-              <div
-                key={p.id}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => handleSelectProduct(p.id)}
-                className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
-              >
-                <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
-                  {p.image ? (
-                    <Image src={p.image} alt={p.name} width={40} height={40} className="w-full h-full object-cover" />
-                  ) : (
-                    <span>📦</span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
-                  <p className="text-xs text-red-500 font-bold">S/ {Number(p.price || 0).toFixed(2)}</p>
-                </div>
+          {filteredProducts.map(p => (
+            <div
+              key={p.id}
+              onClick={() => handleSelectProduct(p.id)}
+              className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
+            >
+              <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
+                {p.image ? (
+                  <Image src={p.image} alt={p.name} width={40} height={40} className="w-full h-full object-cover" />
+                ) : (
+                  <span>📦</span>
+                )}
               </div>
-            ))
-          ) : (
-            <div className="p-4 text-center text-xs text-zinc-400">
-              No se encontraron productos
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
+                <p className="text-xs text-red-500 font-bold">S/ {Number(p.price || 0).toFixed(2)}</p>
+              </div>
             </div>
-          )}
+          ))}
         </div>
       )}
     </div>
