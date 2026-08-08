@@ -12,7 +12,7 @@ export default function SearchBar() {
   const [isOpen, setIsOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Cargar productos al iniciar
+  // Cargar productos al montar el componente
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -20,13 +20,13 @@ export default function SearchBar() {
         const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(list);
       } catch (error) {
-        console.error("Error al cargar productos:", error);
+        console.error("Error al cargar productos en el buscador:", error);
       }
     };
     fetchProducts();
   }, []);
 
-  // Cerrar al hacer clic fuera
+  // Cerrar sugerencias al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -46,7 +46,7 @@ export default function SearchBar() {
       setIsOpen(false);
     } else {
       const results = products.filter(p => 
-        p.name?.toLowerCase().includes(value.toLowerCase())
+        p.name && p.name.toLowerCase().includes(value.toLowerCase())
       );
       setFilteredProducts(results);
       setIsOpen(true);
@@ -57,14 +57,16 @@ export default function SearchBar() {
     setIsOpen(false);
     setQuery("");
     
-    // Desplazarse suavemente hacia el producto en la página
+    // Buscar el elemento en la página y hacer scroll con animación
     const element = document.getElementById(`product-${productId}`);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
-      element.classList.add("ring-4", "ring-red-600");
+      element.classList.add("ring-4", "ring-red-600", "scale-[1.02]");
       setTimeout(() => {
-        element.classList.remove("ring-4", "ring-red-600");
+        element.classList.remove("ring-4", "ring-red-600", "scale-[1.02]");
       }, 2000);
+    } else {
+      console.warn(`No se encontró el elemento con ID: product-${productId}`);
     }
   };
 
@@ -84,34 +86,34 @@ export default function SearchBar() {
         <span className="absolute left-3.5 top-3.5 text-zinc-500 text-sm">🔍</span>
       </div>
 
-      {/* Sugerencias desplegables con z-index alto para que nunca se oculten */}
-      {isOpen && filteredProducts.length > 0 && (
+      {/* Menú de sugerencias desplegable */}
+      {isOpen && query.trim() !== "" && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-[99999] max-h-72 overflow-y-auto">
-          {filteredProducts.map(p => (
-            <div
-              key={p.id}
-              onClick={() => handleSelectProduct(p.id)}
-              className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
-            >
-              <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
-                {p.image ? (
-                  <Image src={p.image} alt={p.name} width={40} height={40} className="w-full h-full object-cover" />
-                ) : (
-                  <span>📦</span>
-                )}
+          {filteredProducts.length > 0 ? (
+            filteredProducts.map(p => (
+              <div
+                key={p.id}
+                onClick={() => handleSelectProduct(p.id)}
+                className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
+              >
+                <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
+                  {p.image ? (
+                    <Image src={p.image} alt={p.name} width={40} height={40} className="w-full h-full object-cover" />
+                  ) : (
+                    <span>📦</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
+                  <p className="text-xs text-red-500 font-bold">S/ {Number(p.price || 0).toFixed(2)}</p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
-                <p className="text-xs text-red-500 font-bold">S/ {Number(p.price).toFixed(2)}</p>
-              </div>
+            ))
+          ) : (
+            <div className="p-4 text-center text-xs text-zinc-400">
+              No se encontraron productos
             </div>
-          ))}
-        </div>
-      )}
-
-      {isOpen && query.trim() !== "" && filteredProducts.length === 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-4 text-center text-xs text-zinc-400 z-[99999]">
-          No se encontraron productos
+          )}
         </div>
       )}
     </div>
