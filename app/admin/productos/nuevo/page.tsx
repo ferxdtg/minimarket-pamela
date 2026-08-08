@@ -1,407 +1,308 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
-
-const defaultProducts = [
-  { id: 101, name: "Arroz Costeño", price: 5.90, stock: 50, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/arrozcosteno.jpg" },
-  { id: 102, name: "Leche Gloria", price: 4.50, stock: 30, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/lechegloria.jpg" },
-  { id: 103, name: "Sopa Maruchan", price: 6.90, stock: 25, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/maruchan.jpg" },
-  { id: 104, name: "Bizcocho Bimbo", price: 7.50, stock: 20, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/bizcochobimbo.jpg" },
-];
+import React, { useState, useEffect } from 'react';
+import { db, auth } from '@/lib/firebase'; // <- IMPORTACIÓN CORREGIDA AQUÍ
+import { collection, deleteDoc, doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 
 export default function AdminPage() {
+  // --- Estados de Autenticación ---
+  const [user, setUser] = useState<any>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  
+  // --- Estados de Vistas y Datos ---
+  const [view, setView] = useState<'inventario' | 'pedidos'>('inventario');
+  const [products, setProducts] = useState<any[]>([]);
+  const [pedidos, setPedidos] = useState<any[]>([]);
+  
+  // --- Estados del Formulario de Productos ---
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
   const [category, setCategory] = useState('abarrotes');
-  const [isOnSale, setIsOnSale] = useState(false);
-  const [manualFeatured, setManualFeatured] = useState(false);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isOnSale, setIsOnSale] = useState(false);
+  const [isFeatured, setIsFeatured] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [recentProducts, setRecentProducts] = useState<any[]>([]);
-  const [adminSearch, setAdminSearch] = useState('');
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // 1. Efecto para escuchar la Sesión y las Bases de Datos en tiempo real
+  useEffect(() => {
+    // Escuchar si hay alguien logueado
+    const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
 
-  // Cargar productos desde Firestore
-  const fetchProducts = async () => {
+    // Escuchar cambios en Productos
+    const unsubProducts = onSnapshot(collection(db, "products"), (snap) => {
+      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    // Escuchar cambios en Pedidos
+    const unsubOrders = onSnapshot(collection(db, "orders"), (snap) => {
+      setPedidos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => { 
+      unsubAuth(); 
+      unsubProducts(); 
+      unsubOrders(); 
+    };
+  }, []);
+
+  // --- Funciones de Login y Logout ---
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
     try {
-      const querySnapshot = await getDocs(collection(db, "products"));
-      const list: any[] = [];
-      querySnapshot.forEach((docSnap) => {
-        list.push({ firebaseId: docSnap.id, ...docSnap.data() });
-      });
-
-      // Si está vacío, inicializamos con los productos por defecto en Firestore
-      if (list.length === 0) {
-        for (const p of defaultProducts) {
-          await setDoc(doc(db, "products", String(p.id)), p);
-          list.push(p);
-        }
-      }
-      setRecentProducts(list);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      console.error("Error al cargar de Firestore:", error);
+      setAuthError('Credenciales inválidas. Verifica tu correo y contraseña.');
     }
   };
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  const handleLogout = () => signOut(auth);
 
+  // --- Funciones de Inventario ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageSrc(reader.result as string);
-        stopCamera();
-      };
+      reader.onloadend = () => setImageSrc(reader.result as string);
       reader.readAsDataURL(file);
     }
-  };
-
-  const startCamera = async () => {
-    setIsCameraActive(true);
-    setSuccessMessage('');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    } catch (err) {
-      console.error('Error al acceder a la cámara:', err);
-      setIsCameraActive(false);
-    }
-  };
-
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        setImageSrc(canvas.toDataURL('image/png'));
-        stopCamera();
-      }
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraActive(false);
-  };
-
-  const compressImage = (base64Str: string, maxWidth = 300, maxHeight = 300, quality = 0.7): Promise<string> => {
-    return new Promise((resolve) => {
-      const img = new window.Image();
-      img.src = base64Str;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > maxWidth) {
-            height *= maxWidth / width;
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width *= maxHeight / height;
-            height = maxHeight;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
-    let finalImage = imageSrc;
-    if (imageSrc && imageSrc.startsWith('data:image')) {
-      finalImage = await compressImage(imageSrc);
-    }
-
-    const newProduct = {
-      id: Date.now(),
-      name,
-      price: Number(price),
-      stock: Number(stock),
-      category,
-      isOnSale,
-      isFeatured: manualFeatured,
-      image: finalImage || '',
-      salesCount: 0,
+    
+    const newProduct = { 
+      id: Date.now(), 
+      name, 
+      price: Number(price), 
+      stock: Number(stock), 
+      category, 
+      image: imageSrc || '', 
+      isFeatured, 
+      isOnSale 
     };
 
     try {
-      // Guardar en Firestore usando el id como nombre del documento
       await setDoc(doc(db, "products", String(newProduct.id)), newProduct);
+      setSuccessMessage('¡Producto guardado exitosamente!');
       
-      await fetchProducts();
-
-      setIsLoading(false);
-      setSuccessMessage('¡Producto guardado en la nube con éxito!');
-      setName('');
-      setPrice('');
-      setStock('');
-      setIsOnSale(false);
-      setManualFeatured(false);
-      setImageSrc(null);
-
+      // Limpiar formulario
+      setName(''); setPrice(''); setStock(''); setImageSrc(null); setIsOnSale(false); setIsFeatured(false);
+      
       setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      setIsLoading(false);
-      alert('Error al guardar en la base de datos.');
-      console.error(error);
+    } catch (error) { 
+      alert('Hubo un error al guardar el producto.'); 
+    } finally { 
+      setIsLoading(false); 
     }
   };
 
-  const handleDeleteProduct = async (id: number, firebaseId?: string) => {
+  const handleDeleteProduct = async (id: number) => { 
+    if(window.confirm('¿Seguro que deseas eliminar este producto?')) {
+      await deleteDoc(doc(db, "products", String(id))); 
+    }
+  };
+
+  // --- Funciones de Pedidos ---
+  const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      await deleteDoc(doc(db, "products", String(id)));
-      await fetchProducts();
-      
-      setSuccessMessage('¡Producto eliminado de la nube!');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      await updateDoc(doc(db, "orders", orderId), { status: newStatus });
     } catch (error) {
-      console.error("Error al eliminar:", error);
+      alert("Error al actualizar el estado del pedido.");
     }
   };
 
-  const filteredAdminProducts = recentProducts.filter((p) =>
-    p.name.toLowerCase().includes(adminSearch.toLowerCase())
-  );
+  // ==========================================
+  // RENDERIZADO 1: PANTALLA DE LOGIN
+  // ==========================================
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6 font-sans">
+        <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+          <div className="text-center mb-6">
+            <span className="text-xs font-bold uppercase tracking-wider text-red-500">Acceso Restringido</span>
+            <h1 className="text-2xl font-black mt-1">Admin Minimarket</h1>
+          </div>
+          
+          {authError && <p className="text-red-400 text-xs font-bold text-center mb-4 p-2 bg-red-950/50 rounded-lg">{authError}</p>}
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-zinc-400 mb-1">Correo</label>
+              <input required type="email" placeholder="admin@tienda.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-zinc-800 p-3.5 rounded-xl text-sm outline-none focus:border-red-600 border border-zinc-700" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-zinc-400 mb-1">Contraseña</label>
+              <input required type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-zinc-800 p-3.5 rounded-xl text-sm outline-none focus:border-red-600 border border-zinc-700" />
+            </div>
+            <button type="submit" className="w-full py-3.5 bg-red-600 hover:bg-red-700 transition rounded-xl font-black mt-2">
+              Ingresar al Panel
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
+  // ==========================================
+  // RENDERIZADO 2: PANEL DE ADMINISTRACIÓN
+  // ==========================================
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans py-12 px-6">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-8">
         
-        <header className="flex items-center justify-between border-b border-zinc-800 pb-6">
+        <header className="flex flex-col md:flex-row md:items-center justify-between border-b border-zinc-800 pb-6 gap-4">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-red-500">Panel de Administración Cloud</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-red-500">Panel Seguro</span>
             <h1 className="text-3xl font-black text-white mt-1">Minimarket Pamela</h1>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-2xl text-xs font-bold text-emerald-400">
-            ☁️ Firebase Conectado
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-emerald-400 font-bold bg-emerald-950/50 px-3 py-1.5 rounded-full">Usuario: {user.email}</span>
+            <button onClick={handleLogout} className="bg-zinc-900 border border-zinc-800 hover:border-red-600 px-4 py-2 rounded-xl text-xs font-bold text-red-400 transition cursor-pointer">
+              Cerrar Sesión
+            </button>
           </div>
         </header>
 
+        {/* MENÚ DE PESTAÑAS */}
+        <div className="flex gap-4 border-b border-zinc-800 pb-4">
+          <button onClick={() => setView('inventario')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition ${view === 'inventario' ? 'bg-red-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}>
+            📦 Inventario
+          </button>
+          <button onClick={() => setView('pedidos')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition ${view === 'pedidos' ? 'bg-red-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`}>
+            🛒 Pedidos ({pedidos.length})
+          </button>
+        </div>
+
+        {/* MENSAJE DE ÉXITO GENERAL */}
         {successMessage && (
-          <div className="p-4 bg-emerald-950/60 border border-emerald-800 rounded-2xl text-emerald-300 text-sm font-semibold flex items-center gap-3 shadow-xl">
+          <div className="p-4 bg-emerald-950/60 border border-emerald-800 rounded-2xl text-emerald-300 text-sm font-semibold flex items-center gap-3">
             ✅ {successMessage}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          
-          <div className="md:col-span-6 bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
-            <h2 className="text-xl font-bold mb-6">Agregar Nuevo Producto</h2>
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="block text-xs font-bold uppercase text-zinc-400 mb-2">Nombre del Producto</label>
-                <input
-                  required
-                  type="text"
-                  placeholder="Ej. Aceite Primor 1L"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 p-3.5 rounded-xl text-white placeholder-zinc-500 focus:ring-2 focus:ring-red-600 outline-none text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-zinc-400 mb-2">Precio (S/)</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className="w-full bg-zinc-800 border border-zinc-700 p-3.5 rounded-xl text-white placeholder-zinc-500 focus:ring-2 focus:ring-red-600 outline-none text-sm"
-                  />
+        {/* VISTA 1: INVENTARIO */}
+        {view === 'inventario' && (
+          <div className="grid md:grid-cols-12 gap-8">
+            
+            {/* Formulario Agregar */}
+            <div className="md:col-span-5 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl h-fit">
+              <h2 className="text-lg font-bold mb-4">Agregar Nuevo Producto</h2>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <input required type="text" placeholder="Nombre del producto" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-zinc-800 border border-zinc-700 p-3 rounded-xl text-sm outline-none focus:border-red-500" />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <input required type="number" step="0.01" placeholder="Precio (S/)" value={price} onChange={(e) => setPrice(e.target.value)} className="w-full bg-zinc-800 border border-zinc-700 p-3 rounded-xl text-sm outline-none focus:border-red-500" />
+                  <input required type="number" placeholder="Stock" value={stock} onChange={(e) => setStock(e.target.value)} className="w-full bg-zinc-800 border border-zinc-700 p-3 rounded-xl text-sm outline-none focus:border-red-500" />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-zinc-400 mb-2">Cantidad (Stock)</label>
-                  <input
-                    required
-                    type="number"
-                    placeholder="0"
-                    value={stock}
-                    onChange={(e) => setStock(e.target.value)}
-                    className="w-full bg-zinc-800 border border-zinc-700 p-3.5 rounded-xl text-white placeholder-zinc-500 focus:ring-2 focus:ring-red-600 outline-none text-sm"
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase text-zinc-400 mb-2">Categoría del Home</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 p-3.5 rounded-xl text-white focus:ring-2 focus:ring-red-600 outline-none text-sm"
-                >
-                  <option value="ofertas">Ofertas y Promociones</option>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-zinc-800 border border-zinc-700 p-3 rounded-xl text-sm outline-none focus:border-red-500">
                   <option value="abarrotes">Abarrotes y Despensa</option>
                   <option value="bebidas">Bebidas y Jugos</option>
                   <option value="snacks">Snacks y Golosinas</option>
                   <option value="limpieza">Limpieza y Hogar</option>
                   <option value="bebes">Bebés</option>
                 </select>
-              </div>
 
-              <div className="space-y-3">
-                <label className="block text-xs font-bold uppercase text-zinc-400">Fotografía del Producto</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="cursor-pointer py-3 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl text-center text-xs font-bold transition-all border border-zinc-700 flex items-center justify-center gap-2">
-                    📂 Biblioteca
+                <div className="flex gap-4">
+                  <label className="flex-1 cursor-pointer py-3 px-4 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-center text-xs font-bold">
+                    📸 Subir Foto
                     <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                   </label>
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2"
-                  >
-                    📷 Cámara
-                  </button>
+                  {imageSrc && <img src={imageSrc} alt="Preview" className="w-12 h-12 rounded-lg object-cover" />}
                 </div>
 
-                {isCameraActive && (
-                  <div className="space-y-3 p-3 bg-zinc-950 rounded-xl border border-zinc-800">
-                    <video ref={videoRef} className="w-full h-40 object-cover rounded-lg bg-black" autoPlay playsInline />
-                    <button
-                      type="button"
-                      onClick={capturePhoto}
-                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg"
-                    >
-                      Capturar Foto
-                    </button>
-                  </div>
-                )}
+                <div className="flex justify-between items-center bg-zinc-800/50 p-3 rounded-xl border border-zinc-700">
+                  <span className="text-xs font-bold text-red-400">¿En Oferta?</span>
+                  <input type="checkbox" checked={isOnSale} onChange={(e) => setIsOnSale(e.target.checked)} className="w-4 h-4" />
+                </div>
 
-                <canvas ref={canvasRef} className="hidden" />
-
-                {imageSrc && (
-                  <div className="flex items-center gap-3 p-3 bg-zinc-800/60 rounded-xl border border-zinc-700">
-                    <img src={imageSrc} alt="Preview" className="w-12 h-12 object-cover rounded-lg border border-zinc-700" />
-                    <div className="flex-1">
-                      <p className="text-xs font-semibold text-white">Imagen cargada</p>
-                      <button type="button" onClick={() => setImageSrc(null)} className="text-[10px] text-red-400 hover:underline">
-                        Eliminar foto
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 pt-2">
-                <label className="flex items-center justify-between p-3.5 bg-zinc-800/50 rounded-xl border border-zinc-700/80 cursor-pointer">
-                  <span className="text-xs font-bold text-zinc-300">¿Está en Oferta?</span>
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
-                    checked={isOnSale}
-                    onChange={(e) => setIsOnSale(e.target.checked)}
-                  />
-                </label>
-
-                <label className="p-3.5 bg-amber-950/25 rounded-xl border border-amber-900/60 cursor-pointer flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-300">Agregar a Productos Destacados</span>
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
-                    checked={manualFeatured}
-                    onChange={(e) => setManualFeatured(e.target.checked)}
-                  />
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black shadow-xl transition-all text-sm tracking-wide mt-4 cursor-pointer"
-              >
-                {isLoading ? 'Guardando en la nube...' : 'Guardar y Publicar en la Web'}
-              </button>
-            </form>
-          </div>
-
-          <div className="md:col-span-6 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl flex flex-col">
-            <h2 className="text-lg font-bold mb-3">Productos Registrados ({recentProducts.length})</h2>
-            
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="🔍 Buscar producto registrado..."
-                value={adminSearch}
-                onChange={(e) => setAdminSearch(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 px-4 py-2.5 rounded-xl text-xs text-white placeholder-zinc-500 focus:ring-2 focus:ring-red-600 outline-none"
-              />
+                <button type="submit" disabled={isLoading} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black shadow-xl transition-all text-sm">
+                  {isLoading ? 'Guardando...' : 'Publicar Producto'}
+                </button>
+              </form>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-3 max-h-[500px] pr-1">
-              {filteredAdminProducts.length === 0 ? (
-                <p className="text-xs text-zinc-500 text-center py-12">No se encontraron productos.</p>
-              ) : (
-                filteredAdminProducts.map((p) => (
-                  <div key={p.id} className="p-3 bg-zinc-800/50 border border-zinc-700/60 rounded-2xl flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-12 h-12 bg-zinc-700 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
-                        {p.image ? (
-                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-xs">📦</span>
-                        )}
+            {/* Lista de Productos */}
+            <div className="md:col-span-7 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl flex flex-col">
+              <h2 className="text-lg font-bold mb-4">Catálogo Actual ({products.length})</h2>
+              <div className="flex-1 overflow-y-auto space-y-3 max-h-[600px] pr-2">
+                {products.length === 0 ? <p className="text-zinc-500 text-sm">No hay productos registrados.</p> : null}
+                
+                {products.map(p => (
+                  <div key={p.id} className="p-3 bg-zinc-800/50 border border-zinc-700 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-zinc-700 rounded-xl overflow-hidden shrink-0">
+                        {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xs">📦</div>}
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          {p.isFeatured && <span className="px-1.5 py-0.5 bg-amber-500 text-black text-[8px] font-black uppercase rounded">Destacado</span>}
-                          {p.isOnSale && <span className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black uppercase rounded">Oferta</span>}
-                        </div>
-                        <h4 className="text-xs font-bold text-white truncate">{p.name}</h4>
-                        <p className="text-xs text-red-400 font-extrabold">S/ {Number(p.price).toFixed(2)} <span className="text-zinc-400 font-normal">| Stock: {p.stock}</span></p>
+                      <div>
+                        <h4 className="text-sm font-bold text-white">{p.name}</h4>
+                        <p className="text-xs text-red-400 font-extrabold">S/ {Number(p.price).toFixed(2)} <span className="text-zinc-500 font-normal">| Stock: {p.stock}</span></p>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => handleDeleteProduct(p.id)}
-                      title="Eliminar producto"
-                      className="p-2 bg-zinc-800 hover:bg-red-600 text-zinc-400 hover:text-white rounded-xl transition cursor-pointer shrink-0"
-                    >
-                      🗑️
-                    </button>
+                    <button onClick={() => handleDeleteProduct(p.id)} className="p-2.5 bg-zinc-800 hover:bg-red-600 text-zinc-400 hover:text-white rounded-xl transition cursor-pointer">🗑️</button>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
-          </div>
 
-        </div>
+          </div>
+        )}
+
+        {/* VISTA 2: PEDIDOS */}
+        {view === 'pedidos' && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl min-h-[500px]">
+             <h2 className="text-lg font-bold mb-6">Historial de Pedidos</h2>
+             {pedidos.length === 0 ? (
+               <p className="text-zinc-500 text-sm">Aún no hay pedidos registrados.</p>
+             ) : (
+               <div className="grid gap-4 md:grid-cols-2">
+                 {pedidos.sort((a,b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map(p => (
+                   <div key={p.id} className={`p-6 rounded-3xl border ${p.status === 'entregado' ? 'border-emerald-900/50 bg-emerald-950/10' : 'border-zinc-700 bg-zinc-800/50'}`}>
+                     
+                     <div className="flex justify-between items-start mb-4">
+                       <div>
+                         <h3 className="font-bold text-lg">{p.customer?.name || 'Cliente sin nombre'}</h3>
+                         <p className="text-xs text-zinc-400">Tel: {p.customer?.phone || 'No registrado'}</p>
+                       </div>
+                       <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${p.status === 'entregado' ? 'bg-emerald-900 text-emerald-400' : 'bg-amber-900 text-amber-400'}`}>
+                         {p.status || 'Pendiente'}
+                       </span>
+                     </div>
+
+                     <div className="text-sm text-zinc-300 space-y-1 bg-zinc-950/50 p-4 rounded-xl mb-4 border border-zinc-800/50">
+                       {p.items?.map((i: any, idx: number) => (
+                         <div key={idx} className="flex justify-between">
+                           <span>{i.quantity}x {i.name}</span>
+                           <span className="text-zinc-500">S/ {(i.price * i.quantity).toFixed(2)}</span>
+                         </div>
+                       ))}
+                       <div className="border-t border-zinc-700/50 mt-2 pt-2 flex justify-between font-bold text-white">
+                         <span>TOTAL</span>
+                         <span className="text-emerald-400">S/ {Number(p.total).toFixed(2)}</span>
+                       </div>
+                     </div>
+
+                     {p.status !== 'entregado' && (
+                       <button onClick={() => updateOrderStatus(p.id, 'entregado')} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wide transition">
+                         ✔ Marcar como Entregado
+                       </button>
+                     )}
+                   </div>
+                 ))}
+               </div>
+             )}
+          </div>
+        )}
+
       </div>
     </div>
   );
