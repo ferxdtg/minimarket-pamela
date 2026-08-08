@@ -57,7 +57,7 @@ export default function SearchBar() {
     setIsOpen(false);
     setQuery("");
     
-    // Buscar el elemento en la página y hacer scroll con animación
+    // Buscar el elemento en la página y hacer scroll suave
     const element = document.getElementById(`product-${productId}`);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -65,8 +65,6 @@ export default function SearchBar() {
       setTimeout(() => {
         element.classList.remove("ring-4", "ring-red-600", "scale-[1.02]");
       }, 2000);
-    } else {
-      console.warn(`No se encontró el elemento con ID: product-${productId}`);
     }
   };
 
@@ -93,6 +91,7 @@ export default function SearchBar() {
             filteredProducts.map(p => (
               <div
                 key={p.id}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelectProduct(p.id)}
                 className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
               >
