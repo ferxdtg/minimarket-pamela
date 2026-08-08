@@ -7,28 +7,46 @@ import { useState } from "react";
 export default function ProductCard({ product }: { product: any }) {
   const { cart, increaseQuantity, decreaseQuantity, addToCart } = useCart() as any;
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
 
-  // Normalización estricta de ID para sincronizar con el CartContext
-  const rawId = product?.id ?? "";
-  const productId = typeof rawId === "number" ? rawId : String(rawId);
+  // 1. Normalización estricta de ID
+  const productId = String(product?.id ?? "");
 
-  // Buscar el producto en el carrito
-  const cartItem = cart?.find((item: any) => String(item.id) === String(productId));
-  const quantity = cartItem && typeof cartItem.quantity === "number" ? cartItem.quantity : 0;
+  // 2. Obtención ultra-segura de la cantidad desde el Carrito
+  const cartItem = cart?.find((item: any) => String(item.id) === productId);
+  
+  // Garantiza que la variable 'quantity' JAMÁS sea NaN, undefined o null
+  const parseQty = (val: any) => {
+    const num = parseInt(val, 10);
+    return isNaN(num) || num < 0 ? 0 : num;
+  };
+  
+  const quantity = parseQty(cartItem?.quantity);
 
-  // Sanitización de Precio y Stock
-  const rawPrice = Number(product?.price);
-  const displayPrice = !isNaN(rawPrice) ? rawPrice.toFixed(2) : "0.00";
-  const stockNumber = Number(product?.stock) || 0;
+  // 3. Normalización de Precio y Stock
+  const parsePrice = (val: any) => {
+    const num = parseFloat(val);
+    return isNaN(num) ? 0 : num;
+  };
 
-  // Handlers sincronizados
+  const rawPrice = parsePrice(product?.price);
+  const displayPrice = rawPrice.toFixed(2);
+  const stockNumber = parseQty(product?.stock);
+
+  // Handlers de la lógica de negocio
   const handleAddToCart = () => {
     if (!addToCart) return;
+
+    // Animación de deslizamiento al presionar el botón
+    setIsAnimating(true);
+    setTimeout(() => setIsAnimating(false), 500);
+
     addToCart({
       ...product,
       id: productId,
-      price: !isNaN(rawPrice) ? rawPrice : 0,
+      price: rawPrice,
       stock: stockNumber,
+      quantity: 1,
     });
   };
 
@@ -56,9 +74,9 @@ export default function ProductCard({ product }: { product: any }) {
       <div>
         {/* Banner Superior: Imagen, Badge e Ícono de Corazón */}
         <div className="relative w-full h-52 bg-gray-50/70 rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
-          {(product.isOnSale || product.isFeatured) && (
+          {(product?.isOnSale || product?.isFeatured) && (
             <span className="absolute top-3 left-3 bg-red-600 text-white text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1 shadow-sm z-10">
-              🔥 {product.isOnSale ? "Oferta" : "Más vendido"}
+              🔥 {product?.isOnSale ? "Oferta" : "Más vendido"}
             </span>
           )}
 
@@ -69,7 +87,7 @@ export default function ProductCard({ product }: { product: any }) {
             {isFavorite ? "❤️" : "🤍"}
           </button>
 
-          {product.image && product.image !== "/placeholder.png" ? (
+          {product?.image && product.image !== "/placeholder.png" ? (
             <Image
               src={product.image}
               alt={product.name || "Producto"}
@@ -83,7 +101,7 @@ export default function ProductCard({ product }: { product: any }) {
 
         {/* Nombre del Producto */}
         <h3 className="text-xl font-bold text-slate-900 mb-1 truncate">
-          {product.name || "Producto sin nombre"}
+          {product?.name || "Producto sin nombre"}
         </h3>
 
         {/* Estrellas y Reseñas */}
@@ -115,6 +133,7 @@ export default function ProductCard({ product }: { product: any }) {
             -
           </button>
 
+          {/* Renderizado Seguro: Imposible que se muestre NaN */}
           <span className="text-slate-900 font-black text-lg px-2 select-none">
             {quantity}
           </span>
@@ -128,18 +147,22 @@ export default function ProductCard({ product }: { product: any }) {
           </button>
         </div>
 
-        {/* Botón con animación de brillo / slider en hover/click */}
+        {/* Botón con animación tipo Slider de lado a lado */}
         <button
           onClick={handleIncrease}
           disabled={stockNumber <= 0}
-          className={`relative group overflow-hidden w-full py-3.5 font-bold rounded-2xl transition-all duration-300 cursor-pointer text-sm border shadow-[0_2px_6px_rgba(0,0,0,0.04)] ${
+          className={`relative overflow-hidden w-full py-3.5 font-bold rounded-2xl transition-all duration-300 cursor-pointer text-sm border shadow-[0_2px_6px_rgba(0,0,0,0.04)] ${
             quantity > 0
               ? "bg-red-600 text-white border-red-600 shadow-[0_4px_14px_rgba(220,38,38,0.35)]"
               : "bg-slate-100 text-slate-600 border-slate-200/60 hover:bg-slate-200/80"
           }`}
         >
-          {/* Capa animada del slider (Efecto resplandor de lado a lado) */}
-          <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
+          {/* Slider de barrido animado de izquierda a derecha al hacer clic */}
+          <span
+            className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-out pointer-events-none ${
+              isAnimating ? "translate-x-full" : "-translate-x-full"
+            }`}
+          />
 
           <span className="relative z-10">
             {stockNumber <= 0
