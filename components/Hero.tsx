@@ -1,7 +1,6 @@
 "use client";
 
 export default function Hero() {
-
   const handleAction = (category: string) => {
     window.dispatchEvent(new CustomEvent("filter_category", { detail: category }));
     
@@ -12,17 +11,13 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white shadow-xl">
+    <section className="relative overflow-hidden bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white shadow-xl border-b-8 border-zinc-900">
       
-      {/* Patrón de fondo sutil minimalista */}
       <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
 
-      {/* Margen vertical optimizado (py-10 a py-14) para eliminar espacios muertos */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14 grid md:grid-cols-12 gap-8 items-center relative z-10">
         
-        {/* COLUMNA IZQUIERDA: TEXTO Y LLAMADO A LA ACCIÓN (7 columnas) */}
         <div className="md:col-span-7 text-center md:text-left">
-          
           <div className="inline-flex items-center gap-2 bg-black/20 backdrop-blur-md px-4 py-1.5 rounded-full font-semibold text-xs sm:text-sm mb-4 border border-white/15 shadow-sm">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-ping"></span>
             <span>Delivery Express disponible en tu zona 🛵</span>
@@ -44,7 +39,6 @@ export default function Hero() {
             >
               Ver Catálogo 🛒
             </button>
-
             <a
               href="/admin/productos/nuevo"
               className="bg-black/30 hover:bg-black/40 text-white font-semibold px-5 py-3 rounded-xl backdrop-blur-md border border-white/20 transition text-sm sm:text-base flex items-center gap-2"
@@ -53,7 +47,6 @@ export default function Hero() {
             </a>
           </div>
 
-          {/* MÉTRICAS / ESTADÍSTICAS COMPACTAS */}
           <div className="mt-8 pt-6 border-t border-white/15 grid grid-cols-3 gap-4 text-center md:text-left">
             <div>
               <p className="text-2xl font-black tracking-tight">+500</p>
@@ -70,14 +63,11 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: TARJETA COMERCIAL COMPACTA (5 columnas) */}
         <div className="md:col-span-5 flex justify-center">
           <div className="relative bg-white/15 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-white/25 text-center w-full max-w-sm">
-            
             <span className="absolute -top-3 right-5 bg-yellow-300 text-red-950 text-xs font-black px-3 py-1 rounded-full shadow uppercase tracking-wider">
               ¡Abierto Hoy! ✨
             </span>
-
             <div className="text-6xl mb-2">🛒</div>
             <h2 className="text-2xl font-black tracking-tight">Pamela Market</h2>
             <p className="mt-1 text-white/90 text-xs sm:text-sm font-medium">Tu tienda de confianza cerca de ti</p>
@@ -88,7 +78,6 @@ export default function Hero() {
                 <span className="text-[10px] bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded">Ahorro</span>
               </div>
               <p className="mt-1.5 text-xs text-gray-600 font-medium">Aprovecha los precios especiales de temporada en abarrotes.</p>
-              
               <button
                 onClick={() => handleAction("ofertas")}
                 className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
@@ -96,10 +85,8 @@ export default function Hero() {
                 Ver Promociones 🏷️
               </button>
             </div>
-
           </div>
         </div>
-
       </div>
     </section>
   );
