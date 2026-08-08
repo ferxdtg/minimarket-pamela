@@ -3,7 +3,6 @@
 import { useCart } from "@/lib/CartContext";
 import Image from "next/image";
 
-// Interfaz para evitar errores de tipado en rojo
 interface Product {
   id: string | number;
   name: string;
@@ -24,14 +23,13 @@ export default function ProductCard({ product }: { product: Product }) {
   return (
     <div 
       id={`product-${product.id}`}
-      // La clase scroll-mt-32 asegura que el buscador no deje la tarjeta escondida bajo el navbar
       className="scroll-mt-32 bg-zinc-900 border border-zinc-800 rounded-3xl p-5 flex flex-col justify-between shadow-xl transition-all duration-300"
     >
       <div>
         <div className="relative w-full h-48 bg-zinc-800/50 rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
           {product.image ? (
             <Image 
-              src={product.image as string} 
+              src={product.image} 
               alt={product.name || "Producto"} 
               fill 
               className="object-contain p-4" 

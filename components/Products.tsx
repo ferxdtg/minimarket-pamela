@@ -42,18 +42,20 @@ export default function Products() {
     window.addEventListener("search_product", handleSearchProduct as EventListener);
 
     return () => {
-      unsubscribe(); // Limpiar la conexión al desmontar
+      unsubscribe();
       window.removeEventListener("filter_category", handleFilterCategory as EventListener);
       window.removeEventListener("search_product", handleSearchProduct as EventListener);
     };
   }, []);
 
   const formattedProducts = products.map((p) => ({
-    id: p.id,
-    name: p.name,
-    price: typeof p.price === "number" ? p.price.toFixed(2) : p.price,
-    image: p.image && p.image.trim() !== "" ? p.image : "/placeholder.png",
+    id: String(p.id),
+    name: p.name || "",
+    price: Number(p.price || 0),
+    stock: Number(p.stock || 0),
+    image: p.image && p.image.trim() !== "" ? p.image : "",
     category: p.category ? p.category.toLowerCase().trim() : "abarrotes",
+    isFeatured: Boolean(p.isFeatured),
     isOnSale: Boolean(p.isOnSale),
   }));
 
@@ -74,7 +76,6 @@ export default function Products() {
 
   return (
     <section id="productos-section" className="max-w-7xl mx-auto py-20 px-6 scroll-mt-10">
-      
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
         <SectionTitle
           title={
@@ -108,17 +109,10 @@ export default function Products() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {mounted &&
             filteredProducts.map((p) => (
-              <ProductCard
-                key={p.id}
-                id={p.id}
-                name={p.name}
-                price={p.price}
-                image={p.image}
-              />
+              <ProductCard key={p.id} product={p} />
             ))}
         </div>
       )}
-
     </section>
   );
 }
