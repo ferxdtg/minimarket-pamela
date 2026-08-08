@@ -13,6 +13,39 @@ import {
 } from "firebase/firestore";
 import Image from "next/image";
 
+// Función utilitaria para comprimir imágenes en Base64 y no saturar Firestore
+const compressImage = (file: File, maxWidth = 600, quality = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        const compressedBase64 = canvas.toDataURL("image/jpeg", quality);
+        resolve(compressedBase64);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 export default function AdminProductsPage() {
   // Navegación principal
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos">("inventario");
@@ -40,33 +73,43 @@ export default function AdminProductsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Cargar Productos en tiempo real desde Firestore
+  // 1. Cargar Productos en tiempo real
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
-      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setProducts(list);
-    });
+    const unsubscribe = onSnapshot(
+      collection(db, "products"),
+      (snapshot) => {
+        const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setProducts(list);
+      },
+      (error) => console.error("Error cargando productos:", error)
+    );
     return () => unsubscribe();
   }, []);
 
-  // 2. Cargar Pedidos en tiempo real desde Firestore
+  // 2. Cargar Pedidos en tiempo real
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "orders"), (snapshot) => {
-      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setOrders(list);
-    });
+    const unsubscribe = onSnapshot(
+      collection(db, "orders"),
+      (snapshot) => {
+        const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setOrders(list);
+      },
+      (error) => console.error("Error cargando pedidos:", error)
+    );
     return () => unsubscribe();
   }, []);
 
-  // Conversión de Imagen a Base64
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Conversión y compresión automática de imagen
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressedBase64 = await compressImage(file);
+        setImage(compressedBase64);
+      } catch (err) {
+        console.error("Error al comprimir la imagen:", err);
+        alert("No se pudo procesar la imagen seleccionada.");
+      }
     }
   };
 
@@ -86,8 +129,8 @@ export default function AdminProductsPage() {
   const handleEdit = (product: any) => {
     setEditingId(product.id);
     setName(product.name || "");
-    setPrice(product.price ? String(product.price) : "");
-    setStock(product.stock ? String(product.stock) : "");
+    setPrice(product.price !== undefined ? String(product.price) : "");
+    setStock(product.stock !== undefined ? String(product.stock) : "");
     setCategory(product.category || "abarrotes");
     setIsOnSale(Boolean(product.isOnSale));
     setIsFeatured(Boolean(product.isFeatured));
@@ -95,7 +138,7 @@ export default function AdminProductsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Guardar (Crear o Actualizar) con sanitización de valores anti-undefined
+  // Guardar (Crear o Actualizar) con sanitización y compresión
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -107,19 +150,19 @@ export default function AdminProductsPage() {
     setLoading(true);
 
     try {
-      // Construimos el objeto garantizando que NINGÚN campo sea 'undefined'
+      // Objeto sanitizado: Ninguna propiedad puede ser 'undefined'
       const productData: Record<string, any> = {
         name: name.trim(),
         price: parseFloat(price) || 0,
-        stock: parseInt(stock) || 0,
-        category: category ? category.toLowerCase().trim() : "abarrotes",
+        stock: parseInt(stock, 10) || 0,
+        category: (category || "abarrotes").toLowerCase().trim(),
         isOnSale: Boolean(isOnSale),
         isFeatured: Boolean(isFeatured),
-        image: image ? image : "",
+        image: image || "",
         updatedAt: serverTimestamp(),
       };
 
-      // Limpieza preventiva
+      // Garantizar eliminación de cualquier llave inválida
       Object.keys(productData).forEach((key) => {
         if (productData[key] === undefined) {
           productData[key] = "";
@@ -127,19 +170,19 @@ export default function AdminProductsPage() {
       });
 
       if (editingId) {
-        // Actualizar producto existente
-        const docRef = doc(db, "products", editingId);
-        await updateDoc(docRef, productData);
+        // Actualizar documento
+        const productRef = doc(db, "products", editingId);
+        await updateDoc(productRef, productData);
       } else {
-        // Crear nuevo producto
+        // Crear nuevo documento
         productData.createdAt = serverTimestamp();
         await addDoc(collection(db, "products"), productData);
       }
 
       resetForm();
-    } catch (error) {
-      console.error("Error al guardar en Firestore:", error);
-      alert("Ocurrió un error al guardar el producto.");
+    } catch (error: any) {
+      console.error("Error detallado de Firestore:", error);
+      alert(`Error al guardar: ${error?.message || "Comprueba tu conexión o Firestore."}`);
     } finally {
       setLoading(false);
     }
@@ -157,7 +200,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  // Cambiar estado de un pedido (Pendiente <-> Entregado)
+  // Cambiar estado del pedido
   const toggleOrderStatus = async (orderId: string, currentStatus: string) => {
     const newStatus = currentStatus === "entregado" ? "pendiente" : "entregado";
     try {
@@ -303,7 +346,7 @@ export default function AdminProductsPage() {
                   <option value="snacks">Snacks y Golosinas</option>
                   <option value="limpieza">Limpieza</option>
                   <option value="bebes">Bebés</option>
-                  <option value="ofertas">Ofertas Especiales</option>
+                  <option value="ofertas especiales">Ofertas Especiales</option>
                 </select>
               </div>
 
@@ -361,7 +404,7 @@ export default function AdminProductsPage() {
                     <button
                       type="button"
                       onClick={() => setImage("")}
-                      className="absolute top-2 right-2 bg-red-600 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center font-bold hover:bg-red-700 shadow-md cursor-pointer"
+                      className="absolute top-2 right-2 bg-red-600 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center font-bold hover:bg-red-700 shadow-md cursor-pointer z-10"
                     >
                       ✕
                     </button>
@@ -495,7 +538,6 @@ export default function AdminProductsPage() {
       ) : (
         /* VISTA 2: GESTIÓN DE PEDIDOS */
         <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-6">
-          {/* Barra de Filtros de Pedidos */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
             <div>
               <h2 className="text-lg font-bold">Pedidos Recibidos</h2>
@@ -538,7 +580,6 @@ export default function AdminProductsPage() {
             </div>
           </div>
 
-          {/* Lista de Pedidos */}
           {filteredOrders.length === 0 ? (
             <div className="text-center py-16 bg-zinc-950 rounded-2xl border border-dashed border-zinc-800 space-y-2">
               <p className="text-lg font-bold text-zinc-400">No hay pedidos disponibles</p>
@@ -562,7 +603,6 @@ export default function AdminProductsPage() {
                     className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-lg hover:border-zinc-700 transition"
                   >
                     <div className="space-y-3">
-                      {/* Cabecera del Pedido */}
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <h3 className="text-base font-bold text-white">
@@ -573,7 +613,6 @@ export default function AdminProductsPage() {
                           </p>
                         </div>
 
-                        {/* Etiqueta de Tipo de Envío */}
                         {isPickup ? (
                           <span className="bg-[#00FF66] text-black font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-[0_0_12px_rgba(0,255,102,0.4)] tracking-wide">
                             🏬 Recojo en Tienda
@@ -585,14 +624,12 @@ export default function AdminProductsPage() {
                         )}
                       </div>
 
-                      {/* Dirección en caso de domicilio */}
                       {!isPickup && order.address && (
                         <p className="text-xs text-zinc-400 bg-zinc-900 p-2.5 rounded-xl border border-zinc-800">
                           📍 <span className="font-medium">{order.address}</span>
                         </p>
                       )}
 
-                      {/* Lista de productos comprados */}
                       <div className="border-t border-zinc-800/80 pt-3 space-y-1.5">
                         <p className="text-[11px] font-bold text-zinc-400 uppercase">
                           Productos:
@@ -615,7 +652,6 @@ export default function AdminProductsPage() {
                       </div>
                     </div>
 
-                    {/* Pie de Pedido y Cambio de Estado */}
                     <div className="border-t border-zinc-800 pt-3 space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-bold text-zinc-400">Total:</span>
