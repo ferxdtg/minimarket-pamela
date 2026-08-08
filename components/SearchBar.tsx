@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
-import { useRouter } from "next/navigation";
+import { collection, onSnapshot } from "firebase/firestore";
+import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 
 export default function SearchBar() {
@@ -11,20 +11,29 @@ export default function SearchBar() {
   const [products, setProducts] = useState<any[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  
   const router = useRouter();
+  const pathname = usePathname();
 
-  // Cargar productos al montar el componente
+  // 1. Cargar productos en TIEMPO REAL
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "products"));
-        const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setProducts(list);
-      } catch (error) {
-        console.error("Error al cargar productos en el buscador:", error);
+    const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setProducts(list);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Cerrar el buscador SOLO si se hace clic estrictamente fuera de él
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
       }
     };
-    fetchProducts();
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,8 +44,8 @@ export default function SearchBar() {
       setFilteredProducts([]);
       setIsOpen(false);
     } else {
-      const results = products.filter(p => 
-        p.name && p.name.toLowerCase().includes(value.toLowerCase())
+      const results = products.filter((p) =>
+        p.name?.toLowerCase().includes(value.toLowerCase())
       );
       setFilteredProducts(results);
       setIsOpen(true);
@@ -47,22 +56,37 @@ export default function SearchBar() {
     setIsOpen(false);
     setQuery("");
 
-    // Intentar buscar el elemento en la página actual
-    const element = document.getElementById(`product-${productId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
-      element.classList.add("ring-4", "ring-red-600", "scale-[1.02]");
-      setTimeout(() => {
-        element.classList.remove("ring-4", "ring-red-600", "scale-[1.02]");
-      }, 2000);
+    const scrollToElement = () => {
+      const element = document.getElementById(`product-${productId}`);
+      if (element) {
+        // Hacemos scroll suave
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        
+        // Aplicamos un efecto visual directo y limpio
+        element.style.transition = "all 0.5s ease";
+        element.style.boxShadow = "0 0 0 4px #dc2626"; // Borde rojo
+        element.style.transform = "scale(1.02)";
+        
+        // Quitamos el efecto después de 2 segundos
+        setTimeout(() => {
+          element.style.boxShadow = "none";
+          element.style.transform = "scale(1)";
+        }, 2000);
+      }
+    };
+
+    // 3. Verificamos si estamos en la página principal para hacer scroll
+    if (pathname !== "/") {
+      router.push("/");
+      // Damos 800ms para que la página principal renderice los productos antes de hacer scroll
+      setTimeout(scrollToElement, 800);
     } else {
-      // Si el producto no está en esta vista, redirige a la página principal con un hash
-      router.push(`/#product-${productId}`);
+      scrollToElement();
     }
   };
 
   return (
-    <div className="relative w-full max-w-md">
+    <div ref={searchRef} className="relative w-full max-w-md z-[99999]">
       <div className="relative">
         <input
           type="text"
@@ -72,37 +96,43 @@ export default function SearchBar() {
           onFocus={() => {
             if (query.trim() !== "" && filteredProducts.length > 0) setIsOpen(true);
           }}
-          onBlur={() => {
-            // Retraso para permitir hacer clic en la sugerencia antes de ocultar
-            setTimeout(() => setIsOpen(false), 200);
-          }}
           className="w-full bg-zinc-900 border border-zinc-800 text-white px-4 py-3 pl-10 rounded-2xl text-sm outline-none focus:border-red-600 transition shadow-inner"
         />
         <span className="absolute left-3.5 top-3.5 text-zinc-500 text-sm">🔍</span>
       </div>
 
       {/* Menú de sugerencias desplegable */}
-      {isOpen && query.trim() !== "" && filteredProducts.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-[99999] max-h-72 overflow-y-auto">
-          {filteredProducts.map(p => (
-            <div
-              key={p.id}
-              onClick={() => handleSelectProduct(p.id)}
-              className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
-            >
-              <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
-                {p.image ? (
-                  <Image src={p.image} alt={p.name} width={40} height={40} className="w-full h-full object-cover" />
-                ) : (
-                  <span>📦</span>
-                )}
+      {isOpen && query.trim() !== "" && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto">
+          {filteredProducts.length > 0 ? (
+            filteredProducts.map((p) => (
+              <div
+                key={p.id}
+                // onMouseDown garantiza que la selección ocurra antes de cualquier pérdida de foco
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSelectProduct(p.id);
+                }}
+                className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
+              >
+                <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
+                  {p.image ? (
+                    <Image src={p.image} alt={p.name || "Producto"} width={40} height={40} className="w-full h-full object-cover" />
+                  ) : (
+                    <span>📦</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
+                  <p className="text-xs text-red-500 font-bold">S/ {Number(p.price || 0).toFixed(2)}</p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
-                <p className="text-xs text-red-500 font-bold">S/ {Number(p.price || 0).toFixed(2)}</p>
-              </div>
+            ))
+          ) : (
+            <div className="p-4 text-center text-sm text-zinc-400">
+              No se encontraron productos
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
