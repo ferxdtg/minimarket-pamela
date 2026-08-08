@@ -34,7 +34,7 @@ export default function Navbar() {
           <SearchBar />
         </div>
 
-        {/* CONTENEDOR DERECHO: CARRITO + ACCESO ADMIN SUTIL */}
+        {/* CONTENEDOR DERECHO: CARRITO + ACCESO ADMIN VISIBLE SUTIL */}
         <div className="flex items-center gap-3">
           {/* BOTÓN DE CARRITO */}
           <button
@@ -55,10 +55,10 @@ export default function Navbar() {
             )}
           </button>
 
-          {/* ACCESO ADMIN SUTIL (Tuerca discreta) */}
+          {/* ACCESO ADMIN SUTIL PERO VISIBLE */}
           <a
             href="/admin"
-            className="text-gray-400 hover:text-gray-900 transition-all p-2 text-sm opacity-20 hover:opacity-100 cursor-pointer"
+            className="text-gray-400 hover:text-red-600 transition-colors p-2 text-base font-semibold cursor-pointer"
             title="Panel Admin"
           >
             ⚙️
