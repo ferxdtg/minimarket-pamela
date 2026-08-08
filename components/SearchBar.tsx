@@ -1,156 +1,114 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { db } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
+import Image from "next/image";
 
 export default function SearchBar() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
+  // Cargar productos de Firestore al iniciar
   useEffect(() => {
-    const loadAll = () => {
-      const saved = localStorage.getItem("minimarket_products");
-      const adminProducts = saved ? JSON.parse(saved) : [];
-      
-      const defaultProducts = [
-        { id: 101, name: "Arroz Costeño", price: 5.90, stock: 50, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/arrozcosteno.jpg" },
-        { id: 102, name: "Leche Gloria", price: 4.50, stock: 30, category: "abarrotes", isOnSale: false, isFeatured: true, image: "/productos/lechegloria.jpg" },
-        { id: 103, name: "Sopa Maruchan", price: 6.90, stock: 25, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/maruchan.jpg" },
-        { id: 104, name: "Bizcocho Bimbo", price: 7.50, stock: 20, category: "snacks", isOnSale: false, isFeatured: true, image: "/productos/bizcochobimbo.jpg" },
-      ];
+    const fetchProducts = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "products"));
+        const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setProducts(list);
+      } catch (error) {
+        console.error("Error al cargar productos para búsqueda:", error);
+      }
+    };
+    fetchProducts();
+  }, []);
 
-      // Combinar y eliminar duplicados globales por nombre
-      const combined = [...adminProducts, ...defaultProducts];
-      const uniqueCombined = Array.from(
-        new Map(combined.map((item) => [item.name.toLowerCase().trim(), item])).values()
-      );
-
-      setAllProducts(uniqueCombined);
+  // Cerrar el buscador automáticamente al hacer clic fuera de él
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
     };
 
-    loadAll();
-    window.addEventListener("storage", loadAll);
-    window.addEventListener("product_added", loadAll);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      window.removeEventListener("storage", loadAll);
-      window.removeEventListener("product_added", loadAll);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Filtrar productos según lo que escriba el usuario
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
 
     if (value.trim() === "") {
-      setResults([]);
-      setSuggestions([]);
-      window.dispatchEvent(new CustomEvent("search_product", { detail: "" }));
+      setFilteredProducts([]);
+      setIsOpen(false);
     } else {
-      const filtered = allProducts.filter((p) =>
-        p.name.toLowerCase().includes(value.toLowerCase())
+      const results = products.filter(p => 
+        p.name?.toLowerCase().includes(value.toLowerCase())
       );
-
-      // Filtrar resultados únicos por nombre
-      const uniqueResults = Array.from(
-        new Map(filtered.map((item) => [item.name.toLowerCase().trim(), item])).values()
-      );
-      setResults(uniqueResults);
-
-      const otherProducts = allProducts.filter(
-        (p) => !p.name.toLowerCase().includes(value.toLowerCase())
-      );
-
-      const uniqueSuggestions = Array.from(
-        new Map(otherProducts.map((item) => [item.name.toLowerCase().trim(), item])).values()
-      );
-      setSuggestions(uniqueSuggestions.slice(0, 3));
+      setFilteredProducts(results);
+      setIsOpen(true);
     }
   };
 
-  const handleSelectProduct = (productName: string) => {
-    setQuery(productName);
-    setResults([]);
-    setSuggestions([]);
-
-    window.dispatchEvent(new CustomEvent("search_product", { detail: productName }));
-
-    const section = document.getElementById("productos-section");
-    if (section) {
-      section.scrollIntoView({ behavior: "smooth" });
-    }
+  const handleSelectProduct = (productId: string) => {
+    setIsOpen(false);
+    setQuery("");
+    // Opcional: Redirigir o hacer scroll al producto si lo deseas
   };
 
   return (
-    <div className="relative w-full max-w-md">
-      {/* Icono de Lupa Profesional */}
-      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-        </svg>
+    <div ref={searchRef} className="relative w-full max-w-md">
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Busca arroz, bebidas, snacks..."
+          value={query}
+          onChange={handleSearchChange}
+          onFocus={() => {
+            if (query.trim() !== "") setIsOpen(true);
+          }}
+          className="w-full bg-zinc-900 border border-zinc-800 text-white px-4 py-3 pl-10 rounded-2xl text-sm outline-none focus:border-red-600 transition shadow-inner"
+        />
+        <span className="absolute left-3.5 top-3.5 text-zinc-500 text-sm">🔍</span>
       </div>
 
-      <input
-        type="text"
-        placeholder="Busca arroz, bebidas, snacks..."
-        value={query}
-        onChange={handleSearch}
-        className="w-full bg-gray-100 pl-12 pr-5 py-3 rounded-full text-sm outline-none border border-gray-200 focus:border-red-600 focus:bg-white transition shadow-sm text-gray-900 font-medium"
-      />
-
-      {(results.length > 0 || suggestions.length > 0) && query.trim() !== "" && (
-        <div className="absolute top-14 left-0 right-0 bg-white border border-gray-200 rounded-3xl shadow-2xl z-[999] p-4 space-y-4">
-          
-          {results.length > 0 && (
-            <div>
-              <p className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-wider">Resultados de búsqueda</p>
-              <div className="space-y-2">
-                {results.map((product) => (
-                  <div
-                    key={product.id}
-                    onClick={() => handleSelectProduct(product.name)}
-                    className="flex items-center justify-between p-2 hover:bg-red-50 rounded-2xl cursor-pointer transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={product.image && product.image.trim() !== "" ? product.image : "/placeholder.png"}
-                        alt={product.name}
-                        className="w-10 h-10 object-cover rounded-xl border border-gray-200"
-                      />
-                      <div>
-                        <h4 className="text-xs font-bold text-gray-900">{product.name}</h4>
-                        <p className="text-[10px] text-red-600 font-extrabold">S/ {Number(product.price).toFixed(2)}</p>
-                      </div>
-                    </div>
-                    <span className="text-xs text-red-600 font-bold">Ver →</span>
-                  </div>
-                ))}
+      {/* Resultados desplegables */}
+      {isOpen && filteredProducts.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-72 overflow-y-auto">
+          {filteredProducts.map(p => (
+            <div
+              key={p.id}
+              onClick={() => handleSelectProduct(p.id)}
+              className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none"
+            >
+              <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
+                {p.image ? (
+                  <Image src={p.image} alt={p.name} width={40} height={40} className="w-full h-full object-cover" />
+                ) : (
+                  <span>📦</span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
+                <p className="text-xs text-red-500 font-bold">S/ {Number(p.price).toFixed(2)}</p>
               </div>
             </div>
-          )}
+          ))}
+        </div>
+      )}
 
-          {suggestions.length > 0 && (
-            <div className="border-t border-gray-100 pt-3">
-              <p className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-wider">💡 Otros productos sugeridos</p>
-              <div className="grid grid-cols-3 gap-2">
-                {suggestions.map((sug) => (
-                  <div
-                    key={sug.id}
-                    onClick={() => handleSelectProduct(sug.name)}
-                    className="bg-gray-50 p-2 rounded-2xl text-center cursor-pointer hover:bg-red-50 hover:border-red-200 border border-transparent transition"
-                  >
-                    <img 
-                      src={sug.image && sug.image.trim() !== "" ? sug.image : "/placeholder.png"} 
-                      alt={sug.name} 
-                      className="w-10 h-10 object-cover mx-auto rounded-lg mb-1 border border-gray-200" 
-                    />
-                    <p className="text-[10px] font-bold truncate text-gray-800">{sug.name}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
+      {isOpen && query.trim() !== "" && filteredProducts.length === 0 && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-4 text-center text-xs text-zinc-400 z-50">
+          No se encontraron productos
         </div>
       )}
     </div>
