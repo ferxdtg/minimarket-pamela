@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 export default function SearchBar() {
@@ -10,6 +11,7 @@ export default function SearchBar() {
   const [products, setProducts] = useState<any[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
 
   // Cargar productos al montar el componente
   useEffect(() => {
@@ -44,8 +46,8 @@ export default function SearchBar() {
   const handleSelectProduct = (productId: string) => {
     setIsOpen(false);
     setQuery("");
-    
-    // Buscar el elemento en la página y hacer scroll suave
+
+    // Intentar buscar el elemento en la página actual
     const element = document.getElementById(`product-${productId}`);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -53,6 +55,9 @@ export default function SearchBar() {
       setTimeout(() => {
         element.classList.remove("ring-4", "ring-red-600", "scale-[1.02]");
       }, 2000);
+    } else {
+      // Si el producto no está en esta vista, redirige a la página principal con un hash
+      router.push(`/#product-${productId}`);
     }
   };
 
@@ -68,7 +73,7 @@ export default function SearchBar() {
             if (query.trim() !== "" && filteredProducts.length > 0) setIsOpen(true);
           }}
           onBlur={() => {
-            // Retraso para asegurar que el clic en la sugerencia ocurra antes de cerrar
+            // Retraso para permitir hacer clic en la sugerencia antes de ocultar
             setTimeout(() => setIsOpen(false), 200);
           }}
           className="w-full bg-zinc-900 border border-zinc-800 text-white px-4 py-3 pl-10 rounded-2xl text-sm outline-none focus:border-red-600 transition shadow-inner"
