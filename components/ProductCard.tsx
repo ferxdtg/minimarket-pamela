@@ -8,57 +8,52 @@ export default function ProductCard({ product }: { product: any }) {
   const { cart, increaseQuantity, decreaseQuantity, addToCart } = useCart() as any;
   const [isFavorite, setIsFavorite] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
-  // 1. Normalización estricta de ID
-  const productId = String(product?.id ?? "");
+  // 1. Sanitización de ID
+  const rawId = product?.id ?? "";
+  const productId = typeof rawId === "number" ? rawId : String(rawId);
 
-  // 2. Obtención de cantidad desde el Carrito
-  const cartItem = cart?.find((item: any) => String(item.id) === productId);
+  // 2. Obtención segura de la cantidad desde el carrito
+  const cartItem = cart?.find((item: any) => String(item.id) === String(productId));
+  const quantity = cartItem && typeof cartItem.quantity === "number" && !isNaN(cartItem.quantity)
+    ? cartItem.quantity
+    : 0;
 
-  const parseQty = (val: any) => {
-    const num = parseInt(val, 10);
-    return isNaN(num) || num < 0 ? 0 : num;
-  };
+  // 3. Sanitización de Precio y Stock
+  const rawPrice = typeof product?.price === "number" ? product.price : parseFloat(product?.price || 0);
+  const displayPrice = !isNaN(rawPrice) ? rawPrice.toFixed(2) : "0.00";
+  const stockNumber = Number(product?.stock) || 0;
 
-  const quantity = parseQty(cartItem?.quantity);
-
-  // 3. Normalización de Precio y Stock
-  const parsePrice = (val: any) => {
-    const num = parseFloat(val);
-    return isNaN(num) ? 0 : num;
-  };
-
-  const rawPrice = parsePrice(product?.price);
-  const displayPrice = rawPrice.toFixed(2);
-  const stockNumber = parseQty(product?.stock);
-
-  // Animación de deslizamiento de la barra
-  const triggerSliderAnimation = () => {
+  // Animación del slider brillante y mensaje flotante
+  const triggerFeedback = () => {
     setIsAnimating(true);
+    setShowToast(true);
+
     setTimeout(() => setIsAnimating(false), 600);
+    setTimeout(() => setShowToast(false), 2000);
   };
 
   // Acción del botón principal "Selecciona cantidad"
   const handleMainButtonClick = () => {
     if (stockNumber <= 0) return;
 
-    triggerSliderAnimation();
+    triggerFeedback();
 
-    if (quantity === 0) {
-      // Agrega por primera vez (1 unidad)
-      if (addToCart) {
-        addToCart({
-          ...product,
-          id: productId,
-          price: rawPrice,
-          stock: stockNumber,
-          quantity: 1,
-        });
-      }
+    // Solo agrega 1 unidad si aún no está en el carrito
+    if (quantity === 0 && addToCart) {
+      addToCart({
+        id: productId,
+        name: product?.name || "Producto",
+        price: !isNaN(rawPrice) ? rawPrice : 0,
+        image: product?.image || "",
+        stock: stockNumber,
+        quantity: 1,
+      });
     }
   };
 
-  // Botón (+) de la cápsula
+  // Botón (+) de la cápsula 3D
   const handleIncrease = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (stockNumber > 0 && quantity < stockNumber) {
@@ -70,7 +65,7 @@ export default function ProductCard({ product }: { product: any }) {
     }
   };
 
-  // Botón (-) de la cápsula
+  // Botón (-) de la cápsula 3D
   const handleDecrease = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (decreaseQuantity && quantity > 0) {
@@ -133,9 +128,9 @@ export default function ProductCard({ product }: { product: any }) {
         </div>
       </div>
 
-      {/* Cápsula de Controles y Botón Animado */}
+      {/* Cápsula de Controles [ - 0 + ] y Botón Animado */}
       <div className="space-y-4 flex flex-col items-center w-full">
-        {/* Cápsula Selector 3D */}
+        {/* Cápsula Selector 3D con relieve */}
         <div className="flex items-center justify-between bg-slate-100/90 border border-slate-200/80 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] rounded-full p-1.5 w-48">
           <button
             onClick={handleDecrease}
@@ -158,7 +153,7 @@ export default function ProductCard({ product }: { product: any }) {
           </button>
         </div>
 
-        {/* Botón Principal con animación Slider de lado a lado */}
+        {/* Botón Principal con Cambio de Estado Visual y Animación Slider */}
         <button
           onClick={handleMainButtonClick}
           disabled={stockNumber <= 0}
@@ -175,11 +170,13 @@ export default function ProductCard({ product }: { product: any }) {
             }`}
           />
 
-          <span className="relative z-10">
+          <span className="relative z-10 flex items-center justify-center gap-1.5">
             {stockNumber <= 0
               ? "Agotado"
+              : showToast
+              ? "¡Agregado al carrito! 🎉"
               : quantity > 0
-              ? `Agregado al carrito (${quantity})`
+              ? `En el carrito (${quantity})`
               : "Selecciona cantidad"}
           </span>
         </button>
