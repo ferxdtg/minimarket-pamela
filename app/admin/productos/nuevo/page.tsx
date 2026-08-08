@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -14,6 +14,9 @@ import {
 import Image from "next/image";
 
 export default function AdminProductsPage() {
+  // Estado de Navegación por Pestañas
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos">("inventario");
+
   const [products, setProducts] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -28,6 +31,10 @@ export default function AdminProductsPage() {
   const [image, setImage] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Referencias para carga de imágenes
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   // 1. Cargar productos en tiempo real desde Firestore
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
@@ -37,7 +44,19 @@ export default function AdminProductsPage() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Limpiar formulario
+  // 2. Manejo de conversión de imagen a Base64
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // 3. Limpiar formulario
   const resetForm = () => {
     setEditingId(null);
     setName("");
@@ -49,7 +68,7 @@ export default function AdminProductsPage() {
     setImage("");
   };
 
-  // 3. Cargar datos del producto en el formulario para editar
+  // 4. Cargar datos del producto seleccionado para editar
   const handleEdit = (product: any) => {
     setEditingId(product.id);
     setName(product.name || "");
@@ -62,7 +81,7 @@ export default function AdminProductsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // 4. Guardar (Crear o Actualizar)
+  // 5. Guardar (Crear o Actualizar)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price) {
@@ -84,10 +103,8 @@ export default function AdminProductsPage() {
       };
 
       if (editingId) {
-        // Actualizar producto existente
         await updateDoc(doc(db, "products", editingId), productData);
       } else {
-        // Crear nuevo producto
         await addDoc(collection(db, "products"), {
           ...productData,
           createdAt: serverTimestamp(),
@@ -103,7 +120,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  // 5. Eliminar producto
+  // 6. Eliminar producto
   const handleDelete = async (id: string, productName: string) => {
     if (confirm(`¿Estás seguro de que deseas eliminar "${productName}"?`)) {
       try {
@@ -121,244 +138,329 @@ export default function AdminProductsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white p-6 max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-zinc-950 text-white p-6 max-w-7xl mx-auto space-y-6">
       {/* Encabezado */}
-      <div className="flex justify-between items-center pb-6 border-b border-zinc-800">
+      <div className="flex justify-between items-center pb-4 border-b border-zinc-800/80">
         <div>
-          <p className="text-xs font-bold text-red-500 uppercase tracking-widest">
+          <p className="text-[11px] font-bold text-red-500 uppercase tracking-widest mb-1">
             Panel de Control
           </p>
-          <h1 className="text-3xl font-black">Minimarket Pamela</h1>
+          <h1 className="text-2xl font-black">Minimarket Pamela</h1>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-400 bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
             ferxdtg@gmail.com
           </span>
-          <button className="text-xs bg-zinc-800 hover:bg-zinc-700 text-red-400 px-4 py-2 rounded-full font-bold transition">
+          <button className="text-xs bg-zinc-900 hover:bg-zinc-800 text-red-400 px-4 py-2 rounded-full font-bold border border-zinc-800 transition">
             Cerrar Sesión
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Formulario (Izquierda) */}
-        <div className="lg:col-span-5 bg-zinc-900 border border-zinc-800 p-6 rounded-3xl h-fit space-y-5">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold">
-              {editingId ? "Editar Producto" : "Agregar Nuevo Producto"}
-            </h2>
-            {editingId && (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 rounded-full transition"
-              >
-                Cancelar Edición ✕
-              </button>
-            )}
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs font-bold uppercase text-zinc-400 block mb-1">
-                Nombre del Producto
-              </label>
-              <input
-                type="text"
-                placeholder="Ej. Aceite Primor 1L"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold uppercase text-zinc-400 block mb-1">
-                  Precio (S/)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase text-zinc-400 block mb-1">
-                  Stock
-                </label>
-                <input
-                  type="number"
-                  placeholder="0"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold uppercase text-zinc-400 block mb-1">
-                Categoría
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition capitalize text-white"
-              >
-                <option value="abarrotes">Abarrotes y Despensa</option>
-                <option value="bebidas">Bebidas</option>
-                <option value="snacks">Snacks y Golosinas</option>
-                <option value="limpieza">Limpieza</option>
-                <option value="bebes">Bebés</option>
-                <option value="ofertas">Ofertas Especiales</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-1">
-              <label className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 p-3 rounded-xl cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isOnSale}
-                  onChange={(e) => setIsOnSale(e.target.checked)}
-                  className="w-4 h-4 accent-red-600"
-                />
-                <span className="text-xs font-bold">En Oferta 🔥</span>
-              </label>
-
-              <label className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 p-3 rounded-xl cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isFeatured}
-                  onChange={(e) => setIsFeatured(e.target.checked)}
-                  className="w-4 h-4 accent-red-600"
-                />
-                <span className="text-xs font-bold">Destacado ⭐</span>
-              </label>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold uppercase text-zinc-400 block mb-1">
-                URL de la Imagen
-              </label>
-              <input
-                type="text"
-                placeholder="https://o-ruta-de-la-imagen.png"
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition mb-2"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl transition cursor-pointer text-sm shadow-lg shadow-red-900/20"
-            >
-              {loading
-                ? "Guardando..."
-                : editingId
-                ? "Actualizar Producto"
-                : "Publicar Producto"}
-            </button>
-          </form>
-        </div>
-
-        {/* Lista del Catálogo (Derecha) */}
-        <div className="lg:col-span-7 bg-zinc-900 border border-zinc-800 p-6 rounded-3xl space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-xl font-bold">
-              Catálogo Actual ({products.length})
-            </h2>
-            <div className="relative max-w-xs w-full">
-              <input
-                type="text"
-                placeholder="Buscar producto..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white px-3 py-2 pl-8 rounded-xl outline-none focus:border-red-600 transition"
-              />
-              <span className="absolute left-2.5 top-2 text-xs text-zinc-500">🔍</span>
-            </div>
-          </div>
-
-          <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-            {filteredProducts.map((p) => {
-              const isBeingEdited = editingId === p.id;
-              return (
-                <div
-                  key={p.id}
-                  className={`flex items-center justify-between p-3 rounded-2xl border transition ${
-                    isBeingEdited
-                      ? "bg-red-950/20 border-red-600"
-                      : "bg-zinc-950 border-zinc-800/80 hover:border-zinc-700"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-12 h-12 bg-zinc-900 rounded-xl overflow-hidden shrink-0 relative border border-zinc-800 flex items-center justify-center">
-                      {p.image ? (
-                        <Image
-                          src={p.image}
-                          alt={p.name}
-                          fill
-                          className="object-contain p-1"
-                        />
-                      ) : (
-                        <span className="text-xl">📦</span>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="text-sm font-bold truncate text-white">
-                          {p.name}
-                        </h4>
-                        {p.isFeatured && <span className="text-xs">⭐</span>}
-                        {p.isOnSale && <span className="text-xs">🔥</span>}
-                      </div>
-                      <p className="text-xs text-red-500 font-bold">
-                        S/ {Number(p.price || 0).toFixed(2)}{" "}
-                        <span className="text-zinc-500 font-normal">
-                          | Stock: {p.stock || 0}
-                        </span>
-                      </p>
-                      <span className="text-[10px] uppercase font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800 inline-block mt-1">
-                        {p.category || "abarrotes"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 ml-4">
-                    {/* Botón de Editar */}
-                    <button
-                      onClick={() => handleEdit(p)}
-                      title="Editar producto"
-                      className={`p-2.5 rounded-xl border transition text-sm ${
-                        isBeingEdited
-                          ? "bg-red-600 text-white border-red-500"
-                          : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-600"
-                      }`}
-                    >
-                      ✏️
-                    </button>
-
-                    {/* Botón de Eliminar */}
-                    <button
-                      onClick={() => handleDelete(p.id, p.name)}
-                      title="Eliminar producto"
-                      className="p-2.5 bg-zinc-900 hover:bg-red-950/40 border border-zinc-800 hover:border-red-900 text-zinc-400 hover:text-red-500 rounded-xl transition text-sm"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {/* Pestañas de Navegación (INVENTARIO / PEDIDOS) */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setActiveTab("inventario")}
+          className={`px-6 py-2.5 rounded-full text-xs font-black transition flex items-center gap-2 cursor-pointer ${
+            activeTab === "inventario"
+              ? "bg-red-600 text-white shadow-lg shadow-red-900/30"
+              : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+          }`}
+        >
+          🏷️ INVENTARIO
+        </button>
+        <button
+          onClick={() => setActiveTab("pedidos")}
+          className={`px-6 py-2.5 rounded-full text-xs font-black transition flex items-center gap-2 cursor-pointer ${
+            activeTab === "pedidos"
+              ? "bg-red-600 text-white shadow-lg shadow-red-900/30"
+              : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+          }`}
+        >
+          🧾 PEDIDOS (5)
+        </button>
       </div>
+
+      {/* Vista de Inventario */}
+      {activeTab === "inventario" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Formulario (Izquierda) */}
+          <div className="lg:col-span-5 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl h-fit space-y-5">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold">
+                {editingId ? "Editar Producto" : "Agregar Nuevo Producto"}
+              </h2>
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1 rounded-full transition"
+                >
+                  Cancelar Edición ✕
+                </button>
+              )}
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="text-[11px] font-bold uppercase text-zinc-400 block mb-1.5">
+                  Nombre del Producto
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. Aceite Primor 1L"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[11px] font-bold uppercase text-zinc-400 block mb-1.5">
+                    Precio (S/)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold uppercase text-zinc-400 block mb-1.5">
+                    Stock
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold uppercase text-zinc-400 block mb-1.5">
+                  Categoría
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition capitalize text-white"
+                >
+                  <option value="abarrotes">Abarrotes y Despensa</option>
+                  <option value="bebidas">Bebidas</option>
+                  <option value="snacks">Snacks y Golosinas</option>
+                  <option value="limpieza">Limpieza</option>
+                  <option value="bebes">Bebés</option>
+                  <option value="ofertas">Ofertas Especiales</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-1">
+                <label className="flex items-center justify-between bg-zinc-950 border border-zinc-800 p-3 rounded-xl cursor-pointer">
+                  <span className="text-xs font-bold">En Oferta</span>
+                  <input
+                    type="checkbox"
+                    checked={isOnSale}
+                    onChange={(e) => setIsOnSale(e.target.checked)}
+                    className="w-4 h-4 accent-red-600"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between bg-zinc-950 border border-zinc-800 p-3 rounded-xl cursor-pointer">
+                  <span className="text-xs font-bold">Destacado</span>
+                  <input
+                    type="checkbox"
+                    checked={isFeatured}
+                    onChange={(e) => setIsFeatured(e.target.checked)}
+                    className="w-4 h-4 accent-red-600"
+                  />
+                </label>
+              </div>
+
+              {/* Sección de Imagen del Producto */}
+              <div>
+                <label className="text-[11px] font-bold uppercase text-zinc-400 block mb-1.5">
+                  Imagen del Producto
+                </label>
+
+                {/* Inputs ocultos de archivo y cámara */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+                <input
+                  type="file"
+                  ref={cameraInputRef}
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+
+                {/* Previsualización si existe imagen cargada */}
+                {image && (
+                  <div className="relative w-full h-36 bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden mb-3 flex items-center justify-center">
+                    <Image
+                      src={image}
+                      alt="Previsualización"
+                      fill
+                      className="object-contain p-2"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setImage("")}
+                      className="absolute top-2 right-2 bg-red-600 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center font-bold hover:bg-red-700 shadow-md cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Botones de acción de imagen */}
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center gap-2 py-3 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-300 transition cursor-pointer"
+                  >
+                    📁 Subir Archivo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex items-center justify-center gap-2 py-3 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-300 transition cursor-pointer"
+                  >
+                    📷 Usar Cámara
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl transition cursor-pointer text-sm shadow-lg shadow-red-900/20"
+              >
+                {loading
+                  ? "Guardando..."
+                  : editingId
+                  ? "Actualizar Producto"
+                  : "Publicar Producto"}
+              </button>
+            </form>
+          </div>
+
+          {/* Lista del Catálogo (Derecha) */}
+          <div className="lg:col-span-7 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg font-bold">
+                Catálogo Actual ({products.length})
+              </h2>
+              <div className="relative max-w-xs w-full">
+                <input
+                  type="text"
+                  placeholder="Buscar producto..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white px-3 py-2 pl-8 rounded-xl outline-none focus:border-red-600 transition"
+                />
+                <span className="absolute left-2.5 top-2 text-xs text-zinc-500">
+                  🔍
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+              {filteredProducts.map((p) => {
+                const isBeingEdited = editingId === p.id;
+                return (
+                  <div
+                    key={p.id}
+                    className={`flex items-center justify-between p-3.5 rounded-2xl border transition ${
+                      isBeingEdited
+                        ? "bg-red-950/20 border-red-600"
+                        : "bg-zinc-950 border-zinc-800/80 hover:border-zinc-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-12 h-12 bg-zinc-900 rounded-xl overflow-hidden shrink-0 relative border border-zinc-800 flex items-center justify-center">
+                        {p.image ? (
+                          <Image
+                            src={p.image}
+                            alt={p.name}
+                            fill
+                            className="object-contain p-1"
+                          />
+                        ) : (
+                          <span className="text-xl">📦</span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-sm font-bold truncate text-white">
+                            {p.name}
+                          </h4>
+                          {p.isFeatured && <span className="text-xs">⭐</span>}
+                          {p.isOnSale && <span className="text-xs">🔥</span>}
+                        </div>
+                        <p className="text-xs text-red-500 font-bold">
+                          S/ {Number(p.price || 0).toFixed(2)}{" "}
+                          <span className="text-zinc-500 font-normal">
+                            | Stock: {p.stock || 0}
+                          </span>
+                        </p>
+                        <span className="text-[10px] uppercase font-bold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800 inline-block mt-1">
+                          {p.category || "abarrotes"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-4">
+                      {/* Botón de Editar */}
+                      <button
+                        onClick={() => handleEdit(p)}
+                        title="Editar producto"
+                        className={`p-2.5 rounded-xl border transition text-sm cursor-pointer ${
+                          isBeingEdited
+                            ? "bg-red-600 text-white border-red-500"
+                            : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-600"
+                        }`}
+                      >
+                        ✏️
+                      </button>
+
+                      {/* Botón de Eliminar */}
+                      <button
+                        onClick={() => handleDelete(p.id, p.name)}
+                        title="Eliminar producto"
+                        className="p-2.5 bg-zinc-900 hover:bg-red-950/40 border border-zinc-800 hover:border-red-900 text-zinc-400 hover:text-red-500 rounded-xl transition text-sm cursor-pointer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Vista de Pedidos */
+        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 text-center space-y-3">
+          <p className="text-2xl font-bold">Gestión de Pedidos Recibidos</p>
+          <p className="text-sm text-zinc-400">
+            Aquí podrás visualizar las compras enviadas por tus clientes vía WhatsApp o sistema.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
