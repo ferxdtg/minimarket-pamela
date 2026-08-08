@@ -8,15 +8,16 @@ export default function ProductCard({ product }: { product: any }) {
   const { addToCart } = useCart() as any;
   const [isFavorite, setIsFavorite] = useState(false);
   
-  // Estado local para la selección previa al envio
+  // Estado local del contador de la tarjeta
   const [localQty, setLocalQty] = useState(0);
   const [showModal, setShowModal] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
 
-  // 1. Sanitización de ID
+  // Sanitización de ID
   const rawId = product?.id ?? "";
   const productId = typeof rawId === "number" ? rawId : String(rawId);
 
-  // 2. Sanitización de Precio y Stock
+  // Sanitización de Precio y Stock
   const rawPrice = typeof product?.price === "number" ? product.price : parseFloat(product?.price || 0);
   const displayPrice = !isNaN(rawPrice) ? rawPrice.toFixed(2) : "0.00";
   const stockNumber = Number(product?.stock) || 0;
@@ -37,29 +38,39 @@ export default function ProductCard({ product }: { product: any }) {
     }
   };
 
-  // Agregar al carrito, desplegar Pop-up y resetear
+  // Disparador al hacer clic en "Selecciona cantidad"
   const handleAddToCart = () => {
     if (stockNumber <= 0) return;
 
     const qtyToAdd = localQty === 0 ? 1 : localQty;
 
-    if (addToCart) {
-      addToCart({
-        id: productId,
-        name: product?.name || "Producto",
-        price: !isNaN(rawPrice) ? rawPrice : 0,
-        image: product?.image || "",
-        stock: stockNumber,
-        quantity: qtyToAdd,
-      });
-    }
+    // 1. Iniciar animación de recorrido (Slider / Sweep)
+    setIsAnimating(true);
 
-    // 1. Desplegar ventana emergente
-    setShowModal(true);
+    setTimeout(() => {
+      setIsAnimating(false);
 
-    // 2. Resetear contador local a 0
-    setLocalQty(0);
+      // 2. Enviar datos al carrito
+      if (addToCart) {
+        addToCart({
+          id: productId,
+          name: product?.name || "Producto",
+          price: !isNaN(rawPrice) ? rawPrice : 0,
+          image: product?.image || "",
+          stock: stockNumber,
+          quantity: qtyToAdd,
+        });
+      }
+
+      // 3. Mostrar la ventana emergente Pop-up
+      setShowModal(true);
+
+      // 4. Resetear el contador de la tarjeta a 0 (regresa al estado pasivo)
+      setLocalQty(0);
+    }, 400);
   };
+
+  const isSelected = localQty > 0;
 
   return (
     <>
@@ -117,7 +128,7 @@ export default function ProductCard({ product }: { product: any }) {
           </div>
         </div>
 
-        {/* Cápsula de Controles y Botón */}
+        {/* Cápsula de Controles y Botón Animado */}
         <div className="space-y-4 flex flex-col items-center w-full">
           {/* Cápsula Selector 3D */}
           <div className="flex items-center justify-between bg-slate-100/90 border border-slate-200/80 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] rounded-full p-1.5 w-48">
@@ -142,18 +153,35 @@ export default function ProductCard({ product }: { product: any }) {
             </button>
           </div>
 
-          {/* Botón Principal (Siempre regresa a "Selecciona cantidad") */}
+          {/* Botón Principal (Se fuerza el cambio de color con inline-styles) */}
           <button
             onClick={handleAddToCart}
             disabled={stockNumber <= 0}
-            className="w-full py-3.5 font-bold rounded-2xl transition-all duration-300 cursor-pointer text-sm border shadow-[0_2px_6px_rgba(0,0,0,0.04)] bg-slate-100 text-slate-600 border-slate-200/60 hover:bg-slate-200/80 active:scale-[0.98]"
+            style={{
+              backgroundColor: isSelected ? "#dc2626" : "#f1f5f9",
+              color: isSelected ? "#ffffff" : "#475569",
+              borderColor: isSelected ? "#dc2626" : "#cbd5e1",
+              boxShadow: isSelected
+                ? "0 4px 14px rgba(220, 38, 38, 0.4)"
+                : "0 2px 6px rgba(0, 0, 0, 0.04)",
+            }}
+            className="relative overflow-hidden w-full py-3.5 font-bold rounded-2xl transition-all duration-300 cursor-pointer text-sm border active:scale-[0.98]"
           >
-            {stockNumber <= 0 ? "Agotado" : "Selecciona cantidad"}
+            {/* Barrido / Animación de Slide de lado a lado */}
+            <span
+              className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent transition-transform duration-500 ease-in-out pointer-events-none ${
+                isAnimating ? "translate-x-full" : "-translate-x-full"
+              }`}
+            />
+
+            <span className="relative z-10">
+              {stockNumber <= 0 ? "Agotado" : "Selecciona cantidad"}
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Ventana Emergente (Pop-up Modal) */}
+      {/* Ventana Emergente Pop-up */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[999999]">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-200">
