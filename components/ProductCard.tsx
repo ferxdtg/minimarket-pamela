@@ -1,529 +1,80 @@
 "use client";
 
-import Image from "next/image";
-import { useState } from "react";
 import { useCart } from "@/lib/CartContext";
-import { useCartUI } from "@/lib/CartUIContext";
-
-
-type ProductCardProps = {
-
-  id:number;
-  name:string;
-  price:string;
-  image:string;
-
-};
-
-
-
-export default function ProductCard({
-
-id,
-name,
-price,
-image
-
-}:ProductCardProps){
-
-
-
-const [quantity,setQuantity]=useState(0);
-
-
-const [favorite,setFavorite]=useState(false);
-
-
-
-const {addToCart}=useCart();
-
-
-const {showNotification}=useCartUI();
-
-
-
-
-
-function addProduct(){
-
-
-if(quantity===0)return;
-
-
-
-addToCart({
-
-id,
-name,
-image,
-price:Number(price),
-quantity
-
-});
-
-
-
-showNotification(
-`${name} agregado al carrito 🛒`
-);
-
-
-
-setQuantity(0);
-
-
-
-}
-
-
-
-
-
-
-
-return (
-
-<div
-
-className="
-relative
-bg-white
-rounded-3xl
-shadow-md
-hover:shadow-2xl
-transition-all
-duration-300
-overflow-hidden
-border
-border-gray-100
-group
-"
-
->
-
-
-
-
-
-{/* FAVORITO */}
-
-
-<button
-
-onClick={()=>setFavorite(!favorite)}
-
-className="
-absolute
-right-4
-top-4
-z-10
-bg-white
-rounded-full
-w-10
-h-10
-shadow
-flex
-items-center
-justify-center
-text-xl
-"
-
->
-
-{
-
-favorite
-
-?
-
-"❤️"
-
-:
-
-"🤍"
-
-}
-
-
-</button>
-
-
-
-
-
-
-
-
-
-{/* IMAGEN */}
-
-
-<div
-
-className="
-relative
-h-56
-bg-gray-50
-overflow-hidden
-"
-
->
-
-
-<Image
-
-src={image}
-alt={name}
-fill
-
-className="
-object-contain
-p-5
-group-hover:scale-110
-transition-transform
-duration-500
-"
-
-/>
-
-
-
-
-
-<div
-
-className="
-absolute
-top-4
-left-4
-bg-red-600
-text-white
-px-3
-py-1
-rounded-full
-text-xs
-font-black
-"
-
->
-
-🔥 Más vendido
-
-</div>
-
-
-
-
-</div>
-
-
-
-
-
-
-
-
-{/* INFO */}
-
-
-<div
-
-className="
-p-5
-"
-
->
-
-
-<h3
-
-className="
-text-xl
-font-black
-text-gray-900
-"
-
->
-
-{name}
-
-</h3>
-
-
-
-
-
-<div
-
-className="
-flex
-items-center
-gap-1
-mt-2
-"
-
->
-
-<span className="text-yellow-500">
-
-⭐⭐⭐⭐⭐
-
-</span>
-
-
-<span
-
-className="
-text-xs
-text-gray-500
-"
-
->
-
-(120)
-
-</span>
-
-
-</div>
-
-
-
-
-
-
-
-<div
-
-className="
-flex
-items-center
-gap-3
-mt-4
-"
-
->
-
-
-<p
-
-className="
-text-3xl
-font-black
-text-red-600
-"
-
->
-
-S/{price}
-
-</p>
-
-
-<span
-
-className="
-bg-green-100
-text-green-700
-text-xs
-font-black
-px-3
-py-1
-rounded-full
-"
-
->
-
-Stock
-
-</span>
-
-
-
-</div>
-
-
-
-
-
-
-
-
-
-{/* CANTIDAD */}
-
-
-{/* CANTIDAD */}
-
-<div
-  className="
-    flex
-    justify-center
-    mt-6
-  "
->
-
-  <div
-    className="
-      flex
-      items-center
-      bg-gray-100
-      rounded-full
-      p-1
-      shadow-inner
-      gap-2
-    "
-  >
-
-    <button
-      type="button"
-      onClick={() =>
-        setQuantity(
-          Math.max(0, quantity - 1)
-        )
-      }
-      className={`
-        w-11
-        h-11
-        rounded-full
-        font-black
-        text-2xl
-        shadow-md
-        flex
-        items-center
-        justify-center
-        transition-all
-        
-        ${
-         quantity === 0
-         ?
-         "bg-white text-gray-400 cursor-not-allowed"
-         :
-         "bg-red-600 text-white hover:bg-red-700"
-        }
-        
-        `}
+import Image from "next/image";
+
+export default function ProductCard({ product }: { product: any }) {
+  const { cart, increaseQuantity, decreaseQuantity, addToCart } = useCart() as any;
+  
+  const cartItem = cart?.find((item: any) => item.id === product.id);
+  const quantity = cartItem ? cartItem.quantity : 0;
+
+  return (
+    <div 
+      id={`product-${product.id}`}
+      className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 flex flex-col justify-between shadow-xl transition-all duration-300"
     >
-      −
-    </button>
+      <div>
+        <div className="relative w-full h-48 bg-zinc-800/50 rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
+          {product.image ? (
+            <Image 
+              src={product.image as string} 
+              alt={product.name || "Producto"} 
+              fill 
+              className="object-contain p-4" 
+            />
+          ) : (
+            <span className="text-3xl">📦</span>
+          )}
+          {product.isFeatured && (
+            <span className="absolute top-3 left-3 bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs px-2.5 py-1 rounded-full font-bold">
+              ⭐ Destacado
+            </span>
+          )}
+          {product.isOnSale && (
+            <span className="absolute top-3 right-3 bg-red-500/20 border border-red-500/40 text-red-400 text-xs px-2.5 py-1 rounded-full font-bold">
+              🔥 Oferta
+            </span>
+          )}
+        </div>
 
+        <h3 className="text-lg font-bold text-white mb-1 truncate">{product.name}</h3>
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-lg font-black text-red-500">S/ {Number(product.price || 0).toFixed(2)}</span>
+          <span className="text-xs text-zinc-400 bg-zinc-800 px-2.5 py-1 rounded-lg">Stock: {product.stock}</span>
+        </div>
+      </div>
 
-    <span
-      className="
-        w-10
-        text-center
-        text-xl
-        font-black
-        text-gray-900
-      "
-    >
-      {quantity}
-    </span>
-
-
-    <button
-      type="button"
-      onClick={() =>
-        setQuantity(quantity + 1)
-      }
-      className="
-        w-11
-        h-11
-        rounded-full
-        bg-red-600
-        text-white
-        text-2xl
-        font-black
-        shadow-md
-        flex
-        items-center
-        justify-center
-        hover:bg-red-700
-        transition-all
-      "
-    >
-      +
-    </button>
-
-
-  </div>
-
-</div>
-
-
-
-
-
-
-
-
-<button
-
-onClick={addProduct}
-
-disabled={quantity===0}
-
-className={
-
-`
-mt-6
-w-full
-py-3
-rounded-xl
-font-black
-transition
-
-${
-
-quantity===0
-
-?
-
-"bg-gray-200 text-gray-500"
-
-:
-
-"bg-red-600 text-white hover:bg-red-700 hover:scale-105"
-
-}
-
-`
-
-}
-
->
-
-{
-
-quantity===0
-
-?
-
-"Selecciona cantidad"
-
-:
-
-"Agregar al carrito 🛒"
-
-}
-
-
-</button>
-
-
-
-
-
-</div>
-
-
-
-
-
-</div>
-
-
-);
-
-
+      <div>
+        {quantity === 0 ? (
+          <button
+            onClick={() => addToCart && addToCart(product)}
+            disabled={product.stock <= 0}
+            className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-bold rounded-xl transition cursor-pointer text-sm shadow-md"
+          >
+            {product.stock > 0 ? "Seleccionar cantidad" : "Agotado"}
+          </button>
+        ) : (
+          <div className="flex items-center justify-between bg-zinc-800 p-1.5 rounded-xl border border-zinc-700">
+            <button
+              onClick={() => decreaseQuantity && decreaseQuantity(product.id)}
+              className="w-9 h-9 rounded-lg bg-red-600 text-white font-bold text-lg flex items-center justify-center hover:bg-red-700 transition cursor-pointer"
+            >
+              -
+            </button>
+            <span className="text-white font-bold text-base px-3">
+              {quantity}
+            </span>
+            <button
+              onClick={() => increaseQuantity && increaseQuantity(product.id)}
+              disabled={quantity >= product.stock}
+              className="w-9 h-9 rounded-lg bg-red-600 text-white font-bold text-lg flex items-center justify-center hover:bg-red-700 disabled:opacity-50 transition cursor-pointer"
+            >
+              +
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
