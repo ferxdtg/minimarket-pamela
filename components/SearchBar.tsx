@@ -12,19 +12,19 @@ export default function SearchBar() {
   const [isOpen, setIsOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // 1. Escuchar los productos de Firebase en tiempo real con IDs garantizados como String
+  // 1. Cargar catálogo de Firestore en tiempo real
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
       const list = snapshot.docs.map((doc) => ({
         id: String(doc.id),
-        ...doc.data()
+        ...doc.data(),
       }));
       setProducts(list);
     });
     return () => unsubscribe();
   }, []);
 
-  // 2. Cerrar la lista únicamente al hacer clic fuera del componente
+  // 2. Cerrar si se hace clic fuera del buscador
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -35,7 +35,7 @@ export default function SearchBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 3. Manejo del texto de búsqueda
+  // 3. Filtrar sugerencias
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
@@ -52,35 +52,24 @@ export default function SearchBar() {
     }
   };
 
-  // 4. Traslado directo al producto (Lógica idéntica a los botones de categorías)
-  const handleSelectProduct = (productId: string | number) => {
-    const targetId = `product-${String(productId)}`;
-    
-    // Cerrar el menú desplegable y limpiar
+  // 4. Traslado directo al producto o al catálogo
+  const handleSelectProduct = (productId: string) => {
     setIsOpen(false);
     setQuery("");
 
-    // Buscar el elemento por ID y realizar scroll
+    const targetId = `product-${productId}`;
     const element = document.getElementById(targetId);
 
     if (element) {
+      // Si la tarjeta está montada en la pantalla, hace scroll hasta ella
       element.scrollIntoView({ behavior: "smooth", block: "center" });
-
-      // Animar el producto para resaltarlo
       element.classList.add("ring-4", "ring-red-600");
       setTimeout(() => {
         element.classList.remove("ring-4", "ring-red-600");
       }, 2000);
     } else {
-      // Respaldo: Si la tarjeta no está visible, desplaza al catálogo de productos
-      const catalogSection = 
-        document.getElementById("productos") || 
-        document.getElementById("catalogo") || 
-        document.querySelector("section");
-      
-      if (catalogSection) {
-        catalogSection.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      // Si el producto no está dibujado por filtros de categoría, navega al ancla directa
+      window.location.hash = targetId;
     }
   };
 
@@ -100,15 +89,15 @@ export default function SearchBar() {
         <span className="absolute left-3.5 top-3.5 text-zinc-500 text-sm">🔍</span>
       </div>
 
-      {/* Lista de sugerencias */}
+      {/* Menú desplegable */}
       {isOpen && query.trim() !== "" && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-[99999] max-h-72 overflow-y-auto">
           {filteredProducts.length > 0 ? (
             filteredProducts.map((p) => (
               <div
                 key={p.id}
-                // onMouseDown + preventDefault evita que el input pierda foco antes de hacer el scroll
                 onMouseDown={(e) => {
+                  // Cancela la pérdida de foco prematura del input
                   e.preventDefault();
                   handleSelectProduct(p.id);
                 }}
@@ -128,12 +117,8 @@ export default function SearchBar() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-sm font-bold text-white truncate">
-                    {p.name}
-                  </h4>
-                  <p className="text-xs text-red-500 font-bold">
-                    S/ {Number(p.price || 0).toFixed(2)}
-                  </p>
+                  <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
+                  <p className="text-xs text-red-500 font-bold">S/ {Number(p.price || 0).toFixed(2)}</p>
                 </div>
               </div>
             ))
