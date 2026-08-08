@@ -38,11 +38,10 @@ export default function ProductCard({ product }: { product: any }) {
     }
   };
 
-  // Acción de agregar al carrito
+  // Acción de agregar al carrito (Solo se ejecuta si localQty > 0)
   const handleAddToCart = () => {
-    if (stockNumber <= 0) return;
-
-    const qtyToAdd = localQty === 0 ? 1 : localQty;
+    // Si no se ha seleccionado cantidad o no hay stock, NO HACE NADA
+    if (stockNumber <= 0 || localQty <= 0) return;
 
     // 1. Animación de barrido/deslizamiento
     setIsAnimating(true);
@@ -50,7 +49,7 @@ export default function ProductCard({ product }: { product: any }) {
     setTimeout(() => {
       setIsAnimating(false);
 
-      // 2. Guardar en el carrito global
+      // 2. Guardar en el carrito la cantidad seleccionada
       if (addToCart) {
         addToCart({
           id: productId,
@@ -58,17 +57,19 @@ export default function ProductCard({ product }: { product: any }) {
           price: !isNaN(rawPrice) ? rawPrice : 0,
           image: product?.image || "",
           stock: stockNumber,
-          quantity: qtyToAdd,
+          quantity: localQty,
         });
       }
 
       // 3. Abrir emergente
       setShowModal(true);
 
-      // 4. Restablecer contador a 0 (vuelve a estar pasivo)
+      // 4. Restablecer contador a 0 (el botón vuelve al estado pasivo gris)
       setLocalQty(0);
     }, 400);
   };
+
+  const isSelected = localQty > 0;
 
   return (
     <>
@@ -148,17 +149,17 @@ export default function ProductCard({ product }: { product: any }) {
             </button>
           </div>
 
-          {/* Botón Principal (Se vuelve ROJO dinámicamente si localQty > 0) */}
+          {/* Botón Principal: Solamente activo e interactivo si localQty > 0 */}
           <button
             onClick={handleAddToCart}
-            disabled={stockNumber <= 0}
-            className={`relative overflow-hidden w-full py-3.5 font-bold rounded-2xl transition-all duration-300 cursor-pointer text-sm border active:scale-[0.98] ${
-              localQty > 0
-                ? "bg-red-600 text-white border-red-600 shadow-[0_4px_14px_rgba(220,38,38,0.35)] hover:bg-red-700"
-                : "bg-slate-100 text-slate-600 border-slate-200/60 hover:bg-slate-200/80 shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
+            disabled={stockNumber <= 0 || !isSelected}
+            className={`relative overflow-hidden w-full py-3.5 font-bold rounded-2xl transition-all duration-300 text-sm border ${
+              isSelected
+                ? "bg-red-600 text-white border-red-600 shadow-[0_4px_14px_rgba(220,38,38,0.35)] hover:bg-red-700 active:scale-[0.98] cursor-pointer"
+                : "bg-slate-100 text-slate-400 border-slate-200/60 shadow-[0_2px_6px_rgba(0,0,0,0.04)] cursor-not-allowed"
             }`}
           >
-            {/* Animación de barrido al dar clic */}
+            {/* Animación de barrido solo si está activo */}
             <span
               className={`absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent transition-transform duration-500 ease-in-out pointer-events-none ${
                 isAnimating ? "translate-x-full" : "-translate-x-full"
