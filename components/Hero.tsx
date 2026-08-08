@@ -15,6 +15,7 @@ export default function Hero() {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14 grid md:grid-cols-12 gap-8 items-center relative z-10">
         
+        {/* COLUMNA IZQUIERDA */}
         <div className="md:col-span-7 text-center md:text-left">
           <div className="inline-flex items-center gap-2 bg-black/20 backdrop-blur-md px-4 py-1.5 rounded-full font-semibold text-xs sm:text-sm mb-4 border border-white/15 shadow-sm">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-ping"></span>
@@ -37,12 +38,7 @@ export default function Hero() {
             >
               Ver Catálogo 🛒
             </button>
-            <a
-              href="/admin/productos/nuevo"
-              className="bg-black/30 hover:bg-black/40 text-white font-semibold px-5 py-3 rounded-xl backdrop-blur-md border border-white/20 transition text-sm sm:text-base flex items-center gap-2"
-            >
-              Panel Admin ⚙️
-            </a>
+            {/* Botón Panel Admin eliminado de aquí como pediste */}
           </div>
 
           <div className="mt-8 pt-6 border-t border-white/15 grid grid-cols-3 gap-4 text-center md:text-left">
@@ -61,6 +57,7 @@ export default function Hero() {
           </div>
         </div>
 
+        {/* COLUMNA DERECHA */}
         <div className="md:col-span-5 flex justify-center">
           <div className="relative bg-white/15 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-white/25 text-center w-full max-w-sm">
             <span className="absolute -top-3 right-5 bg-yellow-300 text-red-950 text-xs font-black px-3 py-1 rounded-full shadow uppercase tracking-wider">
