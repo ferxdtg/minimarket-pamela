@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import Image from "next/image";
 
-// Compresor de imágenes en Canvas para evitar sobrepasar límites de Firestore
+// Compresor de imágenes en Canvas
 const compressImage = (file: File, maxWidth = 600, quality = 0.7): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -72,7 +72,7 @@ export default function AdminProductsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Cargar Productos en tiempo real desde Firestore
+  // 1. Cargar Productos en tiempo real
   useEffect(() => {
     const unsubscribe = onSnapshot(
       collection(db, "products"),
@@ -85,7 +85,7 @@ export default function AdminProductsPage() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Cargar Pedidos en tiempo real desde Firestore
+  // 2. Cargar Pedidos en tiempo real
   useEffect(() => {
     const unsubscribe = onSnapshot(
       collection(db, "orders"),
@@ -137,7 +137,7 @@ export default function AdminProductsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Guardar (Crear o Actualizar) con sanitización de tipos estricta
+  // Guardar (Crear o Actualizar)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -205,7 +205,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  // Cambiar estado de un pedido (Pendiente <-> Entregado)
+  // Cambiar estado de un pedido
   const toggleOrderStatus = async (orderId: string, currentStatus: string) => {
     const newStatus = currentStatus === "entregado" ? "pendiente" : "entregado";
     try {
@@ -595,24 +595,35 @@ export default function AdminProductsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredOrders.map((order) => {
-                // Verificación ultra flexible para detectar Recojo en Tienda
-                const shippingRaw = String(
-                  order.shippingType ||
-                  order.deliveryType ||
-                  order.tipoEnvio ||
-                  order.metodoEntrega ||
-                  order.metodoEnvio ||
-                  ""
-                ).toLowerCase();
+                // Serialización completa del objeto del pedido a minúsculas
+                const orderJsonString = JSON.stringify(order).toLowerCase();
 
+                // Búsqueda inteligente por booleano o por palabras clave en cualquier propiedad
                 const isPickup =
                   order.isPickup === true ||
-                  shippingRaw.includes("tienda") ||
-                  shippingRaw.includes("recojo") ||
-                  shippingRaw.includes("pickup");
+                  order.pickup === true ||
+                  orderJsonString.includes("tienda") ||
+                  orderJsonString.includes("recojo") ||
+                  orderJsonString.includes("retiro") ||
+                  orderJsonString.includes("pickup") ||
+                  orderJsonString.includes("store");
 
                 const isDelivered = (order.status || "pendiente").toLowerCase() === "entregado";
-                const itemList = order.items || order.productos || order.cart || [];
+
+                // Extracción de lista de ítems sin importar cómo se guardó en Firebase
+                const itemList =
+                  order.items ||
+                  order.productos ||
+                  order.cart ||
+                  order.carrito ||
+                  [];
+
+                const addressText =
+                  order.address ||
+                  order.direccion ||
+                  order.shippingAddress ||
+                  order.dir ||
+                  "";
 
                 return (
                   <div
@@ -623,10 +634,14 @@ export default function AdminProductsPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <h3 className="text-base font-bold text-white">
-                            {order.customerName || order.cliente || order.nombre || "Cliente"}
+                            {order.customerName ||
+                              order.cliente ||
+                              order.nombre ||
+                              order.name ||
+                              "Cliente"}
                           </h3>
                           <p className="text-xs text-zinc-500">
-                            {order.phone || order.telefono || "Sin teléfono"}
+                            {order.phone || order.telefono || order.celular || "Sin teléfono"}
                           </p>
                         </div>
 
@@ -642,10 +657,10 @@ export default function AdminProductsPage() {
                         )}
                       </div>
 
-                      {/* Dirección solo si es envío a domicilio */}
-                      {!isPickup && (order.address || order.direccion) && (
+                      {/* Dirección en caso de Envío a Domicilio */}
+                      {!isPickup && addressText && (
                         <p className="text-xs text-zinc-400 bg-zinc-900 p-2.5 rounded-xl border border-zinc-800">
-                          📍 <span className="font-medium">{order.address || order.direccion}</span>
+                          📍 <span className="font-medium">{addressText}</span>
                         </p>
                       )}
 
@@ -655,9 +670,9 @@ export default function AdminProductsPage() {
                         </p>
                         <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
                           {itemList.map((item: any, idx: number) => {
-                            const qty = item.quantity || item.cantidad || 1;
+                            const qty = item.quantity || item.cantidad || item.qty || 1;
                             const prc = item.price || item.precio || item.precioUnitario || 0;
-                            const name = item.name || item.nombre || "Producto";
+                            const name = item.name || item.nombre || item.title || "Producto";
 
                             return (
                               <div
@@ -681,7 +696,7 @@ export default function AdminProductsPage() {
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-bold text-zinc-400">Total:</span>
                         <span className="text-lg font-black text-red-500">
-                          S/ {Number(order.total || order.totalPagar || 0).toFixed(2)}
+                          S/ {Number(order.total || order.totalPagar || order.monto || 0).toFixed(2)}
                         </span>
                       </div>
 
