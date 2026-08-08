@@ -9,11 +9,10 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  serverTimestamp,
 } from "firebase/firestore";
 import Image from "next/image";
 
-// Función utilitaria para comprimir imágenes en Base64 y no saturar Firestore
+// Compresor de imágenes en Canvas para evitar sobrepasar límites de Firestore
 const compressImage = (file: File, maxWidth = 600, quality = 0.7): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -73,7 +72,7 @@ export default function AdminProductsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Cargar Productos en tiempo real
+  // 1. Cargar Productos en tiempo real desde Firestore
   useEffect(() => {
     const unsubscribe = onSnapshot(
       collection(db, "products"),
@@ -86,7 +85,7 @@ export default function AdminProductsPage() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Cargar Pedidos en tiempo real
+  // 2. Cargar Pedidos en tiempo real desde Firestore
   useEffect(() => {
     const unsubscribe = onSnapshot(
       collection(db, "orders"),
@@ -99,7 +98,7 @@ export default function AdminProductsPage() {
     return () => unsubscribe();
   }, []);
 
-  // Conversión y compresión automática de imagen
+  // Manejo y compresión de imagen subida/capturada
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -107,7 +106,7 @@ export default function AdminProductsPage() {
         const compressedBase64 = await compressImage(file);
         setImage(compressedBase64);
       } catch (err) {
-        console.error("Error al comprimir la imagen:", err);
+        console.error("Error al procesar la imagen:", err);
         alert("No se pudo procesar la imagen seleccionada.");
       }
     }
@@ -138,7 +137,7 @@ export default function AdminProductsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Guardar (Crear o Actualizar) con sanitización y compresión
+  // Guardar (Crear o Actualizar) con sanitización de tipos estricta
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -150,39 +149,48 @@ export default function AdminProductsPage() {
     setLoading(true);
 
     try {
-      // Objeto sanitizado: Ninguna propiedad puede ser 'undefined'
-      const productData: Record<string, any> = {
-        name: name.trim(),
-        price: parseFloat(price) || 0,
-        stock: parseInt(stock, 10) || 0,
-        category: (category || "abarrotes").toLowerCase().trim(),
-        isOnSale: Boolean(isOnSale),
-        isFeatured: Boolean(isFeatured),
-        image: image || "",
-        updatedAt: serverTimestamp(),
-      };
-
-      // Garantizar eliminación de cualquier llave inválida
-      Object.keys(productData).forEach((key) => {
-        if (productData[key] === undefined) {
-          productData[key] = "";
-        }
-      });
+      // Forzamos tipos primitivos explícitos
+      const cleanName = String(name || "").trim();
+      const cleanPrice = Number(parseFloat(price) || 0);
+      const cleanStock = Number(parseInt(stock, 10) || 0);
+      const cleanCategory = String(category || "abarrotes").toLowerCase().trim();
+      const cleanIsOnSale = Boolean(isOnSale);
+      const cleanIsFeatured = Boolean(isFeatured);
+      const cleanImage = String(image || "").trim();
+      const nowIso = new Date().toISOString();
 
       if (editingId) {
-        // Actualizar documento
-        const productRef = doc(db, "products", editingId);
-        await updateDoc(productRef, productData);
+        // Actualizar documento existente
+        const productRef = doc(db, "products", String(editingId));
+        await updateDoc(productRef, {
+          name: cleanName,
+          price: cleanPrice,
+          stock: cleanStock,
+          category: cleanCategory,
+          isOnSale: cleanIsOnSale,
+          isFeatured: cleanIsFeatured,
+          image: cleanImage,
+          updatedAt: nowIso,
+        });
       } else {
         // Crear nuevo documento
-        productData.createdAt = serverTimestamp();
-        await addDoc(collection(db, "products"), productData);
+        await addDoc(collection(db, "products"), {
+          name: cleanName,
+          price: cleanPrice,
+          stock: cleanStock,
+          category: cleanCategory,
+          isOnSale: cleanIsOnSale,
+          isFeatured: cleanIsFeatured,
+          image: cleanImage,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        });
       }
 
       resetForm();
     } catch (error: any) {
-      console.error("Error detallado de Firestore:", error);
-      alert(`Error al guardar: ${error?.message || "Comprueba tu conexión o Firestore."}`);
+      console.error("Error detallado al guardar:", error);
+      alert(`Error al guardar: ${error?.message || "Comprueba Firestore."}`);
     } finally {
       setLoading(false);
     }
@@ -200,7 +208,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  // Cambiar estado del pedido
+  // Cambiar estado de un pedido (Pendiente <-> Entregado)
   const toggleOrderStatus = async (orderId: string, currentStatus: string) => {
     const newStatus = currentStatus === "entregado" ? "pendiente" : "entregado";
     try {
