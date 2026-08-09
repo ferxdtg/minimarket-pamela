@@ -51,7 +51,7 @@ export default function AdminPage() {
     fetchProducts();
   }, []);
 
-  // Función de compresión automática de imágenes (Evita errores de tamaño)
+  // Compresión automática de imágenes
   const compressImage = (file: File, callback: (base64: string) => void) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -60,7 +60,7 @@ export default function AdminPage() {
       img.src = event.target?.result as string;
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 400; // Ancho máximo seguro para Firestore
+        const MAX_WIDTH = 400;
         const MAX_HEIGHT = 400;
         let width = img.width;
         let height = img.height;
@@ -82,7 +82,6 @@ export default function AdminPage() {
         const ctx = canvas.getContext("2d");
         ctx?.drawImage(img, 0, 0, width, height);
         
-        // Comprimir a formato JPEG con calidad 0.7 (peso mínimo garantizado)
         const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
         callback(dataUrl);
       };
@@ -139,20 +138,21 @@ export default function AdminPage() {
     }
   };
 
-  // Botones de Stock Rápido (+ / -)
+  // Función directa para los botones de Stock Rápido (+ / -) con Firebase
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
 
     const newStock = Math.max(0, (Number(currentStock) || 0) + delta);
     
+    // Actualización visual inmediata
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, stock: newStock } : p));
 
     try {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, { stock: newStock });
     } catch (error: any) {
-      console.error("Error al actualizar stock:", error);
+      console.error("Error al actualizar stock en Firebase:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
       fetchProducts();
     }
