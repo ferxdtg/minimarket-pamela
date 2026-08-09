@@ -138,7 +138,7 @@ export default function AdminPage() {
     }
   };
 
-  // Botones de Stock Rápido (+ / -) con sincronización inmediata
+  // Botones de Stock Rápido (+ / -) con sincronización inmediata y robusta
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
@@ -146,6 +146,7 @@ export default function AdminPage() {
     const parsedStock = Number(currentStock) || 0;
     const newStock = Math.max(0, parsedStock + delta);
     
+    // Actualización visual instantánea del estado local
     setProducts(prevProducts =>
       prevProducts.map(p => (p.id === stringId ? { ...p, stock: newStock } : p))
     );
@@ -156,7 +157,7 @@ export default function AdminPage() {
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
-      fetchProducts();
+      fetchProducts(); // Revertir si ocurre un fallo
     }
   };
 
@@ -354,7 +355,7 @@ export default function AdminPage() {
               </form>
             </div>
 
-            {/* CATÁLOGO ACTUAL CON BUSCADOR Y BOTONES + / - */}
+            {/* CATÁLOGO ACTUAL CON BUSCADOR, BOTONES + / - Y EDITAR */}
             <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
               
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-3">
