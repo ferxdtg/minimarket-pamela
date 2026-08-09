@@ -6,10 +6,7 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  // Pestañas principales del Panel de Control
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing">("inventario");
-  
-  // Sub-filtro para la pestaña de pedidos (Lógica de administrador profesional)
   const [orderFilter, setOrderFilter] = useState<"TODOS" | "PENDIENTE" | "ENTREGADO" | "DELIVERY" | "RECOJO">("TODOS");
 
   const [products, setProducts] = useState<any[]>([]);
@@ -25,7 +22,7 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
-  // Estado para el modal de edición de productos
+  // Estado para el modal de edición
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -37,7 +34,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Módulo de Pedidos Avanzado (Simulación profesional de pedidos reales)
+  // Pedidos con origen real (Delivery vs Recojo)
   const [orders, setOrders] = useState([
     { id: 1, client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE" },
     { id: 2, client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE" },
@@ -53,11 +50,9 @@ export default function AdminPage() {
     { id: 12, client: "Mario Vargas", phone: "9112233", address: "Jr. Union 210", type: "DELIVERY", items: "1x Aceite Vegetal Capri", total: 10.50, status: "ENTREGADO" }
   ]);
 
-  // Módulo de Marketing y Promociones (Campañas activas en la web principal)
   const [promos, setPromos] = useState([
     { id: 1, title: "¡Super Despensa -15%!", description: "Válido en todos los aceites y abarrotes seleccionados.", discount: "15% OFF", active: true },
-    { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true },
-    { id: 3, title: "Combo Madrugador", description: "Lleva pan fresco + café pasado a precio especial de apertura.", discount: "COMBO S/ 8.50", active: false }
+    { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
   const [newPromoTitle, setNewPromoTitle] = useState("");
@@ -83,7 +78,6 @@ export default function AdminPage() {
     fetchProducts();
   }, []);
 
-  // Compresión automática de imágenes al mínimo peso
   const compressImage = (file: File, callback: (base64: string) => void) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -122,27 +116,18 @@ export default function AdminPage() {
 
   const handleNewFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      compressImage(file, (compressedBase64) => {
-        setNewImage(compressedBase64);
-      });
-    }
+    if (file) compressImage(file, (base64) => setNewImage(base64));
   };
 
   const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      compressImage(file, (compressedBase64) => {
-        setEditForm(prev => ({ ...prev, image: compressedBase64 }));
-      });
-    }
+    if (file) compressImage(file, (base64) => setEditForm(prev => ({ ...prev, image: base64 })));
   };
 
-  // Guardar NUEVO producto en Firebase
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const productData = {
+      await addDoc(collection(db, "products"), {
         name: newName,
         price: parseFloat(newPrice) || 0,
         stock: parseInt(newStock) || 0,
@@ -150,69 +135,37 @@ export default function AdminPage() {
         isOnSale: newIsOnSale,
         isFeatured: newIsFeatured,
         image: newImage || ""
-      };
-
-      await addDoc(collection(db, "products"), productData);
-      
-      setNewName("");
-      setNewPrice("");
-      setNewStock("");
-      setNewCategory("Abarrotes y Despensa");
-      setNewIsOnSale(false);
-      setNewIsFeatured(false);
-      setNewImage("");
-
+      });
+      setNewName(""); setNewPrice(""); setNewStock(""); setNewCategory("Abarrotes y Despensa");
+      setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
       fetchProducts();
       alert("¡Producto publicado con éxito!");
     } catch (error: any) {
-      console.error("Error al crear producto:", error);
       alert(`Error al publicar: ${error.message}`);
     }
   };
 
-  // Botones de Stock Rápido (+ / -) con sincronización inmediata
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
-
-    const parsedCurrent = Number(currentStock) || 0;
-    const updatedStock = Math.max(0, parsedCurrent + delta);
+    const updatedStock = Math.max(0, (Number(currentStock) || 0) + delta);
     
-    setProducts(prevProducts =>
-      prevProducts.map(p => {
-        if (String(p.id).trim() === stringId) {
-          return { ...p, stock: updatedStock };
-        }
-        return p;
-      })
-    );
-
+    setProducts(prev => prev.map(p => p.id === stringId ? { ...p, stock: updatedStock } : p));
     try {
-      const productRef = doc(db, "products", stringId);
-      await updateDoc(productRef, { stock: updatedStock });
+      await updateDoc(doc(db, "products", stringId), { stock: updatedStock });
     } catch (error: any) {
-      console.error("Error al actualizar stock en Firebase:", error);
-      alert(`No se pudo actualizar el stock: ${error.message}`);
+      alert(`Error de stock: ${error.message}`);
       fetchProducts();
     }
   };
 
-  // Botón para eliminar producto
   const handleDeleteProduct = async (id: string, name: string) => {
-    const stringId = String(id).trim();
-    if (!stringId) return;
-
-    const confirmDelete = window.confirm(`¿Estás seguro de que deseas eliminar "${name}" del inventario?`);
-    if (!confirmDelete) return;
-
-    setProducts(prevProducts => prevProducts.filter(p => String(p.id).trim() !== stringId));
-
+    if (!window.confirm(`¿Eliminar "${name}" del inventario?`)) return;
+    setProducts(prev => prev.filter(p => p.id !== id));
     try {
-      const productRef = doc(db, "products", stringId);
-      await deleteDoc(productRef);
+      await deleteDoc(doc(db, "products", id));
     } catch (error: any) {
-      console.error("Error al eliminar el producto en Firebase:", error);
-      alert(`No se pudo eliminar el producto: ${error.message}`);
+      alert(`Error al eliminar: ${error.message}`);
       fetchProducts();
     }
   };
@@ -230,11 +183,9 @@ export default function AdminPage() {
     });
   };
 
-  // Guardar cambios del modal de edición
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
-
     const stringId = String(editingProduct.id).trim();
     const finalData = {
       name: editForm.name,
@@ -245,57 +196,21 @@ export default function AdminPage() {
       isFeatured: editForm.isFeatured,
       image: editForm.image || editingProduct.image || ""
     };
-    
-    setProducts(prev => prev.map(p => String(p.id).trim() === stringId ? { ...p, ...finalData } : p));
-
+    setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
     try {
-      const productRef = doc(db, "products", stringId);
-      await updateDoc(productRef, finalData);
+      await updateDoc(doc(db, "products", stringId), finalData);
       setEditingProduct(null);
       fetchProducts();
     } catch (error: any) {
-      console.error("Error al actualizar producto:", error);
-      alert(`Error al guardar cambios: ${error.message}`);
+      alert(`Error al editar: ${error.message}`);
       fetchProducts();
     }
   };
 
-  // Lógica de Pedidos: Cambiar estado
   const handleDeliverOrder = (orderId: number) => {
-    setOrders(prev =>
-      prev.map(o => (o.id === orderId ? { ...o, status: "ENTREGADO" } : o))
-    );
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: "ENTREGADO" } : o));
   };
 
-  // Lógica de Marketing: Crear nueva promoción
-  const handleCreatePromo = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPromoTitle) return;
-
-    const newPromo = {
-      id: Date.now(),
-      title: newPromoTitle,
-      description: newPromoDesc || "Promoción especial de temporada.",
-      discount: newPromoDiscount || "OFERTA",
-      active: true
-    };
-
-    setOrders; // safe reference
-    setPromos([newPromo, ...promos]);
-    setNewPromoTitle("");
-    setNewPromoDesc("");
-    setNewPromoDiscount("");
-    alert("¡Promoción creada y activada en la web principal!");
-  };
-
-  // Toggle Estado de Promoción
-  const togglePromoStatus = (promoId: number) => {
-    setPromos(prev =>
-      prev.map(p => (p.id === promoId ? { ...p, active: !p.active } : p))
-    );
-  };
-
-  // Filtrado inteligente de pedidos según la pestaña seleccionada
   const filteredOrders = orders.filter(o => {
     if (orderFilter === "TODOS") return true;
     if (orderFilter === "PENDIENTE") return o.status === "PENDIENTE";
@@ -305,56 +220,55 @@ export default function AdminPage() {
     return true;
   });
 
-  const filteredProducts = products.filter(p =>
-    p.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="min-h-screen bg-[#0d0d0f] text-white p-6 sm:p-10 font-sans">
+    <div className="min-h-screen bg-[#09090b] text-white p-6 sm:p-10 font-sans selection:bg-red-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* ENCABEZADO */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-800/80 pb-5">
-          <div>
-            <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">
-              PANEL DE CONTROL PROFESIONAL
-            </span>
-            <h1 className="text-2xl font-black tracking-tight mt-1 text-white">Minimarket Pamela</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/60 backdrop-blur-md border border-zinc-800 p-5 rounded-2xl shadow-xl">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">SISTEMA CENTRAL DE OPERACIONES</span>
+            </div>
+            <h1 className="text-2xl font-black tracking-tight text-white">Minimarket Pamela Admin</h1>
           </div>
 
-          <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl text-xs">
-            <span className="text-zinc-300">ferxdtg@gmail.com</span>
-            <button className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg transition cursor-pointer">
+          <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 px-4 py-2 rounded-xl text-xs shadow-inner">
+            <span className="text-zinc-400 font-medium">Operador: <strong className="text-white">ferxdtg@gmail.com</strong></span>
+            <button className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg transition cursor-pointer shadow-md">
               Cerrar Sesión
             </button>
           </div>
         </div>
 
-        {/* PESTAÑAS PRINCIPALES (INVENTARIO, PEDIDOS Y MARKETING) */}
-        <div className="flex flex-wrap gap-2">
+        {/* PESTAÑAS */}
+        <div className="flex flex-wrap gap-2.5">
           <button
             onClick={() => setActiveTab("inventario")}
-            className={`px-5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 ${
-              activeTab === "inventario" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 border border-zinc-800"
+            className={`px-6 py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2.5 shadow-lg ${
+              activeTab === "inventario" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            📦 INVENTARIO ({products.length})
+            📦 GESTIÓN DE INVENTARIO ({products.length})
           </button>
           <button
             onClick={() => setActiveTab("pedidos")}
-            className={`px-5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 ${
-              activeTab === "pedidos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 border border-zinc-800"
+            className={`px-6 py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2.5 shadow-lg ${
+              activeTab === "pedidos" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            🛒 PEDIDOS ({orders.filter(o => o.status === "PENDIENTE").length} pendientes)
+            🛒 CENTRO LOGÍSTICO ({orders.filter(o => o.status === "PENDIENTE").length} pendientes)
           </button>
           <button
             onClick={() => setActiveTab("marketing")}
-            className={`px-5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 ${
-              activeTab === "marketing" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 border border-zinc-800"
+            className={`px-6 py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2.5 shadow-lg ${
+              activeTab === "marketing" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            🎯 MARKETING & OFERTAS ({promos.filter(p => p.active).length} activas)
+            🎯 MARKETING & BANNERS ({promos.filter(p => p.active).length} activas)
           </button>
         </div>
 
@@ -362,24 +276,23 @@ export default function AdminPage() {
         {activeTab === "inventario" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* FORMULARIO DE NUEVO PRODUCTO */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl h-fit space-y-4">
-              <h2 className="text-sm font-black text-white">Agregar Nuevo Producto</h2>
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-6 shadow-xl h-fit space-y-4">
+              <h2 className="text-sm font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto</h2>
               
-              <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
+              <form onSubmit={handleCreateProduct} className="space-y-3.5 text-xs">
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Nombre del producto</label>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Nombre del artículo</label>
                   <input
                     type="text"
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
                     placeholder="Ej. Aceite Primor 1L"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600 transition"
                     required
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Precio (S/)</label>
                     <input
@@ -388,32 +301,34 @@ export default function AdminPage() {
                       value={newPrice}
                       onChange={e => setNewPrice(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600 transition"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Stock</label>
+                    <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Stock Inicial</label>
                     <input
                       type="number"
                       value={newStock}
                       onChange={e => setNewStock(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600 transition"
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Categoría</label>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Categoría de Tienda</label>
                   <select
                     value={newCategory}
                     onChange={e => setNewCategory(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600 transition"
                   >
                     <option>Abarrotes y Despensa</option>
                     <option>Snacks</option>
+                    <option>Bebidas y Lácteos</option>
+                    <option>Limpieza y Hogar</option>
                     <option>Ofertas</option>
                   </select>
                 </div>
@@ -426,7 +341,7 @@ export default function AdminPage() {
                       onChange={e => setNewIsOnSale(e.target.checked)}
                       className="accent-red-600 w-4 h-4 cursor-pointer"
                     />
-                    En Oferta
+                    En Oferta 🔥
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
                     <input
@@ -435,40 +350,37 @@ export default function AdminPage() {
                       onChange={e => setNewIsFeatured(e.target.checked)}
                       className="accent-red-600 w-4 h-4 cursor-pointer"
                     />
-                    Destacado
+                    Destacado ⭐
                   </label>
                 </div>
 
-                {/* BOTONES CON CÁMARA Y ARCHIVO */}
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Imagen del producto</label>
+                <div className="space-y-1.5">
+                  <label className="block text-zinc-400 font-bold uppercase text-[10px]">Fotografía del Producto</label>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2.5 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
-                      📁 Subir Archivo
+                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-3 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
+                      📁 Archivo
                       <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
                     </label>
-                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2.5 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
-                      📷 Usar Cámara
+                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-3 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
+                      📷 Cámara
                       <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
                     </label>
                   </div>
-                  {newImage && <p className="text-[10px] text-emerald-400 mt-1 font-bold">✓ Imagen lista para publicar</p>}
+                  {newImage && <p className="text-[10px] text-emerald-400 font-bold pt-1">✓ Imagen capturada y optimizada</p>}
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition shadow-lg cursor-pointer mt-2"
+                  className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition shadow-lg shadow-red-900/30 cursor-pointer mt-2"
                 >
-                  Publicar Producto
+                  Publicar en Catálogo Web
                 </button>
               </form>
             </div>
 
-            {/* CATÁLOGO ACTUAL CON BUSCADOR, BOTONES + / - , EDITAR Y ELIMINAR */}
-            <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
-              
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-3">
-                <h2 className="text-sm font-black text-white">Catálogo Actual ({filteredProducts.length})</h2>
+            <div className="lg:col-span-2 bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-6 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-4">
+                <h2 className="text-sm font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
                 
                 <div className="relative w-full sm:w-64">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-zinc-500">🔍</span>
@@ -477,49 +389,47 @@ export default function AdminPage() {
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     placeholder="Buscar producto..."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-red-600"
                   />
                 </div>
               </div>
 
               {loading ? (
-                <p className="text-zinc-500 text-center py-10">Cargando catálogo...</p>
+                <p className="text-zinc-500 text-center py-12">Sincronizando inventario...</p>
               ) : (
-                <div className="space-y-3 max-h-[550px] overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
                   {filteredProducts.map(product => {
                     const currentStock = Number(product.stock ?? 0);
                     const isOut = currentStock === 0;
                     const isLow = currentStock > 0 && currentStock <= 5;
 
                     return (
-                      <div key={product.id} className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-3.5 flex items-center justify-between gap-3 hover:border-zinc-700 transition">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="relative w-12 h-12 bg-white rounded-lg overflow-hidden shrink-0">
+                      <div key={product.id} className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-4 flex items-center justify-between gap-4 hover:border-zinc-700 transition">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="relative w-14 h-14 bg-white rounded-xl overflow-hidden shrink-0 border border-zinc-800">
                             {product.image ? (
                               <Image src={product.image} alt={product.name} fill className="object-contain p-1" />
                             ) : (
                               <span className="text-[9px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
                             )}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 space-y-0.5">
                             <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                            <p className="text-[11px] text-red-400 font-bold">S/ {(Number(product.price) ?? 0).toFixed(2)} | Stock: {currentStock}</p>
-                            <span className="text-[9px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded uppercase font-bold tracking-wider">{product.category || "Abarrotes"}</span>
+                            <p className="text-[11px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                            <span className="text-[9px] bg-zinc-900 border border-zinc-800 text-zinc-300 px-2 py-0.5 rounded uppercase font-bold">{product.category || "Abarrotes"}</span>
                           </div>
                         </div>
 
-                        {/* SEMÁFORO VISUAL */}
                         <div>
                           {isOut ? (
-                            <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">🔴 Agotado</span>
+                            <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-1 rounded-full text-[10px] font-bold">🔴 Agotado</span>
                           ) : isLow ? (
-                            <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">🟡 Bajo</span>
+                            <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-full text-[10px] font-bold">🟡 Stock Bajo</span>
                           ) : (
-                            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">🟢 OK</span>
+                            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full text-[10px] font-bold">🟢 Stock OK ({currentStock})</span>
                           )}
                         </div>
 
-                        {/* ACCIONES: BOTONES + / - , EDITAR Y ELIMINAR */}
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
                             <button
@@ -529,7 +439,7 @@ export default function AdminPage() {
                             >
                               -
                             </button>
-                            <span className="w-6 text-center font-black text-xs">{currentStock}</span>
+                            <span className="w-7 text-center font-black text-xs">{currentStock}</span>
                             <button
                               type="button"
                               onClick={() => handleStockUpdate(product.id, currentStock, 1)}
@@ -551,7 +461,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => handleDeleteProduct(product.id, product.name)}
                             className="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-900/50 rounded-xl font-bold text-xs transition cursor-pointer"
-                            title="Eliminar producto"
+                            title="Eliminar"
                           >
                             🗑️
                           </button>
@@ -566,65 +476,63 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA PEDIDOS CON PESTAÑAS DE FILTRO PROFESIONAL */}
+        {/* VISTA CENTRO LOGÍSTICO */}
         {activeTab === "pedidos" && (
           <div className="space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900 border border-zinc-800 p-4 rounded-2xl">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/70 backdrop-blur border border-zinc-800 p-5 rounded-2xl shadow-xl">
               <div>
-                <h2 className="text-sm font-black text-white">Centro Logístico de Pedidos</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">Filtra y gestiona los envíos a domicilio y recojos en tienda.</p>
+                <h2 className="text-sm font-black text-white">Centro Logístico de Pedidos En Vivo</h2>
+                <p className="text-xs text-zinc-400 mt-0.5">Controla despachos por delivery y órdenes listas para recojo en tienda.</p>
               </div>
 
-              {/* Botones de Filtro de Estados y Tipos */}
               <div className="flex flex-wrap gap-1.5 text-xs">
                 <button 
                   onClick={() => setOrderFilter("TODOS")}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3.5 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                 >
                   Todos ({orders.length})
                 </button>
                 <button 
                   onClick={() => setOrderFilter("PENDIENTE")}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3.5 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                 >
                   Pendientes
                 </button>
                 <button 
                   onClick={() => setOrderFilter("ENTREGADO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3.5 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                 >
                   Entregados
                 </button>
                 <button 
                   onClick={() => setOrderFilter("DELIVERY")}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3.5 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                 >
                   🛵 Delivery
                 </button>
                 <button 
                   onClick={() => setOrderFilter("RECOJO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "RECOJO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3.5 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "RECOJO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                 >
                   🏪 Recojo Local
                 </button>
               </div>
             </div>
 
-            {/* Listado de Pedidos Filtrados */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredOrders.length === 0 ? (
-                <p className="text-zinc-500 text-center py-10 col-span-full">No hay pedidos con este filtro.</p>
+                <p className="text-zinc-500 text-center py-16 col-span-full">No se encontraron pedidos con este filtro logístico.</p>
               ) : (
                 filteredOrders.map(order => (
-                  <div key={order.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3 shadow-xl">
+                  <div key={order.id} className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-xl">
                     <div className="flex justify-between items-start">
-                      <div>
-                        <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider mb-1 ${
+                      <div className="space-y-1">
+                        <span className={`inline-block text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
                           order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-purple-500/20 text-purple-400 border border-purple-500/30"
                         }`}>
                           {order.type === "DELIVERY" ? "🛵 Envío a Domicilio" : "🏪 Recojo en Local"}
                         </span>
-                        <h3 className="text-sm font-bold text-white">{order.client}</h3>
+                        <h3 className="text-sm font-black text-white">{order.client}</h3>
                         <p className="text-xs text-zinc-400">Tel: {order.phone} • {order.address}</p>
                       </div>
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
@@ -636,12 +544,12 @@ export default function AdminPage() {
                       </span>
                     </div>
 
-                    <div className="bg-zinc-950 p-3 rounded-xl text-xs space-y-1">
-                      <div className="text-zinc-300 font-medium">Productos:</div>
-                      <div className="text-zinc-400">{order.items}</div>
-                      <div className="flex justify-between font-bold text-white pt-2 border-t border-zinc-800">
+                    <div className="bg-zinc-950 border border-zinc-800/80 p-3.5 rounded-xl text-xs space-y-1.5">
+                      <div className="text-zinc-400 font-semibold uppercase text-[10px]">Detalle de Compra:</div>
+                      <div className="text-zinc-200">{order.items}</div>
+                      <div className="flex justify-between font-black text-white pt-2.5 border-t border-zinc-800">
                         <span>TOTAL A PAGAR</span>
-                        <span className="text-red-400">S/ {order.total.toFixed(2)}</span>
+                        <span className="text-red-400 text-sm">S/ {order.total.toFixed(2)}</span>
                       </div>
                     </div>
 
@@ -649,12 +557,12 @@ export default function AdminPage() {
                       <button 
                         type="button" 
                         onClick={() => handleDeliverOrder(order.id)}
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl transition cursor-pointer shadow-lg shadow-emerald-900/30"
                       >
-                        ✓ Marcar como Entregado
+                        ✓ Marcar Pedido como Entregado
                       </button>
                     ) : (
-                      <div className="w-full py-2.5 bg-zinc-950 text-emerald-400 font-bold text-xs rounded-xl text-center border border-emerald-900/30">
+                      <div className="w-full py-3 bg-zinc-950 text-emerald-400 font-bold text-xs rounded-xl text-center border border-emerald-900/30">
                         Completado y Entregado ✓
                       </div>
                     )}
@@ -665,85 +573,83 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA MARKETING Y PROMOCIONES */}
+        {/* VISTA MARKETING & PROMOCIONES */}
         {activeTab === "marketing" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Creador de Promociones */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl h-fit space-y-4">
-              <h2 className="text-sm font-black text-white">Crear Campaña o Promoción</h2>
-              <p className="text-xs text-zinc-400">Publica banners de descuento instantáneos que aparecerán en la página principal de tu minimarket.</p>
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
+              <h2 className="text-sm font-black text-white">🎯 Crear Campaña Flash</h2>
+              <p className="text-xs text-zinc-400">Publica un anuncio flotante o banner de descuento en la web principal.</p>
               
-              <form onSubmit={handleCreatePromo} className="space-y-3 text-xs">
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!newPromoTitle) return;
+                setPromos([{ id: Date.now(), title: newPromoTitle, description: newPromoDesc || "Promoción especial", discount: newPromoDiscount || "OFERTA", active: true }, ...promos]);
+                setNewPromoTitle(""); setNewPromoDesc(""); setNewPromoDiscount("");
+                alert("¡Campaña publicada en la web!");
+              }} className="space-y-3.5 text-xs">
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Título de la Promoción</label>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Título de Campaña</label>
                   <input
                     type="text"
                     value={newPromoTitle}
                     onChange={e => setNewPromoTitle(e.target.value)}
                     placeholder="Ej. ¡Mega Oferta de Lácteos!"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
                     required
                   />
                 </div>
-
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Descripción Corta</label>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Descripción</label>
                   <input
                     type="text"
                     value={newPromoDesc}
                     onChange={e => setNewPromoDesc(e.target.value)}
-                    placeholder="Ej. 20% de descuento en tarros azules."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    placeholder="Ej. 20% en abarrotes seleccionados."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Etiqueta de Descuento (Badge)</label>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Etiqueta / Badge</label>
                   <input
                     type="text"
                     value={newPromoDiscount}
                     onChange={e => setNewPromoDiscount(e.target.value)}
                     placeholder="Ej. -20% OFF"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
                   />
                 </div>
-
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition shadow-lg cursor-pointer mt-2"
+                  className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition shadow-lg shadow-red-900/30 cursor-pointer mt-2"
                 >
-                  Lanzar Promoción en la Web
+                  Lanzar Anuncio en Vivo
                 </button>
               </form>
             </div>
 
-            {/* Listado de Promociones Activas e Inactivas */}
-            <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
-              <h2 className="text-sm font-black text-white">Banners y Promociones en Curso ({promos.length})</h2>
-              
+            <div className="lg:col-span-2 bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h2 className="text-sm font-black text-white">Banners y Campañas Activas ({promos.length})</h2>
               <div className="space-y-3">
                 {promos.map(promo => (
                   <div key={promo.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                        <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-black">
                           {promo.discount}
                         </span>
                         <h3 className="text-xs font-bold text-white">{promo.title}</h3>
                       </div>
                       <p className="text-xs text-zinc-400">{promo.description}</p>
                     </div>
-
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
                         promo.active ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700"
                       }`}>
-                        {promo.active ? "ACTIVO EN WEB" : "PAUSADO"}
+                        {promo.active ? "EN VIVO" : "PAUSADO"}
                       </span>
                       <button
                         type="button"
-                        onClick={() => togglePromoStatus(promo.id)}
+                        onClick={() => setPromos(prev => prev.map(p => p.id === promo.id ? { ...p, active: !p.active } : p))}
                         className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
                           promo.active ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300" : "bg-red-600 hover:bg-red-700 text-white"
                         }`}
@@ -755,28 +661,21 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
-
           </div>
         )}
 
-        {/* MODAL DE EDICIÓN COMPLETA */}
+        {/* MODAL DE EDICIÓN */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-white space-y-4">
               <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
-                <h3 className="text-sm font-black">Editar Producto</h3>
-                <button 
-                  type="button"
-                  onClick={() => setEditingProduct(null)}
-                  className="text-zinc-400 hover:text-white font-bold text-base cursor-pointer"
-                >
-                  ✕
-                </button>
+                <h3 className="text-sm font-black">Modificar Producto</h3>
+                <button type="button" onClick={() => setEditingProduct(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
               </div>
 
               <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1">Nombre del producto</label>
+                  <label className="block text-zinc-400 font-bold mb-1">Nombre</label>
                   <input
                     type="text"
                     value={editForm.name}
@@ -819,64 +718,24 @@ export default function AdminPage() {
                   >
                     <option>Abarrotes y Despensa</option>
                     <option>Snacks</option>
+                    <option>Bebidas y Lácteos</option>
+                    <option>Limpieza y Hogar</option>
                     <option>Ofertas</option>
                   </select>
                 </div>
 
                 <div className="flex gap-4 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
-                    <input
-                      type="checkbox"
-                      checked={editForm.isOnSale}
-                      onChange={e => setEditForm({ ...editForm, isOnSale: e.target.checked })}
-                      className="accent-red-600 w-4 h-4 cursor-pointer"
-                    />
-                    En Oferta 🔥
+                    <input type="checkbox" checked={editForm.isOnSale} onChange={e => setEditForm({ ...editForm, isOnSale: e.target.checked })} className="accent-red-600 w-4 h-4" /> Oferta 🔥
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
-                    <input
-                      type="checkbox"
-                      checked={editForm.isFeatured}
-                      onChange={e => setEditForm({ ...editForm, isFeatured: e.target.checked })}
-                      className="accent-red-600 w-4 h-4 cursor-pointer"
-                    />
-                    Destacado ⭐
+                    <input type="checkbox" checked={editForm.isFeatured} onChange={e => setEditForm({ ...editForm, isFeatured: e.target.checked })} className="accent-red-600 w-4 h-4" /> Destacado ⭐
                   </label>
-                </div>
-
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-1">Fotografía del Producto</label>
-                  <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl p-3">
-                    <div className="relative w-12 h-12 bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-zinc-800">
-                      {editForm.image ? (
-                        <Image src={editForm.image} alt="Vista previa" fill className="object-contain p-1" />
-                      ) : (
-                        <span className="text-[9px] text-zinc-500 flex items-center justify-center h-full">N/A</span>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <label className="block bg-red-600 hover:bg-red-700 text-white text-center py-1.5 px-3 rounded-lg font-bold text-xs cursor-pointer transition">
-                        Cambiar Fotografía
-                        <input type="file" accept="image/*" onChange={handleEditFileChange} className="hidden" />
-                      </label>
-                    </div>
-                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-3 border-t border-zinc-800">
-                  <button
-                    type="button"
-                    onClick={() => setEditingProduct(null)}
-                    className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 font-bold text-zinc-300 transition cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 font-bold text-white transition cursor-pointer shadow-lg"
-                  >
-                    Guardar Cambios
-                  </button>
+                  <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 py-2.5 rounded-xl bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
+                  <button type="submit" className="flex-1 py-2.5 rounded-xl bg-red-600 font-bold text-white cursor-pointer shadow-lg">Guardar</button>
                 </div>
               </form>
             </div>

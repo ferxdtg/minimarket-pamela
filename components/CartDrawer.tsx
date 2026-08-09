@@ -177,8 +177,8 @@ export default function CartDrawer() {
               </span>
             </div>
 
-            {/* BOTÓN WHATSAPP */}
-            <WhatsAppCheckout />
+            {/* BOTÓN WHATSAPP CON PROPS REQUERIDAS */}
+            <WhatsAppCheckout cartItems={cart} totalAmount={total} onClose={closeCart} />
 
             <button
               onClick={() => setShowCheckout(true)}
