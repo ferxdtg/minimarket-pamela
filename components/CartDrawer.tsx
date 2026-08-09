@@ -29,7 +29,8 @@ export default function CartDrawer() {
         fixed
         inset-0
         z-50
-        bg-black/40
+        bg-black/70
+        backdrop-blur-sm
         flex
         justify-end
         transition-opacity
@@ -42,11 +43,14 @@ export default function CartDrawer() {
           w-full
           max-w-md
           h-full
-          bg-white
+          bg-zinc-900
+          text-white
           shadow-2xl
           p-6
           flex
           flex-col
+          border-l
+          border-zinc-800
           transform
           transition-transform
           duration-300
@@ -54,60 +58,79 @@ export default function CartDrawer() {
           ${cartOpen ? "translate-x-0" : "translate-x-full"}
         `}
       >
-        <div className="flex justify-between items-center mb-6 border-b pb-4">
-          <h2 className="text-2xl font-black text-gray-900">🛒 Mi carrito</h2>
+        {/* ENCABEZADO */}
+        <div className="flex justify-between items-center mb-5 pb-4 border-b border-zinc-800">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🛒</span>
+            <h2 className="text-xl font-black tracking-tight">Tu Carrito</h2>
+            <span className="bg-red-500/20 text-red-400 text-xs font-bold px-2.5 py-0.5 rounded-full border border-red-500/30">
+              {cart.reduce((sum, item) => sum + item.quantity, 0)} items
+            </span>
+          </div>
           <button
             onClick={closeCart}
-            className="text-gray-500 hover:text-black text-2xl font-bold cursor-pointer"
+            className="w-9 h-9 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center text-xl font-bold transition cursor-pointer"
           >
             ×
           </button>
         </div>
 
+        {/* BARRA DE CONFIANZA EXPRESS */}
+        <div className="bg-gradient-to-r from-red-500/15 via-orange-500/15 to-transparent border border-red-500/30 rounded-xl p-3 mb-4 flex items-center gap-3">
+          <span className="text-xl">🛵</span>
+          <div className="text-xs">
+            <p className="font-bold text-white">Delivery Express Activo</p>
+            <p className="text-zinc-400">Tus productos llegan frescos en menos de 30 min.</p>
+          </div>
+        </div>
+
+        {/* LISTA DE PRODUCTOS */}
         {cart.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-gray-500 font-medium">
-            Tu carrito está vacío
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+            <div className="text-6xl mb-3 animate-pulse">🛒</div>
+            <p className="text-zinc-400 font-medium">Tu carrito está vacío</p>
+            <p className="text-zinc-600 text-xs mt-1">Agrega productos para empezar tu pedido</p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
             {cart.map(item => (
               <div
                 key={item.id}
-                className="bg-gray-50 rounded-xl border border-gray-100 shadow-sm p-4"
+                className="bg-zinc-800/60 border border-zinc-700/60 rounded-2xl p-4 shadow-md backdrop-blur-sm transition hover:border-zinc-600"
               >
-                <div className="flex gap-4">
-                  <div className="relative w-20 h-20 bg-white rounded-lg overflow-hidden flex-shrink-0 border">
+                <div className="flex gap-3.5 items-center">
+                  <div className="relative w-16 h-16 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-zinc-700">
                     <Image
                       src={item.image}
                       alt={item.name}
                       fill
-                      className="object-contain p-2"
+                      className="object-contain p-1.5"
                     />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-base font-bold text-gray-900">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-white truncate">
                       {item.name}
                     </h3>
-                    <p className="text-red-600 font-black mt-1">
+                    <p className="text-red-400 font-black text-sm mt-0.5">
                       S/ {(item.price * item.quantity).toFixed(2)}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200/60">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-700/50">
+                  <div className="flex items-center bg-zinc-900/80 rounded-xl p-1 border border-zinc-700">
                     <button
                       onClick={() => decreaseQuantity(item.id)}
-                      className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold flex items-center justify-center cursor-pointer transition"
+                      className="w-7 h-7 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-bold flex items-center justify-center cursor-pointer transition text-xs"
                     >
                       -
                     </button>
-                    <span className="text-gray-900 font-bold w-6 text-center">
+                    <span className="text-white font-bold w-7 text-center text-xs">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() => increaseQuantity(item.id)}
-                      className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold flex items-center justify-center cursor-pointer transition"
+                      className="w-7 h-7 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-bold flex items-center justify-center cursor-pointer transition text-xs"
                     >
                       +
                     </button>
@@ -115,7 +138,7 @@ export default function CartDrawer() {
 
                   <button
                     onClick={() => removeFromCart(item.id)}
-                    className="text-red-500 hover:text-red-700 font-bold text-xs cursor-pointer"
+                    className="text-zinc-400 hover:text-red-400 font-semibold text-xs transition cursor-pointer flex items-center gap-1"
                   >
                     🗑 Eliminar
                   </button>
@@ -125,31 +148,32 @@ export default function CartDrawer() {
           </div>
         )}
 
+        {/* PIE DE PAGO Y ACCIONES */}
         {cart.length > 0 && (
-          <div className="mt-6 border-t pt-5">
-            <div className="flex justify-between mb-4 items-center">
-              <span className="text-lg font-bold text-gray-700">Total a pagar:</span>
-              <span className="text-2xl font-black text-red-600">
+          <div className="mt-4 border-t border-zinc-800 pt-4 space-y-3 bg-zinc-900">
+            <div className="bg-zinc-800/40 border border-zinc-800 rounded-2xl p-3.5 flex justify-between items-center">
+              <span className="text-sm font-medium text-zinc-400">Total estimado:</span>
+              <span className="text-2xl font-black text-white tracking-tight">
                 S/ {total.toFixed(2)}
               </span>
             </div>
 
-            {/* OPCIÓN PRINCIPAL: WhatsApp con el número +51 950323959 */}
+            {/* BOTÓN PRINCIPAL DE WHATSAPP (Impactante) */}
             <WhatsAppCheckout />
 
-            {/* OPCIÓN SECUNDARIA: Procesar pedido interno del sistema */}
+            {/* OPCIÓN SECUNDARIA (Plataforma Web) */}
             <button
               onClick={() => setShowCheckout(true)}
-              className="w-full mt-2.5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-sm transition cursor-pointer border border-gray-300"
+              className="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs transition cursor-pointer border border-zinc-700"
             >
-              Procesar por plataforma web 📋
+              Completar con formulario web 📋
             </button>
 
             <button
               onClick={closeCart}
-              className="w-full mt-2 py-2 text-gray-500 hover:text-gray-800 font-semibold text-xs transition cursor-pointer text-center"
+              className="w-full py-2 text-zinc-500 hover:text-zinc-300 font-semibold text-xs transition cursor-pointer text-center block"
             >
-              ← Seguir comprando
+              ← Seguir explorando el catálogo
             </button>
 
             {showCheckout && (
