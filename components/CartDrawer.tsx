@@ -59,11 +59,11 @@ export default function CartDrawer() {
         `}
       >
         {/* ENCABEZADO */}
-        <div className="flex justify-between items-center mb-5 pb-4 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
+        <div className="flex justify-between items-center mb-4 pb-4 border-b border-zinc-800">
+          <div className="flex items-center gap-2.5">
             <span className="text-2xl">🛒</span>
             <h2 className="text-xl font-black tracking-tight">Tu Carrito</h2>
-            <span className="bg-red-500/20 text-red-400 text-xs font-bold px-2.5 py-0.5 rounded-full border border-red-500/30">
+            <span className="bg-red-500/20 text-red-400 text-xs font-black px-2.5 py-0.5 rounded-full border border-red-500/30">
               {cart.reduce((sum, item) => sum + item.quantity, 0)} items
             </span>
           </div>
@@ -75,12 +75,12 @@ export default function CartDrawer() {
           </button>
         </div>
 
-        {/* BARRA DE CONFIANZA EXPRESS */}
-        <div className="bg-gradient-to-r from-red-500/15 via-orange-500/15 to-transparent border border-red-500/30 rounded-xl p-3 mb-4 flex items-center gap-3">
-          <span className="text-xl">🛵</span>
+        {/* BARRA DE CONFIANZA EXPRESS (Contraste mejorado) */}
+        <div className="bg-gradient-to-r from-red-500/20 via-orange-500/10 to-transparent border border-red-500/30 rounded-2xl p-3.5 mb-4 flex items-center gap-3 shadow-inner">
+          <span className="text-2xl">🛵</span>
           <div className="text-xs">
-            <p className="font-bold text-white">Delivery Express Activo</p>
-            <p className="text-zinc-400">Tus productos llegan frescos en menos de 30 min.</p>
+            <p className="font-bold text-red-200">Delivery Express Activo</p>
+            <p className="text-zinc-300 font-medium">Tus productos llegan frescos en menos de 30 min.</p>
           </div>
         </div>
 
@@ -88,15 +88,15 @@ export default function CartDrawer() {
         {cart.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
             <div className="text-6xl mb-3 animate-pulse">🛒</div>
-            <p className="text-zinc-400 font-medium">Tu carrito está vacío</p>
-            <p className="text-zinc-600 text-xs mt-1">Agrega productos para empezar tu pedido</p>
+            <p className="text-zinc-300 font-bold">Tu carrito está vacío</p>
+            <p className="text-zinc-500 text-xs mt-1">Agrega productos para empezar tu pedido</p>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
             {cart.map(item => (
               <div
                 key={item.id}
-                className="bg-zinc-800/60 border border-zinc-700/60 rounded-2xl p-4 shadow-md backdrop-blur-sm transition hover:border-zinc-600"
+                className="bg-zinc-800/80 border border-zinc-700/80 rounded-2xl p-4 shadow-md backdrop-blur-sm transition hover:border-zinc-600"
               >
                 <div className="flex gap-3.5 items-center">
                   <div className="relative w-16 h-16 bg-white rounded-xl overflow-hidden flex-shrink-0 border border-zinc-700">
@@ -111,14 +111,19 @@ export default function CartDrawer() {
                     <h3 className="text-sm font-bold text-white truncate">
                       {item.name}
                     </h3>
-                    <p className="text-red-400 font-black text-sm mt-0.5">
-                      S/ {(item.price * item.quantity).toFixed(2)}
-                    </p>
+                    <div className="flex items-baseline justify-between mt-1">
+                      <p className="text-zinc-400 text-xs">
+                        S/ {item.price.toFixed(2)} c/u
+                      </p>
+                      <p className="text-red-400 font-black text-sm">
+                        S/ {(item.price * item.quantity).toFixed(2)}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-700/50">
-                  <div className="flex items-center bg-zinc-900/80 rounded-xl p-1 border border-zinc-700">
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-700/60">
+                  <div className="flex items-center bg-zinc-900/90 rounded-xl p-1 border border-zinc-700">
                     <button
                       onClick={() => decreaseQuantity(item.id)}
                       className="w-7 h-7 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-bold flex items-center justify-center cursor-pointer transition text-xs"
@@ -151,17 +156,17 @@ export default function CartDrawer() {
         {/* PIE DE PAGO Y ACCIONES */}
         {cart.length > 0 && (
           <div className="mt-4 border-t border-zinc-800 pt-4 space-y-3 bg-zinc-900">
-            <div className="bg-zinc-800/40 border border-zinc-800 rounded-2xl p-3.5 flex justify-between items-center">
-              <span className="text-sm font-medium text-zinc-400">Total estimado:</span>
+            <div className="bg-zinc-800/60 border border-zinc-700/80 rounded-2xl p-4 flex justify-between items-center shadow-inner">
+              <span className="text-sm font-semibold text-zinc-300">Total estimado:</span>
               <span className="text-2xl font-black text-white tracking-tight">
                 S/ {total.toFixed(2)}
               </span>
             </div>
 
-            {/* BOTÓN PRINCIPAL DE WHATSAPP (Impactante) */}
+            {/* BOTÓN PRINCIPAL DE WHATSAPP */}
             <WhatsAppCheckout />
 
-            {/* OPCIÓN SECUNDARIA (Plataforma Web) */}
+            {/* OPCIÓN SECUNDARIA */}
             <button
               onClick={() => setShowCheckout(true)}
               className="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs transition cursor-pointer border border-zinc-700"
@@ -171,7 +176,7 @@ export default function CartDrawer() {
 
             <button
               onClick={closeCart}
-              className="w-full py-2 text-zinc-500 hover:text-zinc-300 font-semibold text-xs transition cursor-pointer text-center block"
+              className="w-full py-1.5 text-zinc-500 hover:text-zinc-300 font-semibold text-xs transition cursor-pointer text-center block"
             >
               ← Seguir explorando el catálogo
             </button>
