@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, getDocs, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -138,16 +138,14 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 LÓGICA BLINDADA Y PROBADA: Actualización de stock en tiempo real
+  // Botones de Stock Rápido (+ / -) con sincronización inmediata
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
 
-    // Aseguramos conversión numérica estricta y límite mínimo de 0
     const parsedCurrent = Number(currentStock) || 0;
     const updatedStock = Math.max(0, parsedCurrent + delta);
     
-    // Forzamos la actualización inmediata del estado local para refrescar la vista al instante
     setProducts(prevProducts =>
       prevProducts.map(p => {
         if (String(p.id).trim() === stringId) {
@@ -158,13 +156,33 @@ export default function AdminPage() {
     );
 
     try {
-      // Sincronización en segundo plano con Firebase Firestore
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, { stock: updatedStock });
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
-      fetchProducts(); // Revertir cambios locales si falla la red
+      fetchProducts();
+    }
+  };
+
+  // 🗑️ FUNCIÓN PARA ELIMINAR PRODUCTO
+  const handleDeleteProduct = async (id: string, name: string) => {
+    const stringId = String(id).trim();
+    if (!stringId) return;
+
+    const confirmDelete = window.confirm(`¿Estás seguro de que deseas eliminar "${name}" del inventario?`);
+    if (!confirmDelete) return;
+
+    // Actualización visual inmediata quitándolo del estado local
+    setProducts(prevProducts => prevProducts.filter(p => String(p.id).trim() !== stringId));
+
+    try {
+      const productRef = doc(db, "products", stringId);
+      await deleteDoc(productRef);
+    } catch (error: any) {
+      console.error("Error al eliminar el producto en Firebase:", error);
+      alert(`No se pudo eliminar el producto: ${error.message}`);
+      fetchProducts(); // Revertir recargando si hay error
     }
   };
 
@@ -362,7 +380,7 @@ export default function AdminPage() {
               </form>
             </div>
 
-            {/* CATÁLOGO ACTUAL CON BUSCADOR, BOTONES + / - Y EDITAR */}
+            {/* CATÁLOGO ACTUAL CON BUSCADOR, BOTONES + / - , EDITAR Y ELIMINAR */}
             <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
               
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-3">
@@ -417,7 +435,7 @@ export default function AdminPage() {
                           )}
                         </div>
 
-                        {/* ACCIONES: BOTONES + / - Y EDITAR */}
+                        {/* ACCIONES: BOTONES + / - , EDITAR Y ELIMINAR */}
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
                             <button
@@ -443,6 +461,15 @@ export default function AdminPage() {
                             className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-xl font-bold text-xs transition cursor-pointer"
                           >
                             ✏️ Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(product.id, product.name)}
+                            className="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-900/50 rounded-xl font-bold text-xs transition cursor-pointer"
+                            title="Eliminar producto"
+                          >
+                            🗑️
                           </button>
                         </div>
                       </div>
