@@ -10,8 +10,8 @@ export default function WhatsAppCheckout() {
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const handleWhatsAppOrder = () => {
-    // Reemplaza este número con el número de WhatsApp real de Minimarket Pamela (formato internacional sin el +)
-    const phoneNumber = "51900000000"; 
+    // Número oficial configurado correctamente con código de país (51)
+    const phoneNumber = "51950323959"; 
 
     let message = "Hola! 👋 Vengo de *Minimarket Pamela* y quiero hacer el siguiente pedido:\n\n";
     
@@ -28,9 +28,9 @@ export default function WhatsAppCheckout() {
   return (
     <button
       onClick={handleWhatsAppOrder}
-      className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-3 px-4 rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-sm cursor-pointer mt-3"
+      className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-3.5 px-4 rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-base cursor-pointer"
     >
-      <span>💬 Pedir por WhatsApp</span>
+      <span className="text-xl">💬</span> Pedir por WhatsApp (Rápido)
     </button>
   );
 }

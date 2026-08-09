@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useCart } from "@/lib/CartContext";
 import { useCartUI } from "@/lib/CartUIContext";
 import CheckoutModal from "./CheckoutModal";
-import WhatsAppCheckout from "./WhatsAppCheckout"; // 1. Importamos el componente que creaste
+import WhatsAppCheckout from "./WhatsAppCheckout";
 import Image from "next/image";
 
 export default function CartDrawer() {
@@ -42,7 +42,7 @@ export default function CartDrawer() {
           w-full
           max-w-md
           h-full
-          bg-orange-50
+          bg-white
           shadow-2xl
           p-6
           flex
@@ -54,29 +54,29 @@ export default function CartDrawer() {
           ${cartOpen ? "translate-x-0" : "translate-x-full"}
         `}
       >
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-black">🛒 Mi carrito</h2>
+        <div className="flex justify-between items-center mb-6 border-b pb-4">
+          <h2 className="text-2xl font-black text-gray-900">🛒 Mi carrito</h2>
           <button
             onClick={closeCart}
-            className="text-black text-3xl font-bold cursor-pointer"
+            className="text-gray-500 hover:text-black text-2xl font-bold cursor-pointer"
           >
             ×
           </button>
         </div>
 
         {cart.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-black font-bold">
+          <div className="flex-1 flex items-center justify-center text-gray-500 font-medium">
             Tu carrito está vacío
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-4">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
             {cart.map(item => (
               <div
                 key={item.id}
-                className="bg-white rounded-xl shadow p-4"
+                className="bg-gray-50 rounded-xl border border-gray-100 shadow-sm p-4"
               >
                 <div className="flex gap-4">
-                  <div className="relative w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                  <div className="relative w-20 h-20 bg-white rounded-lg overflow-hidden flex-shrink-0 border">
                     <Image
                       src={item.image}
                       alt={item.name}
@@ -85,30 +85,29 @@ export default function CartDrawer() {
                     />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-black">
+                    <h3 className="text-base font-bold text-gray-900">
                       {item.name}
                     </h3>
+                    <p className="text-red-600 font-black mt-1">
+                      S/ {(item.price * item.quantity).toFixed(2)}
+                    </p>
                   </div>
                 </div>
 
-                <p className="text-red-600 font-bold mt-1">
-                  S/ {(item.price * item.quantity).toFixed(2)}
-                </p>
-
-                <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200/60">
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => decreaseQuantity(item.id)}
-                      className="w-8 h-8 rounded-full bg-red-600 text-white font-bold text-lg flex items-center justify-center cursor-pointer"
+                      className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold flex items-center justify-center cursor-pointer transition"
                     >
                       -
                     </button>
-                    <span className="text-black font-bold w-6 text-center">
+                    <span className="text-gray-900 font-bold w-6 text-center">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() => increaseQuantity(item.id)}
-                      className="w-8 h-8 rounded-full bg-red-600 text-white font-bold text-lg flex items-center justify-center cursor-pointer"
+                      className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold flex items-center justify-center cursor-pointer transition"
                     >
                       +
                     </button>
@@ -116,7 +115,7 @@ export default function CartDrawer() {
 
                   <button
                     onClick={() => removeFromCart(item.id)}
-                    className="text-red-600 font-bold text-sm cursor-pointer"
+                    className="text-red-500 hover:text-red-700 font-bold text-xs cursor-pointer"
                   >
                     🗑 Eliminar
                   </button>
@@ -128,26 +127,27 @@ export default function CartDrawer() {
 
         {cart.length > 0 && (
           <div className="mt-6 border-t pt-5">
-            <div className="flex justify-between mb-5">
-              <span className="text-xl font-bold text-black">Total:</span>
-              <span className="text-xl font-bold text-red-600">
+            <div className="flex justify-between mb-4 items-center">
+              <span className="text-lg font-bold text-gray-700">Total a pagar:</span>
+              <span className="text-2xl font-black text-red-600">
                 S/ {total.toFixed(2)}
               </span>
             </div>
 
+            {/* OPCIÓN PRINCIPAL: WhatsApp con el número +51 950323959 */}
+            <WhatsAppCheckout />
+
+            {/* OPCIÓN SECUNDARIA: Procesar pedido interno del sistema */}
             <button
               onClick={() => setShowCheckout(true)}
-              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold mb-2 transition cursor-pointer shadow-md"
+              className="w-full mt-2.5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-sm transition cursor-pointer border border-gray-300"
             >
-              Procesar Pedido
+              Procesar por plataforma web 📋
             </button>
-
-            {/* 2. Aquí insertamos el botón directo de WhatsApp */}
-            <WhatsAppCheckout />
 
             <button
               onClick={closeCart}
-              className="w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-900 text-white font-bold transition cursor-pointer mt-3"
+              className="w-full mt-2 py-2 text-gray-500 hover:text-gray-800 font-semibold text-xs transition cursor-pointer text-center"
             >
               ← Seguir comprando
             </button>
