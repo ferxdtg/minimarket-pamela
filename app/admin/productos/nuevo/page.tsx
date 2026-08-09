@@ -244,7 +244,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS */}
+        {/* PESTAÑAS DE NAVEGACIÓN */}
         <div className="flex flex-wrap gap-2.5">
           <button
             onClick={() => setActiveTab("inventario")}
@@ -272,7 +272,7 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* VISTA INVENTARIO */}
+        {/* VISTA 1: INVENTARIO */}
         {activeTab === "inventario" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -476,7 +476,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA CENTRO LOGÍSTICO */}
+        {/* VISTA 2: CENTRO LOGÍSTICO DE PEDIDOS */}
         {activeTab === "pedidos" && (
           <div className="space-y-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/70 backdrop-blur border border-zinc-800 p-5 rounded-2xl shadow-xl">
@@ -573,7 +573,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA MARKETING & PROMOCIONES */}
+        {/* VISTA 3: MARKETING & PROMOCIONES */}
         {activeTab === "marketing" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
@@ -664,7 +664,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* MODAL DE EDICIÓN */}
+        {/* MODAL DE EDICIÓN DE PRODUCTO */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-white space-y-4">
