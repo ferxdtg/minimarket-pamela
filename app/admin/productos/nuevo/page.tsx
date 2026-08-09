@@ -138,7 +138,7 @@ export default function AdminPage() {
     }
   };
 
-  // Botones de Stock Rápido (+ / -) con sincronización inmediata y robusta
+  // Botones de Stock Rápido (+ / -) con sincronización inmediata
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
@@ -146,7 +146,6 @@ export default function AdminPage() {
     const parsedStock = Number(currentStock) || 0;
     const newStock = Math.max(0, parsedStock + delta);
     
-    // Actualización visual instantánea del estado local
     setProducts(prevProducts =>
       prevProducts.map(p => (p.id === stringId ? { ...p, stock: newStock } : p))
     );
@@ -157,7 +156,7 @@ export default function AdminPage() {
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
-      fetchProducts(); // Revertir si ocurre un fallo
+      fetchProducts();
     }
   };
 
@@ -330,7 +329,7 @@ export default function AdminPage() {
                   </label>
                 </div>
 
-                {/* BOTONES ORIGINALES CON CÁMARA Y ARCHIVO */}
+                {/* BOTONES CON CÁMARA Y ARCHIVO */}
                 <div>
                   <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Imagen del producto</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -355,7 +354,7 @@ export default function AdminPage() {
               </form>
             </div>
 
-            {/* CATÁLOGO ACTUAL CON BUSCADOR, BOTONES + / - Y EDITAR */}
+            {/* CATÁLOGO ACTUAL CON BUSCADOR Y BOTONES + / - */}
             <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
               
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-3">
@@ -456,8 +455,8 @@ export default function AdminPage() {
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-sm font-bold text-white">Pamelllll</h3>
-                    <p className="text-xs text-zinc-400">Tel: 9878554 • Calle 48</p>
+                    <h3 className="text-sm font-bold text-white">Pamela</h3>
+                    <p className="text-xs text-zinc-400">Tel: 9878554 • Calle Principal</p>
                   </div>
                   <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold px-2.5 py-1 rounded-full">PENDIENTE</span>
                 </div>
