@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -10,6 +10,15 @@ export default function AdminPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Estados para el formulario de Agregar Nuevo Producto
+  const [newName, setNewName] = useState("");
+  const [newPrice, setNewPrice] = useState("");
+  const [newStock, setNewStock] = useState("");
+  const [newCategory, setNewCategory] = useState("Abarrotes y Despensa");
+  const [newIsOnSale, setNewIsOnSale] = useState(false);
+  const [newIsFeatured, setNewIsFeatured] = useState(false);
+  const [newImage, setNewImage] = useState("");
 
   // Estado para el modal de edición completa
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
@@ -27,7 +36,7 @@ export default function AdminPage() {
     try {
       const querySnapshot = await getDocs(collection(db, "products"));
       const list = querySnapshot.docs.map(document => ({
-        id: document.id, // ID real de Firestore
+        id: document.id,
         ...document.data()
       }));
       setProducts(list);
@@ -42,14 +51,58 @@ export default function AdminPage() {
     fetchProducts();
   }, []);
 
-  // Función infalible para actualizar stock con + y -
+  // Manejo de imagen para NUEVO producto (Archivo o Cámara)
+  const handleNewFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Guardar NUEVO producto directamente en Firebase
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const productData = {
+        name: newName,
+        price: parseFloat(newPrice) || 0,
+        stock: parseInt(newStock) || 0,
+        category: newCategory,
+        isOnSale: newIsOnSale,
+        isFeatured: newIsFeatured,
+        image: newImage || ""
+      };
+
+      await addDoc(collection(db, "products"), productData);
+      
+      // Limpiar formulario
+      setNewName("");
+      setNewPrice("");
+      setNewStock("");
+      setNewCategory("Abarrotes y Despensa");
+      setNewIsOnSale(false);
+      setNewIsFeatured(false);
+      setNewImage("");
+
+      fetchProducts();
+      alert("¡Producto publicado con éxito en Firebase!");
+    } catch (error: any) {
+      console.error("Error al crear producto:", error);
+      alert(`Error al publicar: ${error.message}`);
+    }
+  };
+
+  // Función infalible para actualizar stock con + y - en Firebase
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
 
     const newStock = Math.max(0, (Number(currentStock) || 0) + delta);
     
-    // Actualización visual inmediata en pantalla
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, stock: newStock } : p));
 
     try {
@@ -62,7 +115,7 @@ export default function AdminPage() {
     }
   };
 
-  // Abrir modal cargando todos los campos actuales del producto
+  // Abrir modal cargando datos actuales
   const openEditModal = (product: any) => {
     setEditingProduct(product);
     setEditForm({
@@ -76,8 +129,8 @@ export default function AdminPage() {
     });
   };
 
-  // Convertir archivo local o foto de cámara a Base64 para el modal de edición
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Manejo de imagen en el modal de edición
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -88,7 +141,7 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar todos los cambios modificados en Firebase
+  // Guardar cambios del modal de edición en Firebase
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -104,16 +157,16 @@ export default function AdminPage() {
       image: editForm.image || editingProduct.image || ""
     };
     
-    // Actualización visual inmediata
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
 
     try {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, finalData);
       setEditingProduct(null);
+      fetchProducts();
     } catch (error: any) {
       console.error("Error al actualizar producto:", error);
-      alert(`Error al guardar cambios: ${error.message}`);
+      alert(`Error al guardar cambios en Firebase: ${error.message}`);
       fetchProducts();
     }
   };
@@ -126,7 +179,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-[#0d0d0f] text-white p-6 sm:p-10 font-sans">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* ENCABEZADO ORIGINAL */}
+        {/* ENCABEZADO */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-800/80 pb-5">
           <div>
             <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">
@@ -143,7 +196,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS ORIGINALES */}
+        {/* PESTAÑAS */}
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab("inventario")}
@@ -167,17 +220,20 @@ export default function AdminPage() {
         {activeTab === "inventario" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* FORMULARIO ORIGINAL DE NUEVO PRODUCTO */}
+            {/* FORMULARIO DE NUEVO PRODUCTO (Conectado a Firebase) */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl h-fit space-y-4">
               <h2 className="text-sm font-black text-white">Agregar Nuevo Producto</h2>
               
-              <div className="space-y-3 text-xs">
+              <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
                 <div>
                   <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Nombre del producto</label>
                   <input
                     type="text"
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
                     placeholder="Ej. Aceite Primor 1L"
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
                   />
                 </div>
 
@@ -187,23 +243,33 @@ export default function AdminPage() {
                     <input
                       type="number"
                       step="0.05"
+                      value={newPrice}
+                      onChange={e => setNewPrice(e.target.value)}
                       placeholder="0.00"
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
                     />
                   </div>
                   <div>
                     <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Stock</label>
                     <input
                       type="number"
+                      value={newStock}
+                      onChange={e => setNewStock(e.target.value)}
                       placeholder="0"
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Categoría</label>
-                  <select className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600">
+                  <select
+                    value={newCategory}
+                    onChange={e => setNewCategory(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                  >
                     <option>Abarrotes y Despensa</option>
                     <option>Snacks</option>
                     <option>Ofertas</option>
@@ -212,37 +278,46 @@ export default function AdminPage() {
 
                 <div className="flex gap-4 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
-                    <input type="checkbox" className="accent-red-600 w-4 h-4 cursor-pointer" />
+                    <input
+                      type="checkbox"
+                      checked={newIsOnSale}
+                      onChange={e => setNewIsOnSale(e.target.checked)}
+                      className="accent-red-600 w-4 h-4 cursor-pointer"
+                    />
                     En Oferta
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
-                    <input type="checkbox" className="accent-red-600 w-4 h-4 cursor-pointer" />
+                    <input
+                      type="checkbox"
+                      checked={newIsFeatured}
+                      onChange={e => setNewIsFeatured(e.target.checked)}
+                      className="accent-red-600 w-4 h-4 cursor-pointer"
+                    />
                     Destacado
                   </label>
                 </div>
 
                 <div>
                   <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Imagen del producto</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button type="button" className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2.5 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer">
-                      📁 Subir Archivo
-                    </button>
-                    <button type="button" className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2.5 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer">
-                      📷 Usar Cámara
-                    </button>
-                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleNewFileChange}
+                    className="w-full text-[11px] text-zinc-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer bg-zinc-950 border border-zinc-800 p-2 rounded-xl"
+                  />
                 </div>
 
                 <button
-                  type="button"
+                  type="submit"
                   className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition shadow-lg cursor-pointer mt-2"
                 >
                   Publicar Producto
                 </button>
-              </div>
+              </form>
             </div>
 
-            {/* CATÁLOGO ACTUAL CON BUSCADOR, BOTONES + / - Y BOTÓN EDITAR */}
+            {/* CATÁLOGO ACTUAL CON BUSCADOR, BOTONES + / - Y EDITAR */}
             <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
               
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-3">
@@ -301,6 +376,7 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
                             <button
+                              type="button"
                               onClick={() => handleStockUpdate(product.id, currentStock, -1)}
                               className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
                             >
@@ -308,6 +384,7 @@ export default function AdminPage() {
                             </button>
                             <span className="w-6 text-center font-black text-xs">{currentStock}</span>
                             <button
+                              type="button"
                               onClick={() => handleStockUpdate(product.id, currentStock, 1)}
                               className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
                             >
@@ -316,6 +393,7 @@ export default function AdminPage() {
                           </div>
 
                           <button
+                            type="button"
                             onClick={() => openEditModal(product)}
                             className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-xl font-bold text-xs transition cursor-pointer"
                           >
@@ -355,7 +433,7 @@ export default function AdminPage() {
                     <span className="text-red-400">S/ 13.80</span>
                   </div>
                 </div>
-                <button className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer">
+                <button type="button" className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer">
                   ✓ Marcar como Entregado
                 </button>
               </div>
@@ -370,6 +448,7 @@ export default function AdminPage() {
               <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
                 <h3 className="text-sm font-black">Editar Producto</h3>
                 <button 
+                  type="button"
                   onClick={() => setEditingProduct(null)}
                   className="text-zinc-400 hover:text-white font-bold text-base cursor-pointer"
                 >
@@ -462,7 +541,7 @@ export default function AdminPage() {
                         type="file"
                         accept="image/*"
                         capture="environment"
-                        onChange={handleFileChange}
+                        onChange={handleEditFileChange}
                         className="w-full text-[11px] text-zinc-400 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer"
                       />
                     </div>
