@@ -28,34 +28,30 @@ export default function AdminInventarioPage() {
     fetchProducts();
   }, []);
 
-  // Actualización de stock directa y segura (elimina el bug del rebote)
   const handleUpdateStock = async (id: string, newStock: number) => {
-    // 1. Actualizamos de inmediato el estado local para fluidez visual absoluta
     setProducts(prev =>
       prev.map(p => (p.id === id ? { ...p, stock: newStock } : p))
     );
 
     try {
-      // 2. Persistencia en Firebase en segundo plano
       const productRef = doc(db, "products", id);
       await updateDoc(productRef, { stock: newStock });
     } catch (error) {
-      console.error("Error al guardar stock en Firebase:", error);
-      fetchProducts(); // Revertir si falla la red
+      console.error("Error al guardar stock:", error);
+      fetchProducts();
     }
   };
 
-  // Actualización de imagen directa en Firebase
-  const handleUpdateImage = async (id: string, newImage: string) => {
+  const handleUpdateProduct = async (id: string, updatedData: { name: string; price: number; stock: number; image: string }) => {
     setProducts(prev =>
-      prev.map(p => (p.id === id ? { ...p, image: newImage } : p))
+      prev.map(p => (p.id === id ? { ...p, ...updatedData } : p))
     );
 
     try {
       const productRef = doc(db, "products", id);
-      await updateDoc(productRef, { image: newImage });
+      await updateDoc(productRef, updatedData);
     } catch (error) {
-      console.error("Error al guardar imagen en Firebase:", error);
+      console.error("Error al actualizar producto completo:", error);
       fetchProducts();
     }
   };
@@ -67,7 +63,7 @@ export default function AdminInventarioPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-800 pb-5">
           <div>
             <h1 className="text-2xl font-black tracking-tight">📦 Módulo de Almacén e Inventario</h1>
-            <p className="text-xs text-zinc-400 mt-1">Control quirúrgico de stock y actualización de imágenes en vivo.</p>
+            <p className="text-xs text-zinc-400 mt-1">Gestión completa de productos, precios, cantidades y carga de fotos nativa.</p>
           </div>
           <div>
             <a
@@ -87,7 +83,7 @@ export default function AdminInventarioPage() {
           <InventoryTable 
             initialProducts={products} 
             onStockChange={handleUpdateStock}
-            onImageChange={handleUpdateImage}
+            onUpdateProduct={handleUpdateProduct}
           />
         )}
 
