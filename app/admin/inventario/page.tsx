@@ -29,13 +29,17 @@ export default function AdminInventarioPage() {
   }, []);
 
   const handleUpdateStock = async (id: string, newStock: number) => {
+    const stringId = String(id);
+    if (!stringId) return;
+
     setProducts(prev =>
-      prev.map(p => (p.id === id ? { ...p, stock: newStock } : p))
+      prev.map(p => (p.id === stringId ? { ...p, stock: newStock } : p))
     );
 
     try {
-      const productRef = doc(db, "products", id);
+      const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, { stock: newStock });
+      console.log("Stock actualizado con éxito para el ID:", stringId);
     } catch (error: any) {
       console.error("Error al actualizar stock:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
@@ -44,12 +48,15 @@ export default function AdminInventarioPage() {
   };
 
   const handleUpdateProduct = async (id: string, updatedData: { name: string; price: number; stock: number; image: string }) => {
+    const stringId = String(id);
+    if (!stringId) return;
+
     setProducts(prev =>
-      prev.map(p => (p.id === id ? { ...p, ...updatedData } : p))
+      prev.map(p => (p.id === stringId ? { ...p, ...updatedData } : p))
     );
 
     try {
-      const productRef = doc(db, "products", id);
+      const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, {
         name: updatedData.name,
         price: updatedData.price,
