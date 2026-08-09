@@ -42,7 +42,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Fecha actual automática de hoy (09/08/2026)
+  // Fecha actual automática de hoy
   const todayDateStr = new Date().toISOString().split("T")[0];
 
   const [orders, setOrders] = useState([
@@ -127,7 +127,11 @@ export default function AdminPage() {
 
   const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) compressImage(file, (base64) => setEditForm(prev => ({ ...prev, image: base64 })));
+    if (file) {
+      compressImage(file, (base64) => {
+        setEditForm(prev => ({ ...prev, image: base64 }));
+      });
+    }
   };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
@@ -151,13 +155,13 @@ export default function AdminPage() {
     }
   };
 
-  // Stock en tiempo real blindado para la Gestión de Inventario
+  // Botones + y - conectados en tiempo real con Firebase
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
     const updatedStock = Math.max(0, (Number(currentStock) || 0) + delta);
     
-    setProducts(prev => prev.map(p => p.id === stringId ? { ...p, stock: updatedStock } : p));
+    setProducts(prev => prev.map(p => String(p.id).trim() === stringId ? { ...p, stock: updatedStock } : p));
     try {
       await updateDoc(doc(db, "products", stringId), { stock: updatedStock });
     } catch (error: any) {
@@ -240,7 +244,7 @@ export default function AdminPage() {
 
   const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Métricas del Dashboard integrado
+  // Métricas
   const totalSales = orders.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + o.total, 0);
   const pendingCount = orders.filter(o => o.status === "PENDIENTE").length;
   const deliveredCount = orders.filter(o => o.status === "ENTREGADO").length;
@@ -252,7 +256,7 @@ export default function AdminPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* ENCABEZADO */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/60 backdrop-blur-md border border-zinc-800 p-5 rounded-2xl shadow-xl">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/65 backdrop-blur-md border border-zinc-800 p-5 rounded-2xl shadow-xl">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -379,7 +383,6 @@ export default function AdminPage() {
                   </label>
                 </div>
 
-                {/* BOTONES DE FOTO Y CÁMARA */}
                 <div className="space-y-1.5">
                   <label className="block text-zinc-400 font-bold uppercase text-[10px]">Fotografía del Producto</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -506,7 +509,6 @@ export default function AdminPage() {
         {activeTab === "pedidos" && (
           <div className="space-y-6">
             
-            {/* Dashboard Integrado */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
                 <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ventas Totales (Entregadas)</span>
@@ -533,7 +535,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Pestañas Superiores de Estado Logístico Principal */}
             <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 p-5 rounded-2xl shadow-xl space-y-4">
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
@@ -569,7 +570,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Subfiltros Internos independientes por cada pestaña */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-950 border border-zinc-800/80 px-4 py-3 rounded-xl text-xs">
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <span className="text-zinc-400 font-bold shrink-0">Tipo de Entrega:</span>
@@ -622,7 +622,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Listado de Pedidos Filtrados */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredOrders.length === 0 ? (
                 <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en la sección de {orderStatusTab.toLowerCase()} con los filtros seleccionados.</p>
@@ -806,7 +805,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* MODAL DE EDICIÓN DE PRODUCTO */}
+        {/* MODAL DE EDICIÓN DE PRODUCTO (CON BOTONES DE SUBIR ARCHIVO Y CÁMARA RESTAURADOS) */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-white space-y-4">
@@ -873,6 +872,30 @@ export default function AdminPage() {
                   <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
                     <input type="checkbox" checked={editForm.isFeatured} onChange={e => setEditForm({ ...editForm, isFeatured: e.target.checked })} className="accent-red-600 w-4 h-4" /> Destacado ⭐
                   </label>
+                </div>
+
+                {/* BOTONES DE FOTO Y CÁMARA EN EL MODAL DE EDICIÓN */}
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1">Fotografía del Producto</label>
+                  <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl p-3">
+                    <div className="relative w-12 h-12 bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                      {editForm.image ? (
+                        <Image src={editForm.image} alt="Vista previa" fill className="object-contain p-1" />
+                      ) : (
+                        <span className="text-[9px] text-zinc-500 flex items-center justify-center h-full">N/A</span>
+                      )}
+                    </div>
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <label className="block bg-red-600 hover:bg-red-700 text-white text-center py-1.5 px-2 rounded-lg font-bold text-[10px] cursor-pointer transition">
+                        📁 Archivo
+                        <input type="file" accept="image/*" onChange={handleEditFileChange} className="hidden" />
+                      </label>
+                      <label className="block bg-zinc-800 hover:bg-zinc-700 text-white text-center py-1.5 px-2 rounded-lg font-bold text-[10px] cursor-pointer transition">
+                        📷 Cámara
+                        <input type="file" accept="image/*" capture="environment" onChange={handleEditFileChange} className="hidden" />
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-3 border-t border-zinc-800">
