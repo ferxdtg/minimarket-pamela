@@ -36,9 +36,9 @@ export default function AdminInventarioPage() {
     try {
       const productRef = doc(db, "products", id);
       await updateDoc(productRef, { stock: newStock });
-    } catch (error) {
-      console.error("Error crítico al actualizar stock en Firebase:", error);
-      alert("No se pudo guardar en la base de datos.");
+    } catch (error: any) {
+      console.error("Error al actualizar stock:", error);
+      alert(`No se pudo actualizar el stock: ${error.message}`);
       fetchProducts();
     }
   };
@@ -57,9 +57,9 @@ export default function AdminInventarioPage() {
         image: updatedData.image
       });
       console.log("Producto actualizado correctamente en Firebase");
-    } catch (error) {
-      console.error("Error crítico al actualizar el producto:", error);
-      alert("Error al guardar los cambios en Firebase.");
+    } catch (error: any) {
+      console.error("Error al actualizar producto:", error);
+      alert(`Error al guardar en Firebase: ${error.message}`);
       fetchProducts();
     }
   };
@@ -71,7 +71,7 @@ export default function AdminInventarioPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-800 pb-5">
           <div>
             <h1 className="text-2xl font-black tracking-tight">📦 Módulo de Almacén e Inventario</h1>
-            <p className="text-xs text-zinc-400 mt-1">Control sincronizado y persistente con Firebase.</p>
+            <p className="text-xs text-zinc-400 mt-1">Control sincronizado, persistente y adaptado para gestión rápida.</p>
           </div>
           <div>
             <a

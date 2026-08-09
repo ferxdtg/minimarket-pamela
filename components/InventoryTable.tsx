@@ -30,7 +30,7 @@ export default function InventoryTable({
     });
   };
 
-  // Convertir archivo local o foto de cámara a Base64 para guardarlo sin código
+  // Convertir imagen local a Base64 de forma segura
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -45,7 +45,15 @@ export default function InventoryTable({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingProduct) {
-      onUpdateProduct(editingProduct.id, editForm);
+      // Si no selecciona nueva foto, se conserva la actual para evitar errores
+      const finalImage = editForm.image || editingProduct.image || "";
+      
+      onUpdateProduct(editingProduct.id, {
+        name: editForm.name,
+        price: editForm.price,
+        stock: editForm.stock,
+        image: finalImage
+      });
       setEditingProduct(null);
     }
   };
@@ -55,7 +63,7 @@ export default function InventoryTable({
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-lg font-black">Control de Almacén e Inventario</h2>
-          <p className="text-xs text-zinc-400">Edición completa y carga de fotos directa desde el dispositivo o cámara.</p>
+          <p className="text-xs text-zinc-400">Edición completa y carga de fotos nativa desde el dispositivo o cámara.</p>
         </div>
       </div>
 
@@ -150,7 +158,7 @@ export default function InventoryTable({
               <h3 className="text-base font-black">Editar Producto</h3>
               <button 
                 onClick={() => setEditingProduct(null)}
-                className="text-zinc-400 hover:text-white font-bold text-lg"
+                className="text-zinc-400 hover:text-white font-bold text-lg cursor-pointer"
               >
                 ✕
               </button>
