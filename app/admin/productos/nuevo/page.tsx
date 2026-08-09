@@ -6,13 +6,10 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  // Pestañas principales limpiadas (Dashboard ahora forma parte del Centro Logístico o navegación directa)
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing">("inventario");
-  
-  // Estado principal de la logística (Pestañas de Estado)
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
-  // Subfiltros independientes por cada pestaña de estado
+  // Subfiltros independientes por cada pestaña de estado logístico
   const [filtersByStatus, setFiltersByStatus] = useState({
     PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
     ENTREGADO: { type: "TODOS", startDate: "", endDate: "" },
@@ -45,10 +42,9 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Fecha actual automática (ej: 2026-08-09 para hoy)
+  // Fecha actual automática de hoy (09/08/2026)
   const todayDateStr = new Date().toISOString().split("T")[0];
 
-  // Pedidos con fecha automática de hoy
   const [orders, setOrders] = useState([
     { id: 1, client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE", date: todayDateStr },
     { id: 2, client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr },
@@ -155,6 +151,7 @@ export default function AdminPage() {
     }
   };
 
+  // Stock en tiempo real blindado para la Gestión de Inventario
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
@@ -221,7 +218,6 @@ export default function AdminPage() {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
   };
 
-  // Obtener subfiltros independientes de la pestaña activa de estado
   const currentSubFilter = filtersByStatus[orderStatusTab];
 
   const updateSubFilter = (field: "type" | "startDate" | "endDate", value: string) => {
@@ -234,26 +230,17 @@ export default function AdminPage() {
     }));
   };
 
-  // Filtrado logístico estricto por pestaña + subfiltros independientes de tipo y fecha
   const filteredOrders = orders.filter(o => {
-    // Debe coincidir con la pestaña de estado seleccionada
     if (o.status !== orderStatusTab) return false;
-
-    // Subfiltro por tipo (TODOS, DELIVERY, RECOJO)
-    if (currentSubFilter.type !== "TODOS" && o.type !== currentSubFilter.type) {
-      return false;
-    }
-
-    // Subfiltro por fechas independientes para esta pestaña
+    if (currentSubFilter.type !== "TODOS" && o.type !== currentSubFilter.type) return false;
     if (currentSubFilter.startDate && o.date < currentSubFilter.startDate) return false;
     if (currentSubFilter.endDate && o.date > currentSubFilter.endDate) return false;
-
     return true;
   });
 
   const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Métricas para el Dashboard interno del Centro Logístico
+  // Métricas del Dashboard integrado
   const totalSales = orders.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + o.total, 0);
   const pendingCount = orders.filter(o => o.status === "PENDIENTE").length;
   const deliveredCount = orders.filter(o => o.status === "ENTREGADO").length;
@@ -392,15 +379,16 @@ export default function AdminPage() {
                   </label>
                 </div>
 
+                {/* BOTONES DE FOTO Y CÁMARA */}
                 <div className="space-y-1.5">
                   <label className="block text-zinc-400 font-bold uppercase text-[10px]">Fotografía del Producto</label>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-3 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
-                      📁 Archivo
+                      📁 Subir Archivo
                       <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
                     </label>
                     <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-3 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
-                      📷 Cámara
+                      📷 Usar Cámara
                       <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
                     </label>
                   </div>
@@ -518,7 +506,7 @@ export default function AdminPage() {
         {activeTab === "pedidos" && (
           <div className="space-y-6">
             
-            {/* Dashboard Integrado en el Centro Logístico */}
+            {/* Dashboard Integrado */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
                 <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ventas Totales (Entregadas)</span>
@@ -553,13 +541,12 @@ export default function AdminPage() {
                   <p className="text-xs text-zinc-400 mt-0.5">Selecciona el estado principal y filtra por tipo de entrega o fechas de forma independiente.</p>
                 </div>
 
-                {/* Pestañas de Estado Principal */}
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <button 
                     onClick={() => setOrderStatusTab("PENDIENTE")}
                     className={`px-4 py-2.5 rounded-xl font-bold transition cursor-pointer ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                   >
-                    ⏳ Pendientes ({orders.filter(o => o.status === "PENDIENTE").length})
+                    ⏳ Pendientes ({pendingCount})
                   </button>
                   <button 
                     onClick={() => setOrderStatusTab("ENTREGADO")}
@@ -582,7 +569,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Subfiltros Internos (Delivery / Recojo y Fechas Independientes para este Estado) */}
+              {/* Subfiltros Internos independientes por cada pestaña */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-950 border border-zinc-800/80 px-4 py-3 rounded-xl text-xs">
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <span className="text-zinc-400 font-bold shrink-0">Tipo de Entrega:</span>
@@ -673,7 +660,6 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* Acciones logísticas */}
                     <div className="space-y-2 pt-1">
                       {order.status === "PENDIENTE" && (
                         <div className="grid grid-cols-2 gap-2">
