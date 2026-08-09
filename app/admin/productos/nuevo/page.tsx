@@ -6,12 +6,19 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "inventario" | "pedidos" | "marketing">("dashboard");
-  const [orderFilter, setOrderFilter] = useState<"TODOS" | "PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO" | "DELIVERY" | "RECOJO">("TODOS");
+  // Pestañas principales limpiadas (Dashboard ahora forma parte del Centro Logístico o navegación directa)
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing">("inventario");
+  
+  // Estado principal de la logística (Pestañas de Estado)
+  const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
-  // Filtros de fecha para auditoría
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Subfiltros independientes por cada pestaña de estado
+  const [filtersByStatus, setFiltersByStatus] = useState({
+    PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
+    ENTREGADO: { type: "TODOS", startDate: "", endDate: "" },
+    RECHAZADO: { type: "TODOS", startDate: "", endDate: "" },
+    NO_RECOGIDO: { type: "TODOS", startDate: "", endDate: "" }
+  });
 
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,16 +45,19 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Pedidos con control logístico avanzado
+  // Fecha actual automática (ej: 2026-08-09 para hoy)
+  const todayDateStr = new Date().toISOString().split("T")[0];
+
+  // Pedidos con fecha automática de hoy
   const [orders, setOrders] = useState([
-    { id: 1, client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE", date: "2026-06-01" },
-    { id: 2, client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: "2026-06-02" },
+    { id: 1, client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE", date: todayDateStr },
+    { id: 2, client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr },
     { id: 3, client: "Ana Torres", phone: "9988776", address: "Jr. Gamarra 120", type: "DELIVERY", items: "6x Leche Gloria Azul", total: 27.00, status: "ENTREGADO", date: "2026-06-03" },
     { id: 4, client: "Luis Mendoza", phone: "9456123", address: "Calle Las Begonias 89", type: "RECOJO", items: "1x Detergente Bolívar 3kg", total: 28.50, status: "RECHAZADO", date: "2026-06-04" },
-    { id: 5, client: "Sofía Castro", phone: "9784512", address: "Urb. San Andrés Mz. B", type: "DELIVERY", items: "2x Cerveza Cusqueña 6pack", total: 46.00, status: "ENTREGADO", date: "2026-06-05" },
+    { id: 5, client: "Sofía Castro", phone: "9784512", address: "Urb. San Andrés Mz. B", type: "DELIVERY", items: "2x Cerveza Cusqueña 6pack", total: 46.00, status: "ENTREGADO", date: todayDateStr },
     { id: 6, client: "Pedro Suarez", phone: "9632587", address: "Av. Peru 500", type: "DELIVERY", items: "1x Azucar Rubia 5kg", total: 20.00, status: "NO_RECOGIDO", date: "2026-06-01" },
-    { id: 7, client: "Lucia Mendez", phone: "9517531", address: "Calle Los Pinos 303", type: "RECOJO", items: "2x Atún Florida", total: 12.00, status: "ENTREGADO", date: "2026-06-04" },
-    { id: 8, client: "Jorge Ramos", phone: "9871234", address: "Jr. Huancayo 450", type: "DELIVERY", items: "1x Papel Higiénico Parada", total: 18.50, status: "PENDIENTE", date: "2026-06-06" }
+    { id: 7, client: "Lucia Mendez", phone: "9517531", address: "Calle Los Pinos 303", type: "RECOJO", items: "2x Atún Florida", total: 12.00, status: "ENTREGADO", date: todayDateStr },
+    { id: 8, client: "Jorge Ramos", phone: "9871234", address: "Jr. Huancayo 450", type: "DELIVERY", items: "1x Papel Higiénico Parada", total: 18.50, status: "PENDIENTE", date: todayDateStr }
   ]);
 
   const [promos, setPromos] = useState([
@@ -211,30 +221,44 @@ export default function AdminPage() {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
   };
 
-  // Filtrado logístico y por fechas
-  const filteredOrders = orders.filter(o => {
-    if (orderFilter === "PENDIENTE" && o.status !== "PENDIENTE") return false;
-    if (orderFilter === "ENTREGADO" && o.status !== "ENTREGADO") return false;
-    if (orderFilter === "RECHAZADO" && o.status !== "RECHAZADO") return false;
-    if (orderFilter === "NO_RECOGIDO" && o.status !== "NO_RECOGIDO") return false;
-    if (orderFilter === "DELIVERY" && o.type !== "DELIVERY") return false;
-    if (orderFilter === "RECOJO" && o.type !== "RECOJO") return false;
+  // Obtener subfiltros independientes de la pestaña activa de estado
+  const currentSubFilter = filtersByStatus[orderStatusTab];
 
-    if (startDate && o.date < startDate) return false;
-    if (endDate && o.date > endDate) return false;
+  const updateSubFilter = (field: "type" | "startDate" | "endDate", value: string) => {
+    setFiltersByStatus(prev => ({
+      ...prev,
+      [orderStatusTab]: {
+        ...prev[orderStatusTab],
+        [field]: value
+      }
+    }));
+  };
+
+  // Filtrado logístico estricto por pestaña + subfiltros independientes de tipo y fecha
+  const filteredOrders = orders.filter(o => {
+    // Debe coincidir con la pestaña de estado seleccionada
+    if (o.status !== orderStatusTab) return false;
+
+    // Subfiltro por tipo (TODOS, DELIVERY, RECOJO)
+    if (currentSubFilter.type !== "TODOS" && o.type !== currentSubFilter.type) {
+      return false;
+    }
+
+    // Subfiltro por fechas independientes para esta pestaña
+    if (currentSubFilter.startDate && o.date < currentSubFilter.startDate) return false;
+    if (currentSubFilter.endDate && o.date > currentSubFilter.endDate) return false;
 
     return true;
   });
 
   const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Métricas del Dashboard
+  // Métricas para el Dashboard interno del Centro Logístico
   const totalSales = orders.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + o.total, 0);
   const pendingCount = orders.filter(o => o.status === "PENDIENTE").length;
   const deliveredCount = orders.filter(o => o.status === "ENTREGADO").length;
-  const rejectedCount = orders.filter(o => o.status === "RECHAZADO" || o.status === "NO_RECOGIDO").length;
-  const deliveryCount = orders.filter(o => o.type === "DELIVERY").length;
-  const pickupCount = orders.filter(o => o.type === "RECOJO").length;
+  const rejectedCount = orders.filter(o => o.status === "RECHAZADO").length;
+  const uncollectedCount = orders.filter(o => o.status === "NO_RECOGIDO").length;
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white p-6 sm:p-10 font-sans selection:bg-red-600 selection:text-white">
@@ -261,14 +285,6 @@ export default function AdminPage() {
         {/* PESTAÑAS PRINCIPALES */}
         <div className="flex flex-wrap gap-2.5">
           <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`px-6 py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2.5 shadow-lg ${
-              activeTab === "dashboard" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
-            }`}
-          >
-            📊 DASHBOARD & MÉTRICAS
-          </button>
-          <button
             onClick={() => setActiveTab("inventario")}
             className={`px-6 py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2.5 shadow-lg ${
               activeTab === "inventario" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
@@ -282,7 +298,7 @@ export default function AdminPage() {
               activeTab === "pedidos" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            🛒 CENTRO LOGÍSTICO ({pendingCount} pendientes)
+            🛒 CENTRO LOGÍSTICO Y DASHBOARD ({pendingCount} pendientes)
           </button>
           <button
             onClick={() => setActiveTab("marketing")}
@@ -293,75 +309,6 @@ export default function AdminPage() {
             🎯 MARKETING & BANNERS ({promos.filter(p => p.active).length} activas)
           </button>
         </div>
-
-        {/* VISTA 0: DASHBOARD */}
-        {activeTab === "dashboard" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ventas Totales (Entregadas)</span>
-                <div className="text-2xl font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
-                <p className="text-[11px] text-zinc-500">Calculado sobre {deliveredCount} pedidos completados</p>
-              </div>
-
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Órdenes Pendientes</span>
-                <div className="text-2xl font-black text-amber-400">{pendingCount}</div>
-                <p className="text-[11px] text-zinc-500">Requieren atención y despacho inmediato</p>
-              </div>
-
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Productos en Inventario</span>
-                <div className="text-2xl font-black text-blue-400">{products.length}</div>
-                <p className="text-[11px] text-zinc-500">Artículos sincronizados en Firebase</p>
-              </div>
-
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Rechazados / No Recogidos</span>
-                <div className="text-2xl font-black text-red-400">{rejectedCount}</div>
-                <p className="text-[11px] text-zinc-500">Órdenes canceladas o devueltas</p>
-              </div>
-            </div>
-
-            {/* Gráfico Dinámico Visual de Rendimiento */}
-            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
-              <h2 className="text-sm font-black text-white">📈 Rendimiento Operativo de Órdenes</h2>
-              <p className="text-xs text-zinc-400">Distribución porcentual del estado actual de los pedidos recibidos.</p>
-
-              <div className="space-y-3 pt-2">
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-emerald-400">Entregados ({deliveredCount})</span>
-                    <span>{orders.length > 0 ? Math.round((deliveredCount / orders.length) * 100) : 0}%</span>
-                  </div>
-                  <div className="w-full bg-zinc-950 h-3 rounded-full overflow-hidden border border-zinc-800">
-                    <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${orders.length > 0 ? (deliveredCount / orders.length) * 100 : 0}%` }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-amber-400">Pendientes ({pendingCount})</span>
-                    <span>{orders.length > 0 ? Math.round((pendingCount / orders.length) * 100) : 0}%</span>
-                  </div>
-                  <div className="w-full bg-zinc-950 h-3 rounded-full overflow-hidden border border-zinc-800">
-                    <div className="bg-amber-500 h-full transition-all duration-500" style={{ width: `${orders.length > 0 ? (pendingCount / orders.length) * 100 : 0}%` }}></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-red-400">Rechazados / No Recogidos ({rejectedCount})</span>
-                    <span>{orders.length > 0 ? Math.round((rejectedCount / orders.length) * 100) : 0}%</span>
-                  </div>
-                  <div className="w-full bg-zinc-950 h-3 rounded-full overflow-hidden border border-zinc-800">
-                    <div className="bg-red-500 h-full transition-all duration-500" style={{ width: `${orders.length > 0 ? (rejectedCount / orders.length) * 100 : 0}%` }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* VISTA 1: INVENTARIO */}
         {activeTab === "inventario" && (
@@ -567,93 +514,131 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 2: CENTRO LOGÍSTICO DE PEDIDOS */}
+        {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD INTEGRADO */}
         {activeTab === "pedidos" && (
-          <div className="space-y-5">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-zinc-900/70 backdrop-blur border border-zinc-800 p-5 rounded-2xl shadow-xl">
-              <div>
-                <h2 className="text-sm font-black text-white">Centro Logístico de Pedidos en Vivo</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">Controla despachos, entregas, rechazos y filtrado por fechas.</p>
+          <div className="space-y-6">
+            
+            {/* Dashboard Integrado en el Centro Logístico */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ventas Totales (Entregadas)</span>
+                <div className="text-2xl font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
+                <p className="text-[11px] text-zinc-500">Calculado sobre {deliveredCount} pedidos completados</p>
               </div>
 
-              {/* Filtros con contadores exactos */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <button 
-                  onClick={() => setOrderFilter("TODOS")}
-                  className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  Todos ({orders.length})
-                </button>
-                <button 
-                  onClick={() => setOrderFilter("PENDIENTE")}
-                  className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  Pendientes ({pendingCount})
-                </button>
-                <button 
-                  onClick={() => setOrderFilter("ENTREGADO")}
-                  className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  Entregados ({deliveredCount})
-                </button>
-                <button 
-                  onClick={() => setOrderFilter("RECHAZADO")}
-                  className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  Rechazados ({orders.filter(o => o.status === "RECHAZADO").length})
-                </button>
-                <button 
-                  onClick={() => setOrderFilter("NO_RECOGIDO")}
-                  className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  No Recogidos ({orders.filter(o => o.status === "NO_RECOGIDO").length})
-                </button>
-                <button 
-                  onClick={() => setOrderFilter("DELIVERY")}
-                  className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  🛵 Delivery ({deliveryCount})
-                </button>
-                <button 
-                  onClick={() => setOrderFilter("RECOJO")}
-                  className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer ${orderFilter === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  🏪 Recojo Local ({pickupCount})
-                </button>
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Órdenes Pendientes</span>
+                <div className="text-2xl font-black text-amber-400">{pendingCount}</div>
+                <p className="text-[11px] text-zinc-500">Requieren atención y despacho inmediato</p>
+              </div>
+
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Productos en Inventario</span>
+                <div className="text-2xl font-black text-blue-400">{products.length}</div>
+                <p className="text-[11px] text-zinc-500">Artículos sincronizados en Firebase</p>
+              </div>
+
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Rechazados / No Recogidos</span>
+                <div className="text-2xl font-black text-red-400">{rejectedCount + uncollectedCount}</div>
+                <p className="text-[11px] text-zinc-500">Órdenes canceladas o devueltas</p>
               </div>
             </div>
 
-            {/* Barra de Filtro por Rango de Fechas */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-950 border border-zinc-800/80 px-4 py-3 rounded-xl text-xs">
-              <span className="text-zinc-400 font-bold">📅 Filtrar por Rango de Fechas (Registro):</span>
-              <div className="flex items-center gap-2">
-                <input 
-                  type="date" 
-                  value={startDate} 
-                  onChange={e => setStartDate(e.target.value)}
-                  className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-red-600"
-                />
-                <span className="text-zinc-500">hasta</span>
-                <input 
-                  type="date" 
-                  value={endDate} 
-                  onChange={e => setEndDate(e.target.value)}
-                  className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-red-600"
-                />
-                {(startDate || endDate) && (
+            {/* Pestañas Superiores de Estado Logístico Principal */}
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 p-5 rounded-2xl shadow-xl space-y-4">
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <div>
+                  <h2 className="text-sm font-black text-white">Centro Logístico de Pedidos en Vivo</h2>
+                  <p className="text-xs text-zinc-400 mt-0.5">Selecciona el estado principal y filtra por tipo de entrega o fechas de forma independiente.</p>
+                </div>
+
+                {/* Pestañas de Estado Principal */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   <button 
-                    onClick={() => { setStartDate(""); setEndDate(""); }}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg font-bold transition cursor-pointer"
+                    onClick={() => setOrderStatusTab("PENDIENTE")}
+                    className={`px-4 py-2.5 rounded-xl font-bold transition cursor-pointer ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                   >
-                    Limpiar
+                    ⏳ Pendientes ({orders.filter(o => o.status === "PENDIENTE").length})
                   </button>
-                )}
+                  <button 
+                    onClick={() => setOrderStatusTab("ENTREGADO")}
+                    className={`px-4 py-2.5 rounded-xl font-bold transition cursor-pointer ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  >
+                    ✓ Entregados ({deliveredCount})
+                  </button>
+                  <button 
+                    onClick={() => setOrderStatusTab("RECHAZADO")}
+                    className={`px-4 py-2.5 rounded-xl font-bold transition cursor-pointer ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  >
+                    ✕ Rechazados ({rejectedCount})
+                  </button>
+                  <button 
+                    onClick={() => setOrderStatusTab("NO_RECOGIDO")}
+                    className={`px-4 py-2.5 rounded-xl font-bold transition cursor-pointer ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  >
+                    🏪 No Recogidos ({uncollectedCount})
+                  </button>
+                </div>
+              </div>
+
+              {/* Subfiltros Internos (Delivery / Recojo y Fechas Independientes para este Estado) */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-950 border border-zinc-800/80 px-4 py-3 rounded-xl text-xs">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-zinc-400 font-bold shrink-0">Tipo de Entrega:</span>
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => updateSubFilter("type", "TODOS")}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
+                    >
+                      Todos
+                    </button>
+                    <button 
+                      onClick={() => updateSubFilter("type", "DELIVERY")}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
+                    >
+                      🛵 Delivery
+                    </button>
+                    <button 
+                      onClick={() => updateSubFilter("type", "RECOJO")}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
+                    >
+                      🏪 Recojo Local
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <span className="text-zinc-400 font-bold shrink-0">Fechas:</span>
+                  <input 
+                    type="date" 
+                    value={currentSubFilter.startDate} 
+                    onChange={e => updateSubFilter("startDate", e.target.value)}
+                    className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-white focus:outline-none focus:border-red-600"
+                  />
+                  <span className="text-zinc-500">-</span>
+                  <input 
+                    type="date" 
+                    value={currentSubFilter.endDate} 
+                    onChange={e => updateSubFilter("endDate", e.target.value)}
+                    className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-white focus:outline-none focus:border-red-600"
+                  />
+                  {(currentSubFilter.startDate || currentSubFilter.endDate) && (
+                    <button 
+                      onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded-lg font-bold transition cursor-pointer"
+                    >
+                      Limpiar
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
+            {/* Listado de Pedidos Filtrados */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredOrders.length === 0 ? (
-                <p className="text-zinc-500 text-center py-16 col-span-full">No se encontraron pedidos con estos filtros aplicados.</p>
+                <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en la sección de {orderStatusTab.toLowerCase()} con los filtros seleccionados.</p>
               ) : (
                 filteredOrders.map(order => (
                   <div key={order.id} className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-xl">
@@ -669,7 +654,6 @@ export default function AdminPage() {
                         <p className="text-[10px] text-zinc-500 font-medium">Registrado: {order.date}</p>
                       </div>
 
-                      {/* Badge de Estado Dinámico */}
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
                         order.status === "PENDIENTE" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
                         order.status === "ENTREGADO" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
@@ -689,7 +673,7 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* Selector de Acciones según el Estado */}
+                    {/* Acciones logísticas */}
                     <div className="space-y-2 pt-1">
                       {order.status === "PENDIENTE" && (
                         <div className="grid grid-cols-2 gap-2">
