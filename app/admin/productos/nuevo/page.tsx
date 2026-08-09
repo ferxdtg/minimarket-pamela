@@ -11,12 +11,16 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Estado para el modal de edición
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", price: 0, stock: 0 });
+
   const fetchProducts = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "products"));
-      const list = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+      const list = querySnapshot.docs.map(document => ({
+        id: document.id, // ID real de Firestore
+        ...document.data()
       }));
       setProducts(list);
     } catch (error) {
@@ -30,18 +34,59 @@ export default function AdminPage() {
     fetchProducts();
   }, []);
 
-  // Función segura para actualizar stock al instante desde los botones + y -
+  // Función corregida y blindada para actualizar stock con + y -
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
+    const stringId = String(id).trim();
+    if (!stringId) return;
+
     const newStock = Math.max(0, (Number(currentStock) || 0) + delta);
     
-    // Cambio visual inmediato
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, stock: newStock } : p));
+    // Actualización visual inmediata en pantalla
+    setProducts(prev => prev.map(p => p.id === stringId ? { ...p, stock: newStock } : p));
 
     try {
-      const productRef = doc(db, "products", id);
+      const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, { stock: newStock });
-    } catch (error) {
-      console.error("Error al actualizar stock:", error);
+      console.log("Stock actualizado en Firebase para el ID:", stringId);
+    } catch (error: any) {
+      console.error("Error al actualizar stock en Firebase:", error);
+      alert(`No se pudo actualizar el stock: ${error.message}`);
+      fetchProducts(); // Revertir si falla
+    }
+  };
+
+  // Abrir modal de edición
+  const openEditModal = (product: any) => {
+    setEditingProduct(product);
+    setEditForm({
+      name: product.name || "",
+      price: Number(product.price || 0),
+      stock: Number(product.stock || 0)
+    });
+  };
+
+  // Guardar cambios del modal de edición
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    const stringId = String(editingProduct.id).trim();
+    
+    // Actualización visual inmediata
+    setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...editForm } : p));
+
+    try {
+      const productRef = doc(db, "products", stringId);
+      await updateDoc(productRef, {
+        name: editForm.name,
+        price: editForm.price,
+        stock: editForm.stock
+      });
+      setEditingProduct(null);
+      console.log("Producto editado con éxito");
+    } catch (error: any) {
+      console.error("Error al actualizar producto:", error);
+      alert(`Error al guardar cambios: ${error.message}`);
       fetchProducts();
     }
   };
@@ -91,7 +136,7 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* VISTA INVENTARIO (Tu diseño original intacto con control de stock operativo) */}
+        {/* VISTA INVENTARIO */}
         {activeTab === "inventario" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -170,7 +215,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* CATÁLOGO ACTUAL CON BUSCADOR Y BOTONES + / - */}
+            {/* CATÁLOGO ACTUAL CON BUSCADOR, BOTONES + / - Y BOTÓN EDITAR */}
             <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
               
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-3">
@@ -225,20 +270,29 @@ export default function AdminPage() {
                           )}
                         </div>
 
-                        {/* BOTONES DE OPERACIÓN RÁPIDA DE STOCK (+ / -) */}
-                        <div className="flex items-center gap-2 bg-zinc-900 p-1.5 rounded-xl border border-zinc-800">
+                        {/* ACCIONES: BOTONES + / - Y BOTÓN EDITAR */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+                            <button
+                              onClick={() => handleStockUpdate(product.id, currentStock, -1)}
+                              className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
+                            >
+                              -
+                            </button>
+                            <span className="w-6 text-center font-black text-xs">{currentStock}</span>
+                            <button
+                              onClick={() => handleStockUpdate(product.id, currentStock, 1)}
+                              className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
+                            >
+                              +
+                            </button>
+                          </div>
+
                           <button
-                            onClick={() => handleStockUpdate(product.id, currentStock, -1)}
-                            className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
+                            onClick={() => openEditModal(product)}
+                            className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-xl font-bold text-xs transition cursor-pointer"
                           >
-                            -
-                          </button>
-                          <span className="w-6 text-center font-black text-xs">{currentStock}</span>
-                          <button
-                            onClick={() => handleStockUpdate(product.id, currentStock, 1)}
-                            className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
-                          >
-                            +
+                            ✏️ Editar
                           </button>
                         </div>
                       </div>
@@ -251,7 +305,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA PEDIDOS (Tu diseño original de pedidos) */}
+        {/* VISTA PEDIDOS */}
         {activeTab === "pedidos" && (
           <div className="space-y-4">
             <h2 className="text-sm font-black text-white">Historial de Pedidos Recibidos</h2>
@@ -278,6 +332,76 @@ export default function AdminPage() {
                   ✓ Marcar como Entregado
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DE EDICIÓN RÁPIDA */}
+        {editingProduct && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-white space-y-4">
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                <h3 className="text-sm font-black">Editar Producto</h3>
+                <button 
+                  onClick={() => setEditingProduct(null)}
+                  className="text-zinc-400 hover:text-white font-bold text-base cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1">Nombre del producto</label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-1">Precio (S/)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={editForm.price}
+                      onChange={e => setEditForm({ ...editForm, price: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-1">Stock</label>
+                    <input
+                      type="number"
+                      value={editForm.stock}
+                      onChange={e => setEditForm({ ...editForm, stock: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-3 border-t border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProduct(null)}
+                    className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 font-bold text-zinc-300 transition cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 font-bold text-white transition cursor-pointer shadow-lg"
+                  >
+                    Guardar Cambios
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
