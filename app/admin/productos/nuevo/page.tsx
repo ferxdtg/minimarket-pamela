@@ -51,7 +51,7 @@ export default function AdminPage() {
     fetchProducts();
   }, []);
 
-  // Compresión automática de imágenes
+  // Compresión automática de imágenes al mínimo peso para evitar errores en Firebase
   const compressImage = (file: File, callback: (base64: string) => void) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -138,14 +138,14 @@ export default function AdminPage() {
     }
   };
 
-  // Función directa para los botones de Stock Rápido (+ / -) con Firebase
+  // Botones de Stock Rápido (+ / -) con actualización en TIEMPO REAL
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
 
     const newStock = Math.max(0, (Number(currentStock) || 0) + delta);
     
-    // Actualización visual inmediata
+    // Actualización visual instantánea en la interfaz
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, stock: newStock } : p));
 
     try {
@@ -154,7 +154,7 @@ export default function AdminPage() {
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
-      fetchProducts();
+      fetchProducts(); // Revertir si hay error de red
     }
   };
 
