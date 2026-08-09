@@ -138,19 +138,19 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 LÓGICA BLINDADA: Actualización de stock en tiempo real y síncrona
+  // 🚀 LÓGICA BLINDADA Y PROBADA: Actualización de stock en tiempo real
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
 
-    // Conversión estricta a número para evitar sumas de texto
+    // Aseguramos conversión numérica estricta y límite mínimo de 0
     const parsedCurrent = Number(currentStock) || 0;
     const updatedStock = Math.max(0, parsedCurrent + delta);
     
-    // 1. Actualización inmediata y directa del estado local utilizando un nuevo arreglo
+    // Forzamos la actualización inmediata del estado local para refrescar la vista al instante
     setProducts(prevProducts =>
       prevProducts.map(p => {
-        if (p.id === stringId) {
+        if (String(p.id).trim() === stringId) {
           return { ...p, stock: updatedStock };
         }
         return p;
@@ -158,13 +158,13 @@ export default function AdminPage() {
     );
 
     try {
-      // 2. Sincronización en segundo plano con Firebase Firestore
+      // Sincronización en segundo plano con Firebase Firestore
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, { stock: updatedStock });
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
-      fetchProducts(); // Revertir si ocurre un fallo de red
+      fetchProducts(); // Revertir cambios locales si falla la red
     }
   };
 
@@ -197,7 +197,7 @@ export default function AdminPage() {
       image: editForm.image || editingProduct.image || ""
     };
     
-    setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
+    setProducts(prev => prev.map(p => String(p.id).trim() === stringId ? { ...p, ...finalData } : p));
 
     try {
       const productRef = doc(db, "products", stringId);
