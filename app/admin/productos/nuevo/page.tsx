@@ -138,27 +138,33 @@ export default function AdminPage() {
     }
   };
 
-  // 🧠 LÓGICA INTERNA MEJORADA: Stock en Tiempo Real con Firebase y Estado Local
+  // 🚀 LÓGICA BLINDADA: Actualización de stock en tiempo real y síncrona
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
 
+    // Convertimos de forma estricta a número para evitar sumas de texto
     const parsedCurrent = Number(currentStock) || 0;
     const updatedStock = Math.max(0, parsedCurrent + delta);
     
-    // 1. Actualización visual instantánea e impecable en la interfaz
+    // 1. Actualización inmediata y directa del estado usando un nuevo arreglo
     setProducts(prevProducts =>
-      prevProducts.map(p => (p.id === stringId ? { ...p, stock: updatedStock } : p))
+      prevProducts.map(p => {
+        if (p.id === stringId) {
+          return { ...p, stock: updatedStock };
+        }
+        return p;
+      })
     );
 
     try {
-      // 2. Sincronización robusta con la base de datos de Firebase
+      // 2. Sincronización en segundo plano con Firebase Firestore
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, { stock: updatedStock });
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
-      fetchProducts(); // Revertir en caso de error de red
+      fetchProducts(); // Revertir si ocurre un fallo de red
     }
   };
 
