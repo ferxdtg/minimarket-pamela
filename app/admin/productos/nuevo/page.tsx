@@ -143,11 +143,11 @@ export default function AdminPage() {
     const stringId = String(id).trim();
     if (!stringId) return;
 
-    // Convertimos de forma estricta a número para evitar sumas de texto
+    // Conversión estricta a número para evitar sumas de texto
     const parsedCurrent = Number(currentStock) || 0;
     const updatedStock = Math.max(0, parsedCurrent + delta);
     
-    // 1. Actualización inmediata y directa del estado usando un nuevo arreglo
+    // 1. Actualización inmediata y directa del estado local utilizando un nuevo arreglo
     setProducts(prevProducts =>
       prevProducts.map(p => {
         if (p.id === stringId) {
