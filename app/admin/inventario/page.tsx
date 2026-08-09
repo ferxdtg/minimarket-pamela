@@ -29,30 +29,31 @@ export default function AdminInventarioPage() {
   }, []);
 
   const handleUpdateStock = async (id: string, newStock: number) => {
-    const stringId = String(id);
+    const stringId = String(id).trim();
     if (!stringId) return;
 
+    // Actualización local inmediata
     setProducts(prev =>
-      prev.map(p => (p.id === stringId ? { ...p, stock: newStock } : p))
+      prev.map(p => ((p.id === stringId || p._id === stringId) ? { ...p, stock: newStock } : p))
     );
 
     try {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, { stock: newStock });
-      console.log("Stock actualizado con éxito para el ID:", stringId);
     } catch (error: any) {
       console.error("Error al actualizar stock:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
-      fetchProducts();
+      fetchProducts(); // Revertir si falla
     }
   };
 
   const handleUpdateProduct = async (id: string, updatedData: { name: string; price: number; stock: number; image: string }) => {
-    const stringId = String(id);
+    const stringId = String(id).trim();
     if (!stringId) return;
 
+    // Actualización local inmediata
     setProducts(prev =>
-      prev.map(p => (p.id === stringId ? { ...p, ...updatedData } : p))
+      prev.map(p => ((p.id === stringId || p._id === stringId) ? { ...p, ...updatedData } : p))
     );
 
     try {
@@ -63,11 +64,11 @@ export default function AdminInventarioPage() {
         stock: updatedData.stock,
         image: updatedData.image
       });
-      console.log("Producto actualizado correctamente en Firebase");
+      console.log("Producto actualizado con éxito en Firebase");
     } catch (error: any) {
       console.error("Error al actualizar producto:", error);
       alert(`Error al guardar en Firebase: ${error.message}`);
-      fetchProducts();
+      fetchProducts(); // Revertir si falla
     }
   };
 
@@ -78,7 +79,7 @@ export default function AdminInventarioPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-800 pb-5">
           <div>
             <h1 className="text-2xl font-black tracking-tight">📦 Módulo de Almacén e Inventario</h1>
-            <p className="text-xs text-zinc-400 mt-1">Control sincronizado, persistente y adaptado para gestión rápida.</p>
+            <p className="text-xs text-zinc-400 mt-1">Control sincronizado en tiempo real con Firebase.</p>
           </div>
           <div>
             <a

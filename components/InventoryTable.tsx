@@ -15,22 +15,23 @@ export default function InventoryTable({
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({ name: "", price: 0, stock: 0, image: "" });
 
-  const handleDelta = (id: string, currentStock: number, delta: number) => {
-    const updatedStock = Math.max(0, (currentStock || 0) + delta);
-    onStockChange(id, updatedStock);
+  const handleDelta = (product: any, delta: number) => {
+    const id = product.id || product._id;
+    const currentStock = Number(product.stock ?? 0);
+    const updatedStock = Math.max(0, currentStock + delta);
+    onStockChange(String(id), updatedStock);
   };
 
   const openEditModal = (product: any) => {
     setEditingProduct(product);
     setEditForm({
       name: product.name || "",
-      price: product.price || 0,
-      stock: product.stock || 0,
+      price: Number(product.price || 0),
+      stock: Number(product.stock || 0),
       image: product.image || ""
     });
   };
 
-  // Convertir imagen local a Base64 de forma segura
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -45,13 +46,13 @@ export default function InventoryTable({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingProduct) {
-      // Si no selecciona nueva foto, se conserva la actual para evitar errores
+      const id = editingProduct.id || editingProduct._id;
       const finalImage = editForm.image || editingProduct.image || "";
       
-      onUpdateProduct(editingProduct.id, {
+      onUpdateProduct(String(id), {
         name: editForm.name,
-        price: editForm.price,
-        stock: editForm.stock,
+        price: Number(editForm.price),
+        stock: Number(editForm.stock),
         image: finalImage
       });
       setEditingProduct(null);
@@ -63,7 +64,7 @@ export default function InventoryTable({
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-lg font-black">Control de Almacén e Inventario</h2>
-          <p className="text-xs text-zinc-400">Edición completa y carga de fotos nativa desde el dispositivo o cámara.</p>
+          <p className="text-xs text-zinc-400">Gestión sincronizada en tiempo real.</p>
         </div>
       </div>
 
@@ -81,18 +82,19 @@ export default function InventoryTable({
           </thead>
           <tbody className="divide-y divide-zinc-800/50">
             {initialProducts.map(product => {
-              const currentStock = product.stock ?? 0;
+              const pId = product.id || product._id;
+              const currentStock = Number(product.stock ?? 0);
               const isOut = currentStock === 0;
               const isLow = currentStock > 0 && currentStock <= 5;
 
               return (
-                <tr key={product.id} className="hover:bg-zinc-800/30 transition">
+                <tr key={pId} className="hover:bg-zinc-800/30 transition">
                   <td className="p-3.5">
                     <div className="relative w-12 h-12 bg-white rounded-xl overflow-hidden border border-zinc-700 flex items-center justify-center">
                       {product.image ? (
                         <Image
                           src={product.image}
-                          alt={product.name}
+                          alt={product.name || "Producto"}
                           fill
                           className="object-contain p-1"
                         />
@@ -103,7 +105,7 @@ export default function InventoryTable({
                   </td>
 
                   <td className="p-3.5 font-bold text-zinc-200">{product.name}</td>
-                  <td className="p-3.5 text-red-400 font-bold">S/ {(product.price ?? 0).toFixed(2)}</td>
+                  <td className="p-3.5 text-red-400 font-bold">S/ {Number(product.price ?? 0).toFixed(2)}</td>
                   <td className="p-3.5 font-black text-sm">{currentStock} un.</td>
                   <td className="p-3.5">
                     {isOut ? (
@@ -122,21 +124,22 @@ export default function InventoryTable({
                   </td>
                   <td className="p-3.5 text-center flex items-center justify-center gap-2">
                     <button
-                      onClick={() => handleDelta(product.id, currentStock, -1)}
+                      type="button"
+                      onClick={() => handleDelta(product, -1)}
                       className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center transition cursor-pointer"
-                      title="Restar stock"
                     >
                       -
                     </button>
                     <span className="w-6 text-center font-bold">{currentStock}</span>
                     <button
-                      onClick={() => handleDelta(product.id, currentStock, 1)}
+                      type="button"
+                      onClick={() => handleDelta(product, 1)}
                       className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center transition cursor-pointer"
-                      title="Sumar stock"
                     >
                       +
                     </button>
                     <button
+                      type="button"
                       onClick={() => openEditModal(product)}
                       className="ml-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg font-bold text-[11px] transition cursor-pointer border border-zinc-700"
                     >
@@ -150,13 +153,13 @@ export default function InventoryTable({
         </table>
       </div>
 
-      {/* MODAL DE EDICIÓN COMPLETA */}
       {editingProduct && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-white space-y-4">
             <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
               <h3 className="text-base font-black">Editar Producto</h3>
               <button 
+                type="button"
                 onClick={() => setEditingProduct(null)}
                 className="text-zinc-400 hover:text-white font-bold text-lg cursor-pointer"
               >
@@ -218,7 +221,7 @@ export default function InventoryTable({
                       onChange={handleFileChange}
                       className="w-full text-[11px] text-zinc-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer"
                     />
-                    <p className="text-[10px] text-zinc-500 mt-1">Sube una foto o usa la cámara de tu celular.</p>
+                    <p className="text-[10px] text-zinc-500 mt-1">Sube una foto o usa la cámara.</p>
                   </div>
                 </div>
               </div>
