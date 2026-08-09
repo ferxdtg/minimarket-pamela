@@ -11,9 +11,17 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Estado para el modal de edición
+  // Estado para el modal de edición completa
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", price: 0, stock: 0 });
+  const [editForm, setEditForm] = useState({
+    name: "",
+    price: 0,
+    stock: 0,
+    category: "Abarrotes y Despensa",
+    isOnSale: false,
+    isFeatured: false,
+    image: ""
+  });
 
   const fetchProducts = async () => {
     try {
@@ -34,7 +42,7 @@ export default function AdminPage() {
     fetchProducts();
   }, []);
 
-  // Función corregida y blindada para actualizar stock con + y -
+  // Función infalible para actualizar stock con + y -
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
@@ -47,43 +55,62 @@ export default function AdminPage() {
     try {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, { stock: newStock });
-      console.log("Stock actualizado en Firebase para el ID:", stringId);
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
-      fetchProducts(); // Revertir si falla
+      fetchProducts();
     }
   };
 
-  // Abrir modal de edición
+  // Abrir modal cargando todos los campos actuales del producto
   const openEditModal = (product: any) => {
     setEditingProduct(product);
     setEditForm({
       name: product.name || "",
       price: Number(product.price || 0),
-      stock: Number(product.stock || 0)
+      stock: Number(product.stock || 0),
+      category: product.category || "Abarrotes y Despensa",
+      isOnSale: product.isOnSale || false,
+      isFeatured: product.isFeatured || false,
+      image: product.image || ""
     });
   };
 
-  // Guardar cambios del modal de edición
+  // Convertir archivo local o foto de cámara a Base64 para el modal de edición
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditForm(prev => ({ ...prev, image: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Guardar todos los cambios modificados en Firebase
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
 
     const stringId = String(editingProduct.id).trim();
+    const finalData = {
+      name: editForm.name,
+      price: Number(editForm.price),
+      stock: Number(editForm.stock),
+      category: editForm.category,
+      isOnSale: editForm.isOnSale,
+      isFeatured: editForm.isFeatured,
+      image: editForm.image || editingProduct.image || ""
+    };
     
     // Actualización visual inmediata
-    setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...editForm } : p));
+    setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
 
     try {
       const productRef = doc(db, "products", stringId);
-      await updateDoc(productRef, {
-        name: editForm.name,
-        price: editForm.price,
-        stock: editForm.stock
-      });
+      await updateDoc(productRef, finalData);
       setEditingProduct(null);
-      console.log("Producto editado con éxito");
     } catch (error: any) {
       console.error("Error al actualizar producto:", error);
       alert(`Error al guardar cambios: ${error.message}`);
@@ -336,7 +363,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* MODAL DE EDICIÓN RÁPIDA */}
+        {/* MODAL DE EDICIÓN COMPLETA */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-white space-y-4">
@@ -383,6 +410,62 @@ export default function AdminPage() {
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
                       required
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1">Categoría</label>
+                  <select
+                    value={editForm.category}
+                    onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                  >
+                    <option>Abarrotes y Despensa</option>
+                    <option>Snacks</option>
+                    <option>Ofertas</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-4 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
+                    <input
+                      type="checkbox"
+                      checked={editForm.isOnSale}
+                      onChange={e => setEditForm({ ...editForm, isOnSale: e.target.checked })}
+                      className="accent-red-600 w-4 h-4 cursor-pointer"
+                    />
+                    En Oferta 🔥
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
+                    <input
+                      type="checkbox"
+                      checked={editForm.isFeatured}
+                      onChange={e => setEditForm({ ...editForm, isFeatured: e.target.checked })}
+                      className="accent-red-600 w-4 h-4 cursor-pointer"
+                    />
+                    Destacado ⭐
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1">Fotografía del Producto</label>
+                  <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl p-3">
+                    <div className="relative w-12 h-12 bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                      {editForm.image ? (
+                        <Image src={editForm.image} alt="Vista previa" fill className="object-contain p-1" />
+                      ) : (
+                        <span className="text-[9px] text-zinc-500 flex items-center justify-center h-full">N/A</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleFileChange}
+                        className="w-full text-[11px] text-zinc-400 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer"
+                      />
+                    </div>
                   </div>
                 </div>
 
