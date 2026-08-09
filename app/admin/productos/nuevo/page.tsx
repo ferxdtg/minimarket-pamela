@@ -11,7 +11,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Estados para el formulario de Agregar Nuevo Producto
+  // Estados para Agregar Nuevo Producto
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newStock, setNewStock] = useState("");
@@ -20,7 +20,7 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
-  // Estado para el modal de edición completa
+  // Estado para el modal de edición
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -51,19 +51,63 @@ export default function AdminPage() {
     fetchProducts();
   }, []);
 
-  // Manejo de imagen para NUEVO producto (Archivo o Cámara)
-  const handleFileCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Función de compresión automática de imágenes (Evita errores de tamaño)
+  const compressImage = (file: File, callback: (base64: string) => void) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = document.createElement("img");
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 400; // Ancho máximo seguro para Firestore
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Comprimir a formato JPEG con calidad 0.7 (peso mínimo garantizado)
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        callback(dataUrl);
+      };
+    };
+  };
+
+  const handleNewFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      compressImage(file, (compressedBase64) => {
+        setNewImage(compressedBase64);
+      });
     }
   };
 
-  // Guardar NUEVO producto en Firebase
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      compressImage(file, (compressedBase64) => {
+        setEditForm(prev => ({ ...prev, image: compressedBase64 }));
+      });
+    }
+  };
+
+  // Guardar NUEVO producto
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -88,34 +132,32 @@ export default function AdminPage() {
       setNewImage("");
 
       fetchProducts();
-      alert("¡Producto publicado con éxito en Firebase!");
+      alert("¡Producto publicado con éxito!");
     } catch (error: any) {
       console.error("Error al crear producto:", error);
       alert(`Error al publicar: ${error.message}`);
     }
   };
 
-  // Botones de Stock Rápido (+ / -) corregidos y sincronizados
+  // Botones de Stock Rápido (+ / -)
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
 
     const newStock = Math.max(0, (Number(currentStock) || 0) + delta);
     
-    // Actualización visual inmediata
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, stock: newStock } : p));
 
     try {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, { stock: newStock });
     } catch (error: any) {
-      console.error("Error al actualizar stock en Firebase:", error);
+      console.error("Error al actualizar stock:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
       fetchProducts();
     }
   };
 
-  // Abrir modal de edición
   const openEditModal = (product: any) => {
     setEditingProduct(product);
     setEditForm({
@@ -127,18 +169,6 @@ export default function AdminPage() {
       isFeatured: product.isFeatured || false,
       image: product.image || ""
     });
-  };
-
-  // Manejo de imagen en edición
-  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEditForm(prev => ({ ...prev, image: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
-    }
   };
 
   // Guardar cambios del modal de edición
@@ -166,7 +196,7 @@ export default function AdminPage() {
       fetchProducts();
     } catch (error: any) {
       console.error("Error al actualizar producto:", error);
-      alert(`Error al guardar cambios en Firebase: ${error.message}`);
+      alert(`Error al guardar cambios: ${error.message}`);
       fetchProducts();
     }
   };
@@ -220,7 +250,7 @@ export default function AdminPage() {
         {activeTab === "inventario" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* FORMULARIO DE NUEVO PRODUCTO CON BOTONES CÁMARA / ARCHIVO ORIGINALES */}
+            {/* FORMULARIO DE NUEVO PRODUCTO */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl h-fit space-y-4">
               <h2 className="text-sm font-black text-white">Agregar Nuevo Producto</h2>
               
@@ -297,20 +327,20 @@ export default function AdminPage() {
                   </label>
                 </div>
 
-                {/* BOTONES ORIGINALES DE SUBIR ARCHIVO Y CÁMARA */}
+                {/* BOTONES ORIGINALES CON CÁMARA Y ARCHIVO */}
                 <div>
                   <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Imagen del producto</label>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2.5 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
                       📁 Subir Archivo
-                      <input type="file" accept="image/*" onChange={handleFileCapture} className="hidden" />
+                      <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
                     </label>
                     <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2.5 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
                       📷 Usar Cámara
-                      <input type="file" accept="image/*" capture="environment" onChange={handleFileCapture} className="hidden" />
+                      <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
                     </label>
                   </div>
-                  {newImage && <p className="text-[10px] text-emerald-400 mt-1 font-bold">✓ Imagen cargada correctamente</p>}
+                  {newImage && <p className="text-[10px] text-emerald-400 mt-1 font-bold">✓ Imagen lista para publicar</p>}
                 </div>
 
                 <button
@@ -542,13 +572,10 @@ export default function AdminPage() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={handleEditFileChange}
-                        className="w-full text-[11px] text-zinc-400 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer"
-                      />
+                      <label className="block bg-red-600 hover:bg-red-700 text-white text-center py-1.5 px-3 rounded-lg font-bold text-xs cursor-pointer transition">
+                        Cambiar Fotografía
+                        <input type="file" accept="image/*" onChange={handleEditFileChange} className="hidden" />
+                      </label>
                     </div>
                   </div>
                 </div>
