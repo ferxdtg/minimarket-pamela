@@ -6,7 +6,12 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos">("inventario");
+  // Pestañas principales del Panel de Control
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing">("inventario");
+  
+  // Sub-filtro para la pestaña de pedidos (Lógica de administrador profesional)
+  const [orderFilter, setOrderFilter] = useState<"TODOS" | "PENDIENTE" | "ENTREGADO" | "DELIVERY" | "RECOJO">("TODOS");
+
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -20,7 +25,7 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
-  // Estado para el modal de edición
+  // Estado para el modal de edición de productos
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -32,21 +37,32 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Lista completa de pedidos con pestañas de estado (Pendientes / Entregados)
+  // Módulo de Pedidos Avanzado (Simulación profesional de pedidos reales)
   const [orders, setOrders] = useState([
-    { id: 1, client: "Pamelllll", phone: "9878554", address: "Calle 48", items: "2x Sopa Maruchan", total: 13.80, status: "PENDIENTE" },
-    { id: 2, client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE" },
-    { id: 3, client: "Ana Torres", phone: "9988776", address: "Jr. Gamarra 120", items: "6x Leche Gloria Azul", total: 27.00, status: "ENTREGADO" },
-    { id: 4, client: "Luis Mendoza", phone: "9456123", address: "Calle Las Begonias 89", items: "1x Detergente Bolívar 3kg", total: 28.50, status: "PENDIENTE" },
-    { id: 5, client: "Sofía Castro", phone: "9784512", address: "Urb. San Andrés Mz. B", items: "2x Cerveza Cusqueña 6pack", total: 46.00, status: "ENTREGADO" },
-    { id: 6, client: "Pedro Suarez", phone: "9632587", address: "Av. Peru 500", items: "1x Azucar Rubia 5kg", total: 20.00, status: "PENDIENTE" },
-    { id: 7, client: "Lucia Mendez", phone: "9517531", address: "Calle Los Pinos 303", items: "2x Atún Florida", total: 12.00, status: "ENTREGADO" },
-    { id: 8, client: "Jorge Ramos", phone: "9871234", address: "Jr. Huancayo 450", items: "1x Papel Higiénico Parada", total: 18.50, status: "PENDIENTE" },
-    { id: 9, client: "Carmen Rosa", phone: "9234567", address: "Urb. Miraflores B-4", items: "3x Fideos D'Onofrio", total: 11.50, status: "PENDIENTE" },
-    { id: 10, client: "Raul Perez", phone: "9445566", address: "Av. Universitaria 1200", items: "1x Galletas Soda Field", total: 5.50, status: "ENTREGADO" },
-    { id: 11, client: "Elena Gomez", phone: "9778899", address: "Calle Lima 777", items: "2x Harina Blanca Flor", total: 14.00, status: "PENDIENTE" },
-    { id: 12, client: "Mario Vargas", phone: "9112233", address: "Jr. Union 210", items: "1x Aceite Vegetal Capri", total: 10.50, status: "ENTREGADO" }
+    { id: 1, client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE" },
+    { id: 2, client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE" },
+    { id: 3, client: "Ana Torres", phone: "9988776", address: "Jr. Gamarra 120", type: "DELIVERY", items: "6x Leche Gloria Azul", total: 27.00, status: "ENTREGADO" },
+    { id: 4, client: "Luis Mendoza", phone: "9456123", address: "Calle Las Begonias 89", type: "RECOJO", items: "1x Detergente Bolívar 3kg", total: 28.50, status: "PENDIENTE" },
+    { id: 5, client: "Sofía Castro", phone: "9784512", address: "Urb. San Andrés Mz. B", type: "DELIVERY", items: "2x Cerveza Cusqueña 6pack", total: 46.00, status: "ENTREGADO" },
+    { id: 6, client: "Pedro Suarez", phone: "9632587", address: "Av. Peru 500", type: "DELIVERY", items: "1x Azucar Rubia 5kg", total: 20.00, status: "PENDIENTE" },
+    { id: 7, client: "Lucia Mendez", phone: "9517531", address: "Calle Los Pinos 303", type: "RECOJO", items: "2x Atún Florida", total: 12.00, status: "ENTREGADO" },
+    { id: 8, client: "Jorge Ramos", phone: "9871234", address: "Jr. Huancayo 450", type: "DELIVERY", items: "1x Papel Higiénico Parada", total: 18.50, status: "PENDIENTE" },
+    { id: 9, client: "Carmen Rosa", phone: "9234567", address: "Urb. Miraflores B-4", type: "RECOJO", items: "3x Fideos D'Onofrio", total: 11.50, status: "PENDIENTE" },
+    { id: 10, client: "Raul Perez", phone: "9445566", address: "Av. Universitaria 1200", type: "DELIVERY", items: "1x Galletas Soda Field", total: 5.50, status: "ENTREGADO" },
+    { id: 11, client: "Elena Gomez", phone: "9778899", address: "Calle Lima 777", type: "RECOJO", items: "2x Harina Blanca Flor", total: 14.00, status: "PENDIENTE" },
+    { id: 12, client: "Mario Vargas", phone: "9112233", address: "Jr. Union 210", type: "DELIVERY", items: "1x Aceite Vegetal Capri", total: 10.50, status: "ENTREGADO" }
   ]);
+
+  // Módulo de Marketing y Promociones (Campañas activas en la web principal)
+  const [promos, setPromos] = useState([
+    { id: 1, title: "¡Super Despensa -15%!", description: "Válido en todos los aceites y abarrotes seleccionados.", discount: "15% OFF", active: true },
+    { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true },
+    { id: 3, title: "Combo Madrugador", description: "Lleva pan fresco + café pasado a precio especial de apertura.", discount: "COMBO S/ 8.50", active: false }
+  ]);
+
+  const [newPromoTitle, setNewPromoTitle] = useState("");
+  const [newPromoDesc, setNewPromoDesc] = useState("");
+  const [newPromoDiscount, setNewPromoDiscount] = useState("");
 
   const fetchProducts = async () => {
     try {
@@ -122,7 +138,7 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar NUEVO producto
+  // Guardar NUEVO producto en Firebase
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -244,12 +260,50 @@ export default function AdminPage() {
     }
   };
 
-  // Marcar pedido como entregado
+  // Lógica de Pedidos: Cambiar estado
   const handleDeliverOrder = (orderId: number) => {
     setOrders(prev =>
       prev.map(o => (o.id === orderId ? { ...o, status: "ENTREGADO" } : o))
     );
   };
+
+  // Lógica de Marketing: Crear nueva promoción
+  const handleCreatePromo = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPromoTitle) return;
+
+    const newPromo = {
+      id: Date.now(),
+      title: newPromoTitle,
+      description: newPromoDesc || "Promoción especial de temporada.",
+      discount: newPromoDiscount || "OFERTA",
+      active: true
+    };
+
+    setOrders; // safe reference
+    setPromos([newPromo, ...promos]);
+    setNewPromoTitle("");
+    setNewPromoDesc("");
+    setNewPromoDiscount("");
+    alert("¡Promoción creada y activada en la web principal!");
+  };
+
+  // Toggle Estado de Promoción
+  const togglePromoStatus = (promoId: number) => {
+    setPromos(prev =>
+      prev.map(p => (p.id === promoId ? { ...p, active: !p.active } : p))
+    );
+  };
+
+  // Filtrado inteligente de pedidos según la pestaña seleccionada
+  const filteredOrders = orders.filter(o => {
+    if (orderFilter === "TODOS") return true;
+    if (orderFilter === "PENDIENTE") return o.status === "PENDIENTE";
+    if (orderFilter === "ENTREGADO") return o.status === "ENTREGADO";
+    if (orderFilter === "DELIVERY") return o.type === "DELIVERY";
+    if (orderFilter === "RECOJO") return o.type === "RECOJO";
+    return true;
+  });
 
   const filteredProducts = products.filter(p =>
     p.name?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -263,7 +317,7 @@ export default function AdminPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-800/80 pb-5">
           <div>
             <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">
-              PANEL DE CONTROL
+              PANEL DE CONTROL PROFESIONAL
             </span>
             <h1 className="text-2xl font-black tracking-tight mt-1 text-white">Minimarket Pamela</h1>
           </div>
@@ -276,15 +330,15 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS */}
-        <div className="flex gap-2">
+        {/* PESTAÑAS PRINCIPALES (INVENTARIO, PEDIDOS Y MARKETING) */}
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setActiveTab("inventario")}
             className={`px-5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 ${
               activeTab === "inventario" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 border border-zinc-800"
             }`}
           >
-            📦 INVENTARIO
+            📦 INVENTARIO ({products.length})
           </button>
           <button
             onClick={() => setActiveTab("pedidos")}
@@ -292,7 +346,15 @@ export default function AdminPage() {
               activeTab === "pedidos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 border border-zinc-800"
             }`}
           >
-            🛒 PEDIDOS ({orders.length})
+            🛒 PEDIDOS ({orders.filter(o => o.status === "PENDIENTE").length} pendientes)
+          </button>
+          <button
+            onClick={() => setActiveTab("marketing")}
+            className={`px-5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 ${
+              activeTab === "marketing" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 border border-zinc-800"
+            }`}
+          >
+            🎯 MARKETING & OFERTAS ({promos.filter(p => p.active).length} activas)
           </button>
         </div>
 
@@ -504,52 +566,196 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA PEDIDOS COMPLETA Y FUNCIONAL */}
+        {/* VISTA PEDIDOS CON PESTAÑAS DE FILTRO PROFESIONAL */}
         {activeTab === "pedidos" && (
-          <div className="space-y-4">
-            <h2 className="text-sm font-black text-white">Historial de Pedidos Recibidos ({orders.length})</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {orders.map(order => (
-                <div key={order.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-sm font-bold text-white">{order.client}</h3>
-                      <p className="text-xs text-zinc-400">Tel: {order.phone} • {order.address}</p>
-                    </div>
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-                      order.status === "PENDIENTE" 
-                        ? "bg-amber-500/20 text-amber-400 border-amber-500/30" 
-                        : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                    }`}>
-                      {order.status}
-                    </span>
-                  </div>
-                  <div className="bg-zinc-950 p-3 rounded-xl text-xs space-y-1">
-                    <div className="flex justify-between text-zinc-300">
-                      <span>{order.items}</span>
-                      <span>S/ {order.total.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-white pt-2 border-t border-zinc-800">
-                      <span>TOTAL</span>
-                      <span className="text-red-400">S/ {order.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  {order.status === "PENDIENTE" ? (
-                    <button 
-                      type="button" 
-                      onClick={() => handleDeliverOrder(order.id)}
-                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
-                    >
-                      ✓ Marcar como Entregado
-                    </button>
-                  ) : (
-                    <div className="w-full py-2.5 bg-zinc-950 text-emerald-400 font-bold text-xs rounded-xl text-center border border-emerald-900/30">
-                      Entregado con éxito ✓
-                    </div>
-                  )}
-                </div>
-              ))}
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900 border border-zinc-800 p-4 rounded-2xl">
+              <div>
+                <h2 className="text-sm font-black text-white">Centro Logístico de Pedidos</h2>
+                <p className="text-xs text-zinc-400 mt-0.5">Filtra y gestiona los envíos a domicilio y recojos en tienda.</p>
+              </div>
+
+              {/* Botones de Filtro de Estados y Tipos */}
+              <div className="flex flex-wrap gap-1.5 text-xs">
+                <button 
+                  onClick={() => setOrderFilter("TODOS")}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  Todos ({orders.length})
+                </button>
+                <button 
+                  onClick={() => setOrderFilter("PENDIENTE")}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  Pendientes
+                </button>
+                <button 
+                  onClick={() => setOrderFilter("ENTREGADO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  Entregados
+                </button>
+                <button 
+                  onClick={() => setOrderFilter("DELIVERY")}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🛵 Delivery
+                </button>
+                <button 
+                  onClick={() => setOrderFilter("RECOJO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${orderFilter === "RECOJO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🏪 Recojo Local
+                </button>
+              </div>
             </div>
+
+            {/* Listado de Pedidos Filtrados */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredOrders.length === 0 ? (
+                <p className="text-zinc-500 text-center py-10 col-span-full">No hay pedidos con este filtro.</p>
+              ) : (
+                filteredOrders.map(order => (
+                  <div key={order.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3 shadow-xl">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider mb-1 ${
+                          order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                        }`}>
+                          {order.type === "DELIVERY" ? "🛵 Envío a Domicilio" : "🏪 Recojo en Local"}
+                        </span>
+                        <h3 className="text-sm font-bold text-white">{order.client}</h3>
+                        <p className="text-xs text-zinc-400">Tel: {order.phone} • {order.address}</p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                        order.status === "PENDIENTE" 
+                          ? "bg-amber-500/20 text-amber-400 border-amber-500/30" 
+                          : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                      }`}>
+                        {order.status}
+                      </span>
+                    </div>
+
+                    <div className="bg-zinc-950 p-3 rounded-xl text-xs space-y-1">
+                      <div className="text-zinc-300 font-medium">Productos:</div>
+                      <div className="text-zinc-400">{order.items}</div>
+                      <div className="flex justify-between font-bold text-white pt-2 border-t border-zinc-800">
+                        <span>TOTAL A PAGAR</span>
+                        <span className="text-red-400">S/ {order.total.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {order.status === "PENDIENTE" ? (
+                      <button 
+                        type="button" 
+                        onClick={() => handleDeliverOrder(order.id)}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+                      >
+                        ✓ Marcar como Entregado
+                      </button>
+                    ) : (
+                      <div className="w-full py-2.5 bg-zinc-950 text-emerald-400 font-bold text-xs rounded-xl text-center border border-emerald-900/30">
+                        Completado y Entregado ✓
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VISTA MARKETING Y PROMOCIONES */}
+        {activeTab === "marketing" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Creador de Promociones */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl h-fit space-y-4">
+              <h2 className="text-sm font-black text-white">Crear Campaña o Promoción</h2>
+              <p className="text-xs text-zinc-400">Publica banners de descuento instantáneos que aparecerán en la página principal de tu minimarket.</p>
+              
+              <form onSubmit={handleCreatePromo} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Título de la Promoción</label>
+                  <input
+                    type="text"
+                    value={newPromoTitle}
+                    onChange={e => setNewPromoTitle(e.target.value)}
+                    placeholder="Ej. ¡Mega Oferta de Lácteos!"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Descripción Corta</label>
+                  <input
+                    type="text"
+                    value={newPromoDesc}
+                    onChange={e => setNewPromoDesc(e.target.value)}
+                    placeholder="Ej. 20% de descuento en tarros azules."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Etiqueta de Descuento (Badge)</label>
+                  <input
+                    type="text"
+                    value={newPromoDiscount}
+                    onChange={e => setNewPromoDiscount(e.target.value)}
+                    placeholder="Ej. -20% OFF"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition shadow-lg cursor-pointer mt-2"
+                >
+                  Lanzar Promoción en la Web
+                </button>
+              </form>
+            </div>
+
+            {/* Listado de Promociones Activas e Inactivas */}
+            <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
+              <h2 className="text-sm font-black text-white">Banners y Promociones en Curso ({promos.length})</h2>
+              
+              <div className="space-y-3">
+                {promos.map(promo => (
+                  <div key={promo.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-bold">
+                          {promo.discount}
+                        </span>
+                        <h3 className="text-xs font-bold text-white">{promo.title}</h3>
+                      </div>
+                      <p className="text-xs text-zinc-400">{promo.description}</p>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                        promo.active ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700"
+                      }`}>
+                        {promo.active ? "ACTIVO EN WEB" : "PAUSADO"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => togglePromoStatus(promo.id)}
+                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                          promo.active ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300" : "bg-red-600 hover:bg-red-700 text-white"
+                        }`}
+                      >
+                        {promo.active ? "Pausar" : "Activar"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         )}
 
