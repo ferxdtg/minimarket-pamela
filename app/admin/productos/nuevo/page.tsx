@@ -52,7 +52,7 @@ export default function AdminPage() {
   }, []);
 
   // Manejo de imagen para NUEVO producto (Archivo o Cámara)
-  const handleNewFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -63,7 +63,7 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar NUEVO producto directamente en Firebase
+  // Guardar NUEVO producto en Firebase
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -79,7 +79,6 @@ export default function AdminPage() {
 
       await addDoc(collection(db, "products"), productData);
       
-      // Limpiar formulario
       setNewName("");
       setNewPrice("");
       setNewStock("");
@@ -96,13 +95,14 @@ export default function AdminPage() {
     }
   };
 
-  // Función infalible para actualizar stock con + y - en Firebase
+  // Botones de Stock Rápido (+ / -) corregidos y sincronizados
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
 
     const newStock = Math.max(0, (Number(currentStock) || 0) + delta);
     
+    // Actualización visual inmediata
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, stock: newStock } : p));
 
     try {
@@ -115,7 +115,7 @@ export default function AdminPage() {
     }
   };
 
-  // Abrir modal cargando datos actuales
+  // Abrir modal de edición
   const openEditModal = (product: any) => {
     setEditingProduct(product);
     setEditForm({
@@ -129,7 +129,7 @@ export default function AdminPage() {
     });
   };
 
-  // Manejo de imagen en el modal de edición
+  // Manejo de imagen en edición
   const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -141,7 +141,7 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar cambios del modal de edición en Firebase
+  // Guardar cambios del modal de edición
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -220,7 +220,7 @@ export default function AdminPage() {
         {activeTab === "inventario" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* FORMULARIO DE NUEVO PRODUCTO (Conectado a Firebase) */}
+            {/* FORMULARIO DE NUEVO PRODUCTO CON BOTONES CÁMARA / ARCHIVO ORIGINALES */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-xl h-fit space-y-4">
               <h2 className="text-sm font-black text-white">Agregar Nuevo Producto</h2>
               
@@ -297,15 +297,20 @@ export default function AdminPage() {
                   </label>
                 </div>
 
+                {/* BOTONES ORIGINALES DE SUBIR ARCHIVO Y CÁMARA */}
                 <div>
                   <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Imagen del producto</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleNewFileChange}
-                    className="w-full text-[11px] text-zinc-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer bg-zinc-950 border border-zinc-800 p-2 rounded-xl"
-                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2.5 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
+                      📁 Subir Archivo
+                      <input type="file" accept="image/*" onChange={handleFileCapture} className="hidden" />
+                    </label>
+                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2.5 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
+                      📷 Usar Cámara
+                      <input type="file" accept="image/*" capture="environment" onChange={handleFileCapture} className="hidden" />
+                    </label>
+                  </div>
+                  {newImage && <p className="text-[10px] text-emerald-400 mt-1 font-bold">✓ Imagen cargada correctamente</p>}
                 </div>
 
                 <button
@@ -372,7 +377,7 @@ export default function AdminPage() {
                           )}
                         </div>
 
-                        {/* ACCIONES: BOTONES + / - Y BOTÓN EDITAR */}
+                        {/* ACCIONES: BOTONES + / - Y EDITAR */}
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
                             <button
