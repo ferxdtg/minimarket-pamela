@@ -32,6 +32,15 @@ export default function AdminPage() {
     image: ""
   });
 
+  // Lista simulada de pedidos para cumplir con el indicador (12)
+  const [orders, setOrders] = useState([
+    { id: 1, client: "Pamela", phone: "9878554", address: "Calle Principal", items: "2x Sopa Maruchan", total: 13.80, status: "PENDIENTE" },
+    { id: 2, client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE" },
+    { id: 3, client: "Ana Torres", phone: "9988776", address: "Jr. Gamarra 120", items: "6x Leche Gloria Azul", total: 27.00, status: "ENTREGADO" },
+    { id: 4, client: "Luis Mendoza", phone: "9456123", address: "Calle Las Begonias 89", items: "1x Detergente Bolívar 3kg", total: 28.50, status: "PENDIENTE" },
+    { id: 5, client: "Sofía Castro", phone: "9784512", address: "Urb. San Andrés Mz. B", items: "2x Cerveza Cusqueña 6pack", total: 46.00, status: "ENTREGADO" }
+  ]);
+
   const fetchProducts = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "products"));
@@ -173,7 +182,6 @@ export default function AdminPage() {
     const confirmDelete = window.confirm(`¿Estás seguro de que deseas eliminar "${name}" del inventario?`);
     if (!confirmDelete) return;
 
-    // Actualización visual inmediata quitándolo del estado local
     setProducts(prevProducts => prevProducts.filter(p => String(p.id).trim() !== stringId));
 
     try {
@@ -182,7 +190,7 @@ export default function AdminPage() {
     } catch (error: any) {
       console.error("Error al eliminar el producto en Firebase:", error);
       alert(`No se pudo eliminar el producto: ${error.message}`);
-      fetchProducts(); // Revertir recargando si hay error
+      fetchProducts();
     }
   };
 
@@ -229,6 +237,13 @@ export default function AdminPage() {
     }
   };
 
+  // Marcar pedido como entregado
+  const handleDeliverOrder = (orderId: number) => {
+    setOrders(prev =>
+      prev.map(o => (o.id === orderId ? { ...o, status: "ENTREGADO" } : o))
+    );
+  };
+
   const filteredProducts = products.filter(p =>
     p.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -254,7 +269,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS */}
+        {/* PESTAÑAS CON ICONO CORREGIDO */}
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab("inventario")}
@@ -482,33 +497,51 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA PEDIDOS */}
+        {/* VISTA PEDIDOS AMPLIADA CON MÚLTIPLES REGISTROS */}
         {activeTab === "pedidos" && (
           <div className="space-y-4">
-            <h2 className="text-sm font-black text-white">Historial de Pedidos Recibidos</h2>
+            <h2 className="text-sm font-black text-white">Historial de Pedidos Recibidos ({orders.length})</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Pamela</h3>
-                    <p className="text-xs text-zinc-400">Tel: 9878554 • Calle Principal</p>
+              {orders.map(order => (
+                <div key={order.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-sm font-bold text-white">{order.client}</h3>
+                      <p className="text-xs text-zinc-400">Tel: {order.phone} • {order.address}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                      order.status === "PENDIENTE" 
+                        ? "bg-amber-500/20 text-amber-400 border-amber-500/30" 
+                        : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                    }`}>
+                      {order.status}
+                    </span>
                   </div>
-                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold px-2.5 py-1 rounded-full">PENDIENTE</span>
+                  <div className="bg-zinc-950 p-3 rounded-xl text-xs space-y-1">
+                    <div className="flex justify-between text-zinc-300">
+                      <span>{order.items}</span>
+                      <span>S/ {order.total.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-white pt-2 border-t border-zinc-800">
+                      <span>TOTAL</span>
+                      <span className="text-red-400">S/ {order.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  {order.status === "PENDIENTE" ? (
+                    <button 
+                      type="button" 
+                      onClick={() => handleDeliverOrder(order.id)}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+                    >
+                      ✓ Marcar como Entregado
+                    </button>
+                  ) : (
+                    <div className="w-full py-2.5 bg-zinc-950 text-emerald-400 font-bold text-xs rounded-xl text-center border border-emerald-900/30">
+                      Entregado con éxito ✓
+                    </div>
+                  )}
                 </div>
-                <div className="bg-zinc-950 p-3 rounded-xl text-xs space-y-1">
-                  <div className="flex justify-between text-zinc-300">
-                    <span>2x Sopa Maruchan</span>
-                    <span>S/ 13.80</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-white pt-2 border-t border-zinc-800">
-                    <span>TOTAL</span>
-                    <span className="text-red-400">S/ 13.80</span>
-                  </div>
-                </div>
-                <button type="button" className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer">
-                  ✓ Marcar como Entregado
-                </button>
-              </div>
+              ))}
             </div>
           </div>
         )}
