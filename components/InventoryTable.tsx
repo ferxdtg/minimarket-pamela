@@ -1,20 +1,16 @@
 "use client";
 
-import { useState } from "react";
+export default function InventoryTable({ 
+  initialProducts, 
+  onStockChange 
+}: { 
+  initialProducts: any[]; 
+  onStockChange: (id: string, newStock: number) => void; 
+}) {
 
-export default function InventoryTable({ initialProducts }: { initialProducts: any[] }) {
-  const [products, setProducts] = useState(initialProducts);
-
-  const updateStock = (id: string, delta: number) => {
-    setProducts(prev =>
-      prev.map(p => {
-        if (p.id === id) {
-          const newStock = Math.max(0, p.stock + delta);
-          return { ...p, stock: newStock };
-        }
-        return p;
-      })
-    );
+  const handleDelta = (id: string, currentStock: number, delta: number) => {
+    const updatedStock = Math.max(0, (currentStock || 0) + delta);
+    onStockChange(id, updatedStock);
   };
 
   return (
@@ -38,15 +34,16 @@ export default function InventoryTable({ initialProducts }: { initialProducts: a
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/50">
-            {products.map(product => {
-              const isOut = product.stock === 0;
-              const isLow = product.stock > 0 && product.stock <= 5;
+            {initialProducts.map(product => {
+              const currentStock = product.stock ?? 0;
+              const isOut = currentStock === 0;
+              const isLow = currentStock > 0 && currentStock <= 5;
 
               return (
                 <tr key={product.id} className="hover:bg-zinc-800/30 transition">
                   <td className="p-3.5 font-bold text-zinc-200">{product.name}</td>
-                  <td className="p-3.5 text-red-400 font-bold">S/ {product.price.toFixed(2)}</td>
-                  <td className="p-3.5 font-black text-sm">{product.stock} un.</td>
+                  <td className="p-3.5 text-red-400 font-bold">S/ {(product.price ?? 0).toFixed(2)}</td>
+                  <td className="p-3.5 font-black text-sm">{currentStock} un.</td>
                   <td className="p-3.5">
                     {isOut ? (
                       <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-1 rounded-full font-bold text-[10px]">
@@ -64,13 +61,13 @@ export default function InventoryTable({ initialProducts }: { initialProducts: a
                   </td>
                   <td className="p-3.5 text-center flex items-center justify-center gap-2">
                     <button
-                      onClick={() => updateStock(product.id, -1)}
+                      onClick={() => handleDelta(product.id, currentStock, -1)}
                       className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center transition cursor-pointer"
                     >
                       -
                     </button>
                     <button
-                      onClick={() => updateStock(product.id, 1)}
+                      onClick={() => handleDelta(product.id, currentStock, 1)}
                       className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center transition cursor-pointer"
                     >
                       +
