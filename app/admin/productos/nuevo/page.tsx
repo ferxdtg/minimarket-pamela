@@ -51,7 +51,7 @@ export default function AdminPage() {
     fetchProducts();
   }, []);
 
-  // Compresión automática de imágenes al mínimo peso para evitar errores en Firebase
+  // Compresión automática de imágenes al mínimo peso
   const compressImage = (file: File, callback: (base64: string) => void) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -138,15 +138,18 @@ export default function AdminPage() {
     }
   };
 
-  // Botones de Stock Rápido (+ / -) con actualización en TIEMPO REAL
+  // Botones de Stock Rápido (+ / -) con sincronización inmediata y robusta
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
 
-    const newStock = Math.max(0, (Number(currentStock) || 0) + delta);
+    const parsedStock = Number(currentStock) || 0;
+    const newStock = Math.max(0, parsedStock + delta);
     
-    // Actualización visual instantánea en la interfaz
-    setProducts(prev => prev.map(p => p.id === stringId ? { ...p, stock: newStock } : p));
+    // Actualización visual instantánea del estado local
+    setProducts(prevProducts =>
+      prevProducts.map(p => (p.id === stringId ? { ...p, stock: newStock } : p))
+    );
 
     try {
       const productRef = doc(db, "products", stringId);
@@ -154,7 +157,7 @@ export default function AdminPage() {
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`No se pudo actualizar el stock: ${error.message}`);
-      fetchProducts(); // Revertir si hay error de red
+      fetchProducts(); // Revertir si ocurre un fallo
     }
   };
 
@@ -375,7 +378,7 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-3 max-h-[550px] overflow-y-auto pr-1">
                   {filteredProducts.map(product => {
-                    const currentStock = product.stock ?? 0;
+                    const currentStock = Number(product.stock ?? 0);
                     const isOut = currentStock === 0;
                     const isLow = currentStock > 0 && currentStock <= 5;
 
@@ -391,7 +394,7 @@ export default function AdminPage() {
                           </div>
                           <div className="min-w-0">
                             <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                            <p className="text-[11px] text-red-400 font-bold">S/ {(product.price ?? 0).toFixed(2)} | Stock: {currentStock}</p>
+                            <p className="text-[11px] text-red-400 font-bold">S/ {(Number(product.price) ?? 0).toFixed(2)} | Stock: {currentStock}</p>
                             <span className="text-[9px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded uppercase font-bold tracking-wider">{product.category || "Abarrotes"}</span>
                           </div>
                         </div>
