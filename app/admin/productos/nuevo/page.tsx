@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -9,6 +9,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
+  // Subfiltros independientes por cada pestaña de estado logístico
   const [filtersByStatus, setFiltersByStatus] = useState({
     PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
     ENTREGADO: { type: "TODOS", startDate: "", endDate: "" },
@@ -21,6 +22,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Estados para Agregar Nuevo Producto
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newStock, setNewStock] = useState("");
@@ -29,6 +31,7 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
+  // Estado para el modal de edición
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -56,32 +59,37 @@ export default function AdminPage() {
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
 
-  const fetchData = async () => {
-    try {
-      // 1. Cargar productos
-      const prodSnapshot = await getDocs(collection(db, "products"));
-      const prodList = prodSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  // 🚀 ESCUCHA EN TIEMPO REAL (REAL-TIME SNAPSHOT) PARA PRODUCTOS Y PEDIDOS
+  useEffect(() => {
+    // Escuchar productos en tiempo real
+    const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
+      const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prodList);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error al escuchar productos en tiempo real:", error);
+      setLoading(false);
+    });
 
-      // 2. Cargar pedidos reales desde Firebase ("orders")
-      const ordSnapshot = await getDocs(collection(db, "orders"));
-      if (!ordSnapshot.empty) {
-        const ordList = ordSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Combinamos pedidos reales de Firebase con el respaldo para que siempre haya datos fluidos
+    // Escuchar pedidos en tiempo real ("orders")
+    const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
+      const ordList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      if (ordList.length > 0) {
+        // Combinamos pedidos reales de Firebase con el respaldo
         setOrders([...ordList, ...fallbackOrders]);
       } else {
         setOrders(fallbackOrders);
       }
-    } catch (error) {
-      console.error("Error al sincronizar con Firebase:", error);
+    }, (error) => {
+      console.error("Error al escuchar pedidos en tiempo real:", error);
       setOrders(fallbackOrders);
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
 
-  useEffect(() => {
-    fetchData();
+    // Limpiar suscripciones al desmontar el componente
+    return () => {
+      unsubscribeProducts();
+      unsubscribeOrders();
+    };
   }, []);
 
   const compressImage = (file: File, callback: (base64: string) => void) => {
@@ -148,7 +156,6 @@ export default function AdminPage() {
       });
       setNewName(""); setNewPrice(""); setNewStock(""); setNewCategory("Abarrotes y Despensa");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      fetchData();
       alert("¡Producto publicado con éxito!");
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
@@ -177,7 +184,6 @@ export default function AdminPage() {
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`Error al actualizar stock: ${error.message}`);
-      fetchData();
     }
   };
 
@@ -188,7 +194,6 @@ export default function AdminPage() {
       await deleteDoc(doc(db, "products", id));
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
-      fetchData();
     }
   };
 
@@ -220,12 +225,11 @@ export default function AdminPage() {
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
     try {
-      await updateDoc(doc(db, "products", stringId), finalData);
+      const productRef = doc(db, "products", stringId);
+      await updateDoc(productRef, finalData);
       setEditingProduct(null);
-      fetchData();
     } catch (error: any) {
       alert(`Error al editar: ${error.message}`);
-      fetchData();
     }
   };
 
@@ -276,7 +280,7 @@ export default function AdminPage() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">SISTEMA CENTRAL DE OPERACIONES & ERP</span>
+              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">SISTEMA CENTRAL DE OPERACIONES & ERP (REAL-TIME)</span>
             </div>
             <h1 className="text-2xl font-black tracking-tight text-white">Minimarket Pamela Admin</h1>
           </div>
@@ -521,7 +525,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD INTEGRADO */}
+        {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD EN TIEMPO REAL */}
         {activeTab === "pedidos" && (
           <div className="space-y-6">
             
@@ -554,8 +558,8 @@ export default function AdminPage() {
             <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 p-5 rounded-2xl shadow-xl space-y-4">
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
-                  <h2 className="text-sm font-black text-white">Centro Logístico de Pedidos en Vivo</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">Selecciona el estado principal y filtra por tipo de entrega o fechas de forma independiente.</p>
+                  <h2 className="text-sm font-black text-white">Centro Logístico en Tiempo Real (Live Feed)</h2>
+                  <p className="text-xs text-zinc-400 mt-0.5">Los pedidos de tus clientes aparecen instantáneamente aquí.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 text-xs">
