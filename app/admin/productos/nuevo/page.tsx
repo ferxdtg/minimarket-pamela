@@ -43,7 +43,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // 🕒 FECHA EXACTA DE LIMA, PERÚ
+  // 🕒 HORA EXACTA DE LIMA, PERÚ
   const getLimaDateStr = () => {
     try {
       const options: Intl.DateTimeFormatOptions = {
@@ -89,7 +89,6 @@ export default function AdminPage() {
     const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
       const ordList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       if (ordList.length > 0) {
-        // Combinamos Firebase con los de respaldo solo si el ID no está ya en Firebase
         setOrders([...ordList]);
       } else {
         setOrders(fallbackOrders);
@@ -246,37 +245,18 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA: ACTUALIZA EL ESTADO EN FIREBASE FIRESTORE SIN EXCEPCIONES
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
     
-    // Actualización visual inmediata en pantalla
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
     
-    // Si es un ID de respaldo local y no existe en Firestore, lo guardamos o actualizamos en la BD
+    if (stringOrderId.startsWith("fallback-")) return;
+
     try {
       const orderRef = doc(db, "orders", stringOrderId);
       await updateDoc(orderRef, { status: newStatus });
     } catch (error: any) {
-      console.error("Error al actualizar en Firebase:", error);
-      // Si por alguna razón el documento de respaldo no está en Firestore, lo creamos como un pedido real
-      try {
-        const targetOrder = orders.find(o => String(o.id).trim() === stringOrderId);
-        if (targetOrder) {
-          await addDoc(collection(db, "orders"), {
-            client: targetOrder.client,
-            phone: targetOrder.phone,
-            address: targetOrder.address,
-            type: targetOrder.type,
-            items: targetOrder.items,
-            total: targetOrder.total,
-            status: newStatus,
-            date: targetOrder.date
-          });
-        }
-      } catch (err) {
-        console.error("Error al respaldar orden en Firestore:", err);
-      }
+      console.error("Error al actualizar estado en Firebase:", error);
     }
   };
 
@@ -330,7 +310,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS PRINCIPALES CON SCROLL HORIZONTAL FLUIDO */}
+        {/* PESTAÑAS PRINCIPALES OPTIMIZADAS (MÁS CORTAS Y LIMPIAS) */}
         <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
           <button
             onClick={() => setActiveTab("inventario")}
@@ -338,7 +318,7 @@ export default function AdminPage() {
               activeTab === "inventario" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            📦 INVENTARIO ({products.length})
+            📦 Stock
           </button>
           <button
             onClick={() => setActiveTab("pedidos")}
@@ -346,7 +326,7 @@ export default function AdminPage() {
               activeTab === "pedidos" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            🛒 CENTRO LOGÍSTICO ({pendingCount} pendientes)
+            🛒 Pedidos {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.5 rounded-full text-[10px] font-black">{pendingCount}</span>}
           </button>
           <button
             onClick={() => setActiveTab("marketing")}
@@ -354,7 +334,7 @@ export default function AdminPage() {
               activeTab === "marketing" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            🎯 MARKETING ({promos.filter(p => p.active).length} activas)
+            🎯 Promos
           </button>
         </div>
 
