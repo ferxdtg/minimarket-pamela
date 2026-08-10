@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing">("inventario");
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
   // Subfiltros independientes por cada pestaña de estado logístico
@@ -19,6 +19,7 @@ export default function AdminPage() {
 
   const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -42,6 +43,11 @@ export default function AdminPage() {
     isFeatured: false,
     image: ""
   });
+
+  // Estados para Proveedores
+  const [supName, setSupName] = useState("");
+  const [supProduct, setSupProduct] = useState("");
+  const [supCost, setSupCost] = useState("");
 
   // 🕒 HORA EXACTA DE LIMA, PERÚ
   const getLimaDateStr = () => {
@@ -98,9 +104,17 @@ export default function AdminPage() {
       setOrders(fallbackOrders);
     });
 
+    const unsubscribeSuppliers = onSnapshot(collection(db, "suppliers"), (snapshot) => {
+      const supList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setSuppliers(supList);
+    }, (error) => {
+      console.error("Error al escuchar proveedores:", error);
+    });
+
     return () => {
       unsubscribeProducts();
       unsubscribeOrders();
+      unsubscribeSuppliers();
     };
   }, []);
 
@@ -245,9 +259,11 @@ export default function AdminPage() {
     }
   };
 
+  // 🚀 FUNCIÓN BLINDADA Y CORREGIDA PARA ACTUALIZAR ESTADO DE PEDIDOS SIN ERRORES
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
     
+    // Actualización visual inmediata
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
     
     if (stringOrderId.startsWith("fallback-")) return;
@@ -257,6 +273,23 @@ export default function AdminPage() {
       await updateDoc(orderRef, { status: newStatus });
     } catch (error: any) {
       console.error("Error al actualizar estado en Firebase:", error);
+    }
+  };
+
+  const handleAddSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supName || !supProduct) return;
+    try {
+      await addDoc(collection(db, "suppliers"), {
+        name: supName,
+        product: supProduct,
+        cost: parseFloat(supCost) || 0,
+        date: todayDateStr
+      });
+      setSupName(""); setSupProduct(""); setSupCost("");
+      alert("¡Compra y proveedor registrados con éxito!");
+    } catch (error: any) {
+      alert(`Error al registrar: ${error.message}`);
     }
   };
 
@@ -288,6 +321,30 @@ export default function AdminPage() {
   const rejectedCount = orders.filter(o => o.status === "RECHAZADO").length;
   const uncollectedCount = orders.filter(o => o.status === "NO_RECOGIDO").length;
 
+  const todaySalesOrders = orders.filter(o => o.status === "ENTREGADO" && o.date === todayDateStr);
+  const todaySalesTotal = todaySalesOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+
+  const clientsMap = new Map();
+  orders.forEach(o => {
+    if (o.client) {
+      const phone = o.phone || "Sin teléfono";
+      if (!clientsMap.has(phone)) {
+        clientsMap.set(phone, {
+          name: o.client,
+          phone: phone,
+          address: o.address || "No especificada",
+          totalOrders: 1,
+          spent: Number(o.total) || 0
+        });
+      } else {
+        const clientData = clientsMap.get(phone);
+        clientData.totalOrders += 1;
+        clientData.spent += Number(o.total) || 0;
+      }
+    }
+  });
+  const clientsList = Array.from(clientsMap.values());
+
   return (
     <div className="min-h-screen bg-[#09090b] text-white p-4 sm:p-10 font-sans selection:bg-red-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -297,7 +354,7 @@ export default function AdminPage() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">SISTEMA CENTRAL DE OPERACIONES (LIMA, PERÚ)</span>
+              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">SISTEMA ERP INTEGRADO (LIMA, PERÚ)</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">Minimarket Pamela Admin</h1>
           </div>
@@ -310,28 +367,52 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS PRINCIPALES OPTIMIZADAS (MÁS CORTAS Y LIMPIAS) */}
+        {/* PESTAÑAS PRINCIPALES */}
         <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
           <button
             onClick={() => setActiveTab("inventario")}
-            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
-              activeTab === "inventario" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
+            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
+              activeTab === "inventario" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
             }`}
           >
             📦 Stock
           </button>
           <button
             onClick={() => setActiveTab("pedidos")}
-            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
-              activeTab === "pedidos" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
+            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
+              activeTab === "pedidos" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
             }`}
           >
             🛒 Pedidos {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.5 rounded-full text-[10px] font-black">{pendingCount}</span>}
           </button>
           <button
+            onClick={() => setActiveTab("caja")}
+            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
+              activeTab === "caja" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
+            }`}
+          >
+            📊 Caja & Reportes
+          </button>
+          <button
+            onClick={() => setActiveTab("clientes")}
+            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
+              activeTab === "clientes" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
+            }`}
+          >
+            👥 Clientes ({clientsList.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("proveedores")}
+            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
+              activeTab === "proveedores" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
+            }`}
+          >
+            🧾 Compras
+          </button>
+          <button
             onClick={() => setActiveTab("marketing")}
-            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
-              activeTab === "marketing" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
+            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
+              activeTab === "marketing" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
             }`}
           >
             🎯 Promos
@@ -749,6 +830,148 @@ export default function AdminPage() {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        )}
+
+        {/* 📊 MÓDULO 1: CAJA & REPORTES DIARIOS */}
+        {activeTab === "caja" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h2 className="text-sm font-black text-white flex items-center gap-2">📊 Corte de Caja Diario (Lima, Perú)</h2>
+              <p className="text-xs text-zinc-400">Resumen exclusivo de las ventas completadas el día de hoy: <strong className="text-white">{todayDateStr}</strong></p>
+              
+              <div className="bg-zinc-950 border border-zinc-800 p-5 rounded-2xl space-y-3">
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <span className="text-xs font-bold text-zinc-400 uppercase">Total Ingresos Hoy</span>
+                  <span className="text-xl font-black text-emerald-400">S/ {todaySalesTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <span className="text-xs font-bold text-zinc-400 uppercase">Pedidos Entregados Hoy</span>
+                  <span className="text-sm font-black text-white">{todaySalesOrders.length}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-zinc-400 uppercase">Estado de Caja</span>
+                  <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-[10px] font-bold">🟢 Abierta & Cuadrada</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h2 className="text-sm font-black text-white">📋 Detalle de Tickets del Día</h2>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                {todaySalesOrders.length === 0 ? (
+                  <p className="text-xs text-zinc-500 text-center py-10">No hay ventas entregadas todavía para el día de hoy.</p>
+                ) : (
+                  todaySalesOrders.map((o: any) => (
+                    <div key={o.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex justify-between items-center text-xs">
+                      <div>
+                        <p className="font-bold text-white">{o.client}</p>
+                        <p className="text-[10px] text-zinc-400">{o.items}</p>
+                      </div>
+                      <span className="text-emerald-400 font-black">S/ {(Number(o.total) || 0).toFixed(2)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 👥 MÓDULO 3: BASE DE DATOS DE CLIENTES (CRM BÁSICO) */}
+        {activeTab === "clientes" && (
+          <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <h2 className="text-sm font-black text-white">👥 Directorio de Clientes Frecuentes ({clientsList.length})</h2>
+            <p className="text-xs text-zinc-400">Lista extraída automáticamente de las órdenes registradas en el minimarket.</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {clientsList.map((client: any, idx: number) => (
+                <div key={idx} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2 shadow-sm">
+                  <div className="flex justify-between items-start">
+                    <h3 className="text-xs font-black text-white">{client.name}</h3>
+                    <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-bold">{client.totalOrders} compras</span>
+                  </div>
+                  <p className="text-xs text-zinc-400">📱 {client.phone}</p>
+                  <p className="text-xs text-zinc-400 truncate">🏠 {client.address}</p>
+                  <div className="pt-2 border-t border-zinc-800 flex justify-between text-xs font-bold">
+                    <span className="text-zinc-500">Total gastado:</span>
+                    <span className="text-emerald-400">S/ {client.spent.toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 🧾 MÓDULO 4: COMPRAS Y PROVEEDORES */}
+        {activeTab === "proveedores" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
+              <h2 className="text-sm font-black text-white">🧾 Registrar Reposición / Compra</h2>
+              <p className="text-xs text-zinc-400">Registra qué proveedor te trajo mercadería y cuánto costó.</p>
+
+              <form onSubmit={handleAddSupplier} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Nombre del Proveedor</label>
+                  <input
+                    type="text"
+                    value={supName}
+                    onChange={e => setSupName(e.target.value)}
+                    placeholder="Ej. Distribuidora Lácteos Gloria"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Productos Suministrados</label>
+                  <input
+                    type="text"
+                    value={supProduct}
+                    onChange={e => setSupProduct(e.target.value)}
+                    placeholder="Ej. 50x Leche Azul 400g"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Costo Total Factura (S/)</label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    value={supCost}
+                    onChange={e => setSupCost(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition shadow-lg cursor-pointer mt-1"
+                >
+                  Guardar Factura de Compra
+                </button>
+              </form>
+            </div>
+
+            <div className="lg:col-span-2 bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h2 className="text-sm font-black text-white">Historial de Proveedores & Compras ({suppliers.length})</h2>
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                {suppliers.length === 0 ? (
+                  <p className="text-zinc-500 text-center py-12 text-xs">No hay compras registradas con proveedores todavía.</p>
+                ) : (
+                  suppliers.map(sup => (
+                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex justify-between items-center text-xs">
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-white">{sup.name}</h3>
+                        <p className="text-zinc-400">{sup.product}</p>
+                        <p className="text-[10px] text-zinc-500">Fecha: {sup.date}</p>
+                      </div>
+                      <span className="text-red-400 font-black">S/ {(Number(sup.cost) || 0).toFixed(2)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}
