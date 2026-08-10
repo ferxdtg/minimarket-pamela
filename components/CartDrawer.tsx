@@ -24,6 +24,19 @@ export default function CartDrawer() {
   const [showCheckout, setShowCheckout] = useState(false);
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Función para cerrar el carrito y llevar al usuario directo a la sección de productos
+  const handleContinueShopping = () => {
+    closeCart();
+    // Buscamos si existe una sección con id "productos" o "catalogo" en la página principal y hacemos scroll
+    const productsSection = document.getElementById("productos") || document.getElementById("catalogo");
+    if (productsSection) {
+      productsSection.scrollIntoView({ behavior: "smooth" });
+    } else {
+      // Si no encuentra el ID exacto, sube o redirige suavemente al inicio/catálogo
+      window.scrollTo({ top: 500, behavior: "smooth" });
+    }
+  };
+
   return (
     <div
       className={`
@@ -104,7 +117,7 @@ export default function CartDrawer() {
               <p className="text-zinc-500 text-[11px] mt-0.5">Agrega productos del catálogo.</p>
             </div>
             <button
-              onClick={closeCart}
+              onClick={handleContinueShopping}
               className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition cursor-pointer shadow-md"
             >
               Continuar comprando 🛍️
@@ -182,7 +195,7 @@ export default function CartDrawer() {
               </span>
             </div>
 
-            {/* CHECKOUT WHATSAPP CON ESTADO DE ÉXITO Y LIMPIEZA */}
+            {/* CHECKOUT WHATSAPP */}
             <WhatsAppCheckout cartItems={cart} totalAmount={total} onClose={closeCart} />
 
             <div className="grid grid-cols-2 gap-2">
@@ -194,7 +207,7 @@ export default function CartDrawer() {
               </button>
 
               <button
-                onClick={closeCart}
+                onClick={handleContinueShopping}
                 className="py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-[11px] transition-all cursor-pointer border border-zinc-800 text-center"
               >
                 Continuar comprando 🛍️
