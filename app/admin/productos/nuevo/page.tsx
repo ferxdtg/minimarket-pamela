@@ -43,7 +43,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // 🕒 FECHA EXACTA DE LIMA, PERÚ (Formato YYYY-MM-DD sin desfase UTC)
+  // 🕒 FECHA EXACTA DE LIMA, PERÚ
   const getLimaDateStr = () => {
     try {
       const options: Intl.DateTimeFormatOptions = {
@@ -246,13 +246,20 @@ export default function AdminPage() {
     }
   };
 
+  // 🚀 FUNCIÓN BLINDADA: ACTUALIZA EL ESTADO DE LA ORDEN DIRECTAMENTE EN FIREBASE
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
+    // Actualización visual inmediata en pantalla
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    
+    // Si es un ID de respaldo local, no intentamos actualizar en Firebase
     if (String(orderId).startsWith("fallback-")) return;
+
     try {
-      await updateDoc(doc(db, "orders", String(orderId)), { status: newStatus });
+      const orderRef = doc(db, "orders", String(orderId));
+      await updateDoc(orderRef, { status: newStatus });
     } catch (error: any) {
-      console.error("Error al actualizar estado en Firebase:", error);
+      console.error("Error al actualizar estado del pedido en Firebase:", error);
+      alert("No se pudo guardar el cambio en la base de datos.");
     }
   };
 
@@ -306,7 +313,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS PRINCIPALES CON SCROLL HORIZONTAL FLUIDO EN CELULARES */}
+        {/* PESTAÑAS PRINCIPALES CON SCROLL HORIZONTAL FLUIDO */}
         <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
           <button
             onClick={() => setActiveTab("inventario")}
@@ -576,7 +583,7 @@ export default function AdminPage() {
                 <p className="text-xs text-zinc-400 mt-0.5">Gestión de órdenes con hora de Lima, Perú.</p>
               </div>
 
-              {/* Pestañas principales de estado con desplazamiento fluido en móviles */}
+              {/* Pestañas principales de estado con desplazamiento fluido */}
               <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
                 <button 
                   onClick={() => setOrderStatusTab("PENDIENTE")}
@@ -604,7 +611,7 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Subfiltros internos (Delivery/Recojo y Fechas) */}
+              {/* Subfiltros internos */}
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-zinc-950 border border-zinc-800/80 px-3 sm:px-4 py-3 rounded-xl text-xs">
                 <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
                   <span className="text-zinc-400 font-bold shrink-0">Tipo:</span>
