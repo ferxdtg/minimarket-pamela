@@ -44,10 +44,14 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados para Módulo 4: Proveedores y Compras
-  const [supName, setSupName] = useState("");
-  const [supProduct, setSupProduct] = useState("");
-  const [supCost, setSupCost] = useState("");
+  // 🧾 Estados para Módulo de Compras (Facturas detalladas)
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceSupplier, setInvoiceSupplier] = useState("");
+  const [invoiceItems, setInvoiceItems] = useState<
+    { name: string; quantity: number; unitCost: number; packageCost: number }[]
+  >([
+    { name: "", quantity: 1, unitCost: 0, packageCost: 0 }
+  ]);
 
   // 🕒 HORA EXACTA DE LIMA, PERÚ
   const getLimaDateStr = () => {
@@ -259,10 +263,8 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA Y PERSISTENTE PARA ACTUALIZAR ESTADO DE PEDIDOS
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
-    
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
     
     if (stringOrderId.startsWith("fallback-")) {
@@ -294,20 +296,48 @@ export default function AdminPage() {
     }
   };
 
-  const handleAddSupplier = async (e: React.FormEvent) => {
+  const handleAddInvoiceItem = () => {
+    setInvoiceItems([...invoiceItems, { name: "", quantity: 1, unitCost: 0, packageCost: 0 }]);
+  };
+
+  const handleInvoiceItemChange = (index: number, field: string, value: any) => {
+    const updated = [...invoiceItems];
+    (updated[index] as any)[field] = value;
+    setInvoiceItems(updated);
+  };
+
+  const handleRemoveInvoiceItem = (index: number) => {
+    setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
+  };
+
+  const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supName || !supProduct) return;
+    if (!invoiceNumber || !invoiceSupplier || invoiceItems.length === 0) {
+      alert("Por favor completa el número de factura, proveedor y al menos un producto.");
+      return;
+    }
+
+    const totalInvoiceCost = invoiceItems.reduce((sum, item) => {
+      const subtotal = Number(item.packageCost) > 0 ? Number(item.packageCost) : (Number(item.quantity) * Number(item.unitCost));
+      return sum + subtotal;
+    }, 0);
+
     try {
       await addDoc(collection(db, "suppliers"), {
-        name: supName,
-        product: supProduct,
-        cost: parseFloat(supCost) || 0,
-        date: todayDateStr
+        invoiceNumber,
+        supplier: invoiceSupplier,
+        items: invoiceItems,
+        totalCost: totalInvoiceCost,
+        date: todayDateStr,
+        createdAt: new Date()
       });
-      setSupName(""); setSupProduct(""); setSupCost("");
-      alert("¡Compra y proveedor registrados con éxito!");
+
+      setInvoiceNumber("");
+      setInvoiceSupplier("");
+      setInvoiceItems([{ name: "", quantity: 1, unitCost: 0, packageCost: 0 }]);
+      alert("¡Factura de compra registrada con éxito!");
     } catch (error: any) {
-      alert(`Error al registrar: ${error.message}`);
+      alert(`Error al registrar factura: ${error.message}`);
     }
   };
 
@@ -386,7 +416,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS PRINCIPALES OPTIMIZADAS */}
+        {/* PESTAÑAS PRINCIPALES */}
         <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
           <button
             onClick={() => setActiveTab("inventario")}
@@ -426,7 +456,7 @@ export default function AdminPage() {
               activeTab === "proveedores" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
             }`}
           >
-            🧾 Compras
+            🧾 Compras ({suppliers.length})
           </button>
           <button
             onClick={() => setActiveTab("marketing")}
@@ -922,76 +952,157 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🧾 MÓDULO 4: COMPRAS Y PROVEEDORES */}
+        {/* 🧾 MÓDULO 4: REGISTRO DE COMPRAS (FACTURAS DETALLADAS CON MÚLTIPLES PRODUCTOS, COSTO UNITARIO Y PAQUETE) */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
-              <h2 className="text-sm font-black text-white">🧾 Registrar Reposición / Compra</h2>
-              <p className="text-xs text-zinc-400">Registra qué proveedor te trajo mercadería y cuánto costó.</p>
+            
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-6 shadow-xl h-fit space-y-4">
+              <h2 className="text-sm font-black text-white flex items-center gap-2">🧾 Registrar Factura de Compra</h2>
+              <p className="text-xs text-zinc-400">Agrega una factura con varios productos, especificando cantidad, costo unitario o costo por paquete.</p>
 
-              <form onSubmit={handleAddSupplier} className="space-y-3.5 text-xs">
+              <form onSubmit={handleSaveInvoice} className="space-y-3.5 text-xs">
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Nombre del Proveedor</label>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">N° de Factura / Guía</label>
                   <input
                     type="text"
-                    value={supName}
-                    onChange={e => setSupName(e.target.value)}
-                    placeholder="Ej. Distribuidora Lácteos Gloria"
+                    value={invoiceNumber}
+                    onChange={e => setInvoiceNumber(e.target.value)}
+                    placeholder="Ej. F001-98234"
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
                     required
                   />
                 </div>
+
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Productos Suministrados</label>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Proveedor / Distribuidora</label>
                   <input
                     type="text"
-                    value={supProduct}
-                    onChange={e => setSupProduct(e.target.value)}
-                    placeholder="Ej. 50x Leche Azul 400g"
+                    value={invoiceSupplier}
+                    onChange={e => setInvoiceSupplier(e.target.value)}
+                    placeholder="Ej. Distribuidora Gloria S.A."
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Costo Total Factura (S/)</label>
-                  <input
-                    type="number"
-                    step="0.05"
-                    value={supCost}
-                    onChange={e => setSupCost(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
-                    required
-                  />
+
+                <div className="space-y-2 pt-2 border-t border-zinc-800">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-zinc-300 uppercase text-[10px]">Productos en la Factura</span>
+                    <button
+                      type="button"
+                      onClick={handleAddInvoiceItem}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] cursor-pointer"
+                    >
+                      + Agregar Producto
+                    </button>
+                  </div>
+
+                  {invoiceItems.map((item, index) => (
+                    <div key={index} className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl space-y-2.5">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={e => handleInvoiceItemChange(index, "name", e.target.value)}
+                          placeholder="Nombre del producto"
+                          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-white"
+                          required
+                        />
+                        {invoiceItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveInvoiceItem(index)}
+                            className="bg-red-950 text-red-400 border border-red-900 px-2.5 rounded-lg font-bold"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-[9px] text-zinc-500 uppercase font-bold block mb-1">Cantidad</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={e => handleInvoiceItemChange(index, "quantity", parseInt(e.target.value) || 1)}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-white"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-zinc-500 uppercase font-bold block mb-1">Costo Unit. (S/)</label>
+                          <input
+                            type="number"
+                            step="0.05"
+                            value={item.unitCost}
+                            onChange={e => handleInvoiceItemChange(index, "unitCost", parseFloat(e.target.value) || 0)}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-zinc-500 uppercase font-bold block mb-1">Costo Paq. (S/)</label>
+                          <input
+                            type="number"
+                            step="0.05"
+                            value={item.packageCost}
+                            onChange={e => handleInvoiceItemChange(index, "packageCost", parseFloat(e.target.value) || 0)}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition shadow-lg cursor-pointer mt-1"
+                  className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition shadow-lg cursor-pointer mt-2"
                 >
-                  Guardar Factura de Compra
+                  Guardar Factura en Firebase 🧾
                 </button>
               </form>
             </div>
 
             <div className="lg:col-span-2 bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
-              <h2 className="text-sm font-black text-white">Historial de Proveedores & Compras ({suppliers.length})</h2>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+              <h2 className="text-sm font-black text-white">Historial de Facturas de Compra ({suppliers.length})</h2>
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                 {suppliers.length === 0 ? (
-                  <p className="text-zinc-500 text-center py-12 text-xs">No hay compras registradas con proveedores todavía.</p>
+                  <p className="text-zinc-500 text-center py-12 text-xs">No hay facturas registradas con proveedores todavía.</p>
                 ) : (
                   suppliers.map(sup => (
-                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex justify-between items-center text-xs">
-                      <div className="space-y-1">
-                        <h3 className="font-bold text-white">{sup.name}</h3>
-                        <p className="text-zinc-400">{sup.product}</p>
-                        <p className="text-[10px] text-zinc-500">Fecha: {sup.date}</p>
+                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3 text-xs">
+                      <div className="flex justify-between items-start border-b border-zinc-800 pb-2">
+                        <div>
+                          <h3 className="font-black text-white text-sm">Factura N°: {sup.invoiceNumber}</h3>
+                          <p className="text-zinc-400">Proveedor: <strong className="text-white">{sup.supplier}</strong></p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-red-400 font-black text-sm">S/ {(Number(sup.totalCost) || 0).toFixed(2)}</span>
+                          <p className="text-[10px] text-zinc-500">Fecha: {sup.date}</p>
+                        </div>
                       </div>
-                      <span className="text-red-400 font-black">S/ {(Number(sup.cost) || 0).toFixed(2)}</span>
+
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] uppercase font-bold text-zinc-500">Detalle de Productos Facturados:</span>
+                        <div className="space-y-1">
+                          {sup.items?.map((it: any, i: number) => (
+                            <div key={i} className="bg-zinc-900/60 p-2 rounded-lg flex justify-between items-center text-zinc-300">
+                              <span>{it.quantity}x <strong className="text-white">{it.name}</strong></span>
+                              <span className="text-[11px] text-zinc-400">
+                                {Number(it.packageCost) > 0 ? `Paquete: S/ ${Number(it.packageCost).toFixed(2)}` : `Unit: S/ ${Number(it.unitCost).toFixed(2)}`}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ))
                 )}
               </div>
             </div>
+
           </div>
         )}
 
