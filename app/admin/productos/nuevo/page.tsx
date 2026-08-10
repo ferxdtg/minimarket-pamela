@@ -43,11 +43,28 @@ export default function AdminPage() {
     image: ""
   });
 
-  const todayDateStr = new Date().toISOString().split("T")[0];
+  // 🕒 FECHA EXACTA DE LIMA, PERÚ (Formato YYYY-MM-DD sin desfase UTC)
+  const getLimaDateStr = () => {
+    try {
+      const options: Intl.DateTimeFormatOptions = {
+        timeZone: "America/Lima",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      };
+      const formatter = new Intl.DateTimeFormat("en-CA", options);
+      return formatter.format(new Date());
+    } catch {
+      return new Date().toISOString().split("T")[0];
+    }
+  };
+
+  const todayDateStr = getLimaDateStr();
 
   const fallbackOrders = [
     { id: "fallback-1", client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE", date: todayDateStr },
-    { id: "fallback-2", client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr }
+    { id: "fallback-2", client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr },
+    { id: "fallback-3", client: "Ana Torres", phone: "9988776", address: "Jr. Gamarra 120", type: "DELIVERY", items: "6x Leche Gloria Azul", total: 27.00, status: "ENTREGADO", date: "2026-06-03" }
   ];
 
   const [promos, setPromos] = useState([
@@ -59,33 +76,29 @@ export default function AdminPage() {
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
 
-  // 🚀 ESCUCHA EN TIEMPO REAL (REAL-TIME SNAPSHOT) PARA PRODUCTOS Y PEDIDOS
+  // 🚀 ESCUCHA EN TIEMPO REAL (REAL-TIME SNAPSHOT)
   useEffect(() => {
-    // Escuchar productos en tiempo real
     const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
       const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prodList);
       setLoading(false);
     }, (error) => {
-      console.error("Error al escuchar productos en tiempo real:", error);
+      console.error("Error al escuchar productos:", error);
       setLoading(false);
     });
 
-    // Escuchar pedidos en tiempo real ("orders")
     const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
       const ordList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       if (ordList.length > 0) {
-        // Combinamos pedidos reales de Firebase con el respaldo
         setOrders([...ordList, ...fallbackOrders]);
       } else {
         setOrders(fallbackOrders);
       }
     }, (error) => {
-      console.error("Error al escuchar pedidos en tiempo real:", error);
+      console.error("Error al escuchar pedidos:", error);
       setOrders(fallbackOrders);
     });
 
-    // Limpiar suscripciones al desmontar el componente
     return () => {
       unsubscribeProducts();
       unsubscribeOrders();
@@ -272,52 +285,52 @@ export default function AdminPage() {
   const uncollectedCount = orders.filter(o => o.status === "NO_RECOGIDO").length;
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white p-6 sm:p-10 font-sans selection:bg-red-600 selection:text-white">
+    <div className="min-h-screen bg-[#09090b] text-white p-4 sm:p-10 font-sans selection:bg-red-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* ENCABEZADO */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/65 backdrop-blur-md border border-zinc-800 p-5 rounded-2xl shadow-xl">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/65 backdrop-blur-md border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">SISTEMA CENTRAL DE OPERACIONES & ERP (REAL-TIME)</span>
+              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">SISTEMA CENTRAL DE OPERACIONES (LIMA, PERÚ)</span>
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-white">Minimarket Pamela Admin</h1>
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">Minimarket Pamela Admin</h1>
           </div>
 
-          <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 px-4 py-2 rounded-xl text-xs shadow-inner">
-            <span className="text-zinc-400 font-medium">Operador: <strong className="text-white">ferxdtg@gmail.com</strong></span>
-            <button className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg transition cursor-pointer shadow-md">
-              Cerrar Sesión
+          <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-3 bg-zinc-950 border border-zinc-800 px-3 sm:px-4 py-2 rounded-xl text-xs shadow-inner">
+            <span className="text-zinc-400 font-medium truncate max-w-[150px] sm:max-w-none">Op: <strong className="text-white">ferxdtg@gmail.com</strong></span>
+            <button className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0">
+              Salir
             </button>
           </div>
         </div>
 
-        {/* PESTAÑAS PRINCIPALES */}
-        <div className="flex flex-wrap gap-2.5">
+        {/* PESTAÑAS PRINCIPALES CON SCROLL HORIZONTAL FLUIDO EN CELULARES */}
+        <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
           <button
             onClick={() => setActiveTab("inventario")}
-            className={`px-6 py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2.5 shadow-lg ${
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
               activeTab === "inventario" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            📦 GESTIÓN DE INVENTARIO ({products.length})
+            📦 INVENTARIO ({products.length})
           </button>
           <button
             onClick={() => setActiveTab("pedidos")}
-            className={`px-6 py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2.5 shadow-lg ${
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
               activeTab === "pedidos" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            🛒 CENTRO LOGÍSTICO Y DASHBOARD ({pendingCount} pendientes)
+            🛒 CENTRO LOGÍSTICO ({pendingCount} pendientes)
           </button>
           <button
             onClick={() => setActiveTab("marketing")}
-            className={`px-6 py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2.5 shadow-lg ${
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
               activeTab === "marketing" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white hover:border-zinc-700"
             }`}
           >
-            🎯 MARKETING & BANNERS ({promos.filter(p => p.active).length} activas)
+            🎯 MARKETING ({promos.filter(p => p.active).length} activas)
           </button>
         </div>
 
@@ -325,7 +338,7 @@ export default function AdminPage() {
         {activeTab === "inventario" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-6 shadow-xl h-fit space-y-4">
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-5 sm:p-6 shadow-xl h-fit space-y-4">
               <h2 className="text-sm font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto</h2>
               
               <form onSubmit={handleCreateProduct} className="space-y-3.5 text-xs">
@@ -427,7 +440,7 @@ export default function AdminPage() {
               </form>
             </div>
 
-            <div className="lg:col-span-2 bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="lg:col-span-2 bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-4">
                 <h2 className="text-sm font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
                 
@@ -453,67 +466,69 @@ export default function AdminPage() {
                     const isLow = currentStock > 0 && currentStock <= 5;
 
                     return (
-                      <div key={product.id} className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-4 flex items-center justify-between gap-4 hover:border-zinc-700 transition">
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <div className="relative w-14 h-14 bg-white rounded-xl overflow-hidden shrink-0 border border-zinc-800">
+                      <div key={product.id} className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-zinc-700 transition">
+                        <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">
+                          <div className="relative w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-xl overflow-hidden shrink-0 border border-zinc-800">
                             {product.image ? (
                               <Image src={product.image} alt={product.name} fill className="object-contain p-1" />
                             ) : (
                               <span className="text-[9px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
                             )}
                           </div>
-                          <div className="min-w-0 space-y-0.5">
+                          <div className="min-w-0 space-y-0.5 flex-1">
                             <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
                             <p className="text-[11px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
                             <span className="text-[9px] bg-zinc-900 border border-zinc-800 text-zinc-300 px-2 py-0.5 rounded uppercase font-bold">{product.category || "Abarrotes"}</span>
                           </div>
                         </div>
 
-                        <div>
-                          {isOut ? (
-                            <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-1 rounded-full text-[10px] font-bold">🔴 Agotado</span>
-                          ) : isLow ? (
-                            <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-full text-[10px] font-bold">🟡 Stock Bajo</span>
-                          ) : (
-                            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full text-[10px] font-bold">🟢 Stock OK ({currentStock})</span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
-                            <button
-                              type="button"
-                              onClick={() => handleStockUpdate(product.id, currentStock, -1)}
-                              className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
-                            >
-                              -
-                            </button>
-                            <span className="w-7 text-center font-black text-xs">{currentStock}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleStockUpdate(product.id, currentStock, 1)}
-                              className="w-7 h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
-                            >
-                              +
-                            </button>
+                        <div className="flex items-center justify-between w-full sm:w-auto gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-900">
+                          <div>
+                            {isOut ? (
+                              <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">🔴 Agotado</span>
+                            ) : isLow ? (
+                              <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">🟡 Bajo</span>
+                            ) : (
+                              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">🟢 OK ({currentStock})</span>
+                            )}
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(product)}
-                            className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-xl font-bold text-xs transition cursor-pointer"
-                          >
-                            ✏️ Editar
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+                              <button
+                                type="button"
+                                onClick={() => handleStockUpdate(product.id, currentStock, -1)}
+                                className="w-6 h-6 sm:w-7 sm:h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
+                              >
+                                -
+                              </button>
+                              <span className="w-6 text-center font-black text-xs">{currentStock}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStockUpdate(product.id, currentStock, 1)}
+                                className="w-6 h-6 sm:w-7 sm:h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
+                              >
+                                +
+                              </button>
+                            </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteProduct(product.id, product.name)}
-                            className="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-900/50 rounded-xl font-bold text-xs transition cursor-pointer"
-                            title="Eliminar"
-                          >
-                            🗑️
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(product)}
+                              className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-xl font-bold text-xs transition cursor-pointer"
+                            >
+                              ✏️
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProduct(product.id, product.name)}
+                              className="px-2.5 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-900/50 rounded-xl font-bold text-xs transition cursor-pointer"
+                              title="Eliminar"
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -525,115 +540,115 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD EN TIEMPO REAL */}
+        {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD */}
         {activeTab === "pedidos" && (
           <div className="space-y-6">
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ventas Totales (Entregadas)</span>
-                <div className="text-2xl font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
-                <p className="text-[11px] text-zinc-500">Calculado sobre {deliveredCount} pedidos completados</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-1.5 shadow-xl">
+                <span className="text-[10px] sm:text-xs font-bold text-zinc-400 uppercase tracking-wider">Ventas Totales</span>
+                <div className="text-xl sm:text-2xl font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
+                <p className="text-[10px] text-zinc-500">{deliveredCount} pedidos entregados</p>
               </div>
 
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Órdenes Pendientes</span>
-                <div className="text-2xl font-black text-amber-400">{pendingCount}</div>
-                <p className="text-[11px] text-zinc-500">Requieren atención y despacho inmediato</p>
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-1.5 shadow-xl">
+                <span className="text-[10px] sm:text-xs font-bold text-zinc-400 uppercase tracking-wider">Pendientes</span>
+                <div className="text-xl sm:text-2xl font-black text-amber-400">{pendingCount}</div>
+                <p className="text-[10px] text-zinc-500">Atención inmediata</p>
               </div>
 
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Productos en Inventario</span>
-                <div className="text-2xl font-black text-blue-400">{products.length}</div>
-                <p className="text-[11px] text-zinc-500">Artículos sincronizados en Firebase</p>
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-1.5 shadow-xl">
+                <span className="text-[10px] sm:text-xs font-bold text-zinc-400 uppercase tracking-wider">Inventario</span>
+                <div className="text-xl sm:text-2xl font-black text-blue-400">{products.length}</div>
+                <p className="text-[10px] text-zinc-500">Artículos activos</p>
               </div>
 
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Rechazados / No Recogidos</span>
-                <div className="text-2xl font-black text-red-400">{rejectedCount + uncollectedCount}</div>
-                <p className="text-[11px] text-zinc-500">Órdenes canceladas o devueltas</p>
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-1.5 shadow-xl">
+                <span className="text-[10px] sm:text-xs font-bold text-zinc-400 uppercase tracking-wider">Rechazados / Otros</span>
+                <div className="text-xl sm:text-2xl font-black text-red-400">{rejectedCount + uncollectedCount}</div>
+                <p className="text-[10px] text-zinc-500">Cancelados o devueltos</p>
               </div>
             </div>
 
-            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 p-5 rounded-2xl shadow-xl space-y-4">
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <div>
-                  <h2 className="text-sm font-black text-white">Centro Logístico en Tiempo Real (Live Feed)</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">Los pedidos de tus clientes aparecen instantáneamente aquí.</p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <button 
-                    onClick={() => setOrderStatusTab("PENDIENTE")}
-                    className={`px-4 py-2.5 rounded-xl font-bold transition cursor-pointer ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                  >
-                    ⏳ Pendientes ({pendingCount})
-                  </button>
-                  <button 
-                    onClick={() => setOrderStatusTab("ENTREGADO")}
-                    className={`px-4 py-2.5 rounded-xl font-bold transition cursor-pointer ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                  >
-                    ✓ Entregados ({deliveredCount})
-                  </button>
-                  <button 
-                    onClick={() => setOrderStatusTab("RECHAZADO")}
-                    className={`px-4 py-2.5 rounded-xl font-bold transition cursor-pointer ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                  >
-                    ✕ Rechazados ({rejectedCount})
-                  </button>
-                  <button 
-                    onClick={() => setOrderStatusTab("NO_RECOGIDO")}
-                    className={`px-4 py-2.5 rounded-xl font-bold transition cursor-pointer ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                  >
-                    🏪 No Recogidos ({uncollectedCount})
-                  </button>
-                </div>
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl space-y-4">
+              <div>
+                <h2 className="text-sm font-black text-white">Centro Logístico en Tiempo Real (Live Feed)</h2>
+                <p className="text-xs text-zinc-400 mt-0.5">Gestión de órdenes con hora de Lima, Perú.</p>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-950 border border-zinc-800/80 px-4 py-3 rounded-xl text-xs">
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <span className="text-zinc-400 font-bold shrink-0">Tipo de Entrega:</span>
-                  <div className="flex gap-1">
+              {/* Pestañas principales de estado con desplazamiento fluido en móviles */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                <button 
+                  onClick={() => setOrderStatusTab("PENDIENTE")}
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ⏳ Pendientes ({pendingCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("ENTREGADO")}
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ✓ Entregados ({deliveredCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("RECHAZADO")}
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ✕ Rechazados ({rejectedCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("NO_RECOGIDO")}
+                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🏪 No Recogidos ({uncollectedCount})
+                </button>
+              </div>
+
+              {/* Subfiltros internos (Delivery/Recojo y Fechas) */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-zinc-950 border border-zinc-800/80 px-3 sm:px-4 py-3 rounded-xl text-xs">
+                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                  <span className="text-zinc-400 font-bold shrink-0">Tipo:</span>
+                  <div className="flex gap-1 shrink-0">
                     <button 
                       onClick={() => updateSubFilter("type", "TODOS")}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
                     >
                       Todos
                     </button>
                     <button 
                       onClick={() => updateSubFilter("type", "DELIVERY")}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
                     >
                       🛵 Delivery
                     </button>
                     <button 
                       onClick={() => updateSubFilter("type", "RECOJO")}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
                     >
-                      🏪 Recojo Local
+                      🏪 Recojo
                     </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  <span className="text-zinc-400 font-bold shrink-0">Fechas:</span>
+                <div className="flex items-center gap-1.5 w-full md:w-auto justify-between md:justify-end overflow-x-auto pb-1 md:pb-0">
+                  <span className="text-zinc-400 font-bold shrink-0">Fecha:</span>
                   <input 
                     type="date" 
                     value={currentSubFilter.startDate} 
                     onChange={e => updateSubFilter("startDate", e.target.value)}
-                    className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-white focus:outline-none focus:border-red-600"
+                    className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-white text-[11px] focus:outline-none focus:border-red-600"
                   />
                   <span className="text-zinc-500">-</span>
                   <input 
                     type="date" 
                     value={currentSubFilter.endDate} 
                     onChange={e => updateSubFilter("endDate", e.target.value)}
-                    className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-white focus:outline-none focus:border-red-600"
+                    className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-white text-[11px] focus:outline-none focus:border-red-600"
                   />
                   {(currentSubFilter.startDate || currentSubFilter.endDate) && (
                     <button 
                       onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }}
-                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded-lg font-bold transition cursor-pointer"
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded-lg font-bold transition cursor-pointer text-[10px]"
                     >
                       Limpiar
                     </button>
@@ -644,10 +659,10 @@ export default function AdminPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredOrders.length === 0 ? (
-                <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en la sección de {orderStatusTab.toLowerCase()} con los filtros seleccionados.</p>
+                <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en {orderStatusTab.toLowerCase()} con estos filtros.</p>
               ) : (
                 filteredOrders.map(order => (
-                  <div key={order.id} className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-xl">
+                  <div key={order.id} className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-xl">
                     <div className="flex justify-between items-start">
                       <div className="space-y-1">
                         <span className={`inline-block text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
@@ -660,7 +675,7 @@ export default function AdminPage() {
                         <p className="text-[10px] text-zinc-500 font-medium">Registrado: {order.date}</p>
                       </div>
 
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
                         order.status === "PENDIENTE" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
                         order.status === "ENTREGADO" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
                         order.status === "RECHAZADO" ? "bg-red-500/20 text-red-400 border-red-500/30" :
@@ -670,10 +685,10 @@ export default function AdminPage() {
                       </span>
                     </div>
 
-                    <div className="bg-zinc-950 border border-zinc-800/80 p-3.5 rounded-xl text-xs space-y-1.5">
+                    <div className="bg-zinc-950 border border-zinc-800/80 p-3 rounded-xl text-xs space-y-1.5">
                       <div className="text-zinc-400 font-semibold uppercase text-[10px]">Detalle de Compra:</div>
                       <div className="text-zinc-200">{order.items}</div>
-                      <div className="flex justify-between font-black text-white pt-2.5 border-t border-zinc-800">
+                      <div className="flex justify-between font-black text-white pt-2 border-t border-zinc-800">
                         <span>TOTAL A PAGAR</span>
                         <span className="text-red-400 text-sm">S/ {(Number(order.total) || 0).toFixed(2)}</span>
                       </div>
