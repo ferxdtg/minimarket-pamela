@@ -7,6 +7,9 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [deliveryType, setDeliveryType] = useState<"DELIVERY" | "RECOJO">("DELIVERY");
+  
+  // Estado para desplegar u ocultar las opciones de entrega y datos
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleWhatsAppOrder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,70 +42,88 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
   };
 
   return (
-    <div className="relative group w-full">
-      {/* Efecto de brillo de fondo */}
-      <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-green-600 rounded-2xl blur opacity-30 group-hover:opacity-70 transition duration-300"></div>
-
-      <form onSubmit={handleWhatsAppOrder} className="relative bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-3 shadow-xl">
-        <div className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Método de Entrega</div>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setDeliveryType("DELIVERY")}
-            className={`py-2 px-2 rounded-xl font-bold text-xs border transition cursor-pointer text-center ${
-              deliveryType === "DELIVERY" ? "bg-red-600 border-red-500 text-white shadow-md" : "bg-zinc-950 border-zinc-800 text-zinc-400"
-            }`}
-          >
-            🛵 Delivery
-          </button>
-          <button
-            type="button"
-            onClick={() => setDeliveryType("RECOJO")}
-            className={`py-2 px-2 rounded-xl font-bold text-xs border transition cursor-pointer text-center ${
-              deliveryType === "RECOJO" ? "bg-red-600 border-red-500 text-white shadow-md" : "bg-zinc-950 border-zinc-800 text-zinc-400"
-            }`}
-          >
-            🏪 Recojo Local
-          </button>
-        </div>
-
-        <input
-          type="text"
-          value={customerName}
-          onChange={e => setCustomerName(e.target.value)}
-          placeholder="Tu Nombre *"
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-red-600"
-          required
-        />
-
-        <input
-          type="tel"
-          value={customerPhone}
-          onChange={e => setCustomerPhone(e.target.value)}
-          placeholder="Teléfono / WhatsApp *"
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-red-600"
-          required
-        />
-
-        {deliveryType === "DELIVERY" && (
-          <input
-            type="text"
-            value={customerAddress}
-            onChange={e => setCustomerAddress(e.target.value)}
-            placeholder="Dirección exacta *"
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-red-600"
-            required
-          />
-        )}
-
+    <div className="relative group w-full space-y-2">
+      {/* Botón principal para desplegar el método de entrega y finalizar */}
+      {!isExpanded ? (
         <button
-          type="submit"
+          type="button"
+          onClick={() => setIsExpanded(true)}
           className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black py-3 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer border border-emerald-400/30"
         >
-          <span className="text-lg animate-bounce">💬</span>
-          <span>Pedir al WhatsApp ahora ⚡</span>
+          <span className="text-base animate-bounce">💬</span>
+          <span>Proceder al Pago por WhatsApp ⚡</span>
         </button>
-      </form>
+      ) : (
+        <form onSubmit={handleWhatsAppOrder} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 space-y-2.5 shadow-xl animate-fadeIn">
+          <div className="flex justify-between items-center pb-1 border-b border-zinc-800">
+            <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">Método de Entrega</span>
+            <button 
+              type="button" 
+              onClick={() => setIsExpanded(false)}
+              className="text-zinc-500 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer"
+            >
+              ▲ Ocultar
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDeliveryType("DELIVERY")}
+              className={`py-2 px-2 rounded-lg font-bold text-[11px] border transition cursor-pointer text-center ${
+                deliveryType === "DELIVERY" ? "bg-red-600 border-red-500 text-white shadow-md" : "bg-zinc-900 border-zinc-800 text-zinc-400"
+              }`}
+            >
+              🛵 Delivery
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeliveryType("RECOJO")}
+              className={`py-2 px-2 rounded-lg font-bold text-[11px] border transition cursor-pointer text-center ${
+                deliveryType === "RECOJO" ? "bg-red-600 border-red-500 text-white shadow-md" : "bg-zinc-900 border-zinc-800 text-zinc-400"
+              }`}
+            >
+              🏪 Recojo Local
+            </button>
+          </div>
+
+          <input
+            type="text"
+            value={customerName}
+            onChange={e => setCustomerName(e.target.value)}
+            placeholder="Tu Nombre *"
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-red-600"
+            required
+          />
+
+          <input
+            type="tel"
+            value={customerPhone}
+            onChange={e => setCustomerPhone(e.target.value)}
+            placeholder="Teléfono / WhatsApp *"
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-red-600"
+            required
+          />
+
+          {deliveryType === "DELIVERY" && (
+            <input
+              type="text"
+              value={customerAddress}
+              onChange={e => setCustomerAddress(e.target.value)}
+              placeholder="Dirección exacta *"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-red-600"
+              required
+            />
+          )}
+
+          <button
+            type="submit"
+            className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black py-2.5 px-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer border border-emerald-400/30 mt-1"
+          >
+            <span>Enviar Pedido por WhatsApp 🚀</span>
+          </button>
+        </form>
+      )}
     </div>
   );
 }
