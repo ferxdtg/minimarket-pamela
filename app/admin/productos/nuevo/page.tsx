@@ -44,7 +44,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados para Proveedores
+  // Estados para Módulo 4: Proveedores
   const [supName, setSupName] = useState("");
   const [supProduct, setSupProduct] = useState("");
   const [supCost, setSupCost] = useState("");
@@ -259,14 +259,32 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA Y CORREGIDA PARA ACTUALIZAR ESTADO DE PEDIDOS SIN ERRORES
+  // 🚀 FUNCIÓN BLINDADA Y CORREGIDA PARA ACTUALIZAR ESTADO DE PEDIDOS (PERSISTENTE EN FIREBASE)
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
     
-    // Actualización visual inmediata
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
     
-    if (stringOrderId.startsWith("fallback-")) return;
+    if (stringOrderId.startsWith("fallback-")) {
+      try {
+        const targetOrder = orders.find(o => String(o.id).trim() === stringOrderId);
+        if (targetOrder) {
+          await addDoc(collection(db, "orders"), {
+            client: targetOrder.client,
+            phone: targetOrder.phone,
+            address: targetOrder.address,
+            type: targetOrder.type,
+            items: targetOrder.items,
+            total: targetOrder.total,
+            status: newStatus,
+            date: targetOrder.date
+          });
+        }
+      } catch (err) {
+        console.error("Error al registrar orden en Firebase:", err);
+      }
+      return;
+    }
 
     try {
       const orderRef = doc(db, "orders", stringOrderId);
