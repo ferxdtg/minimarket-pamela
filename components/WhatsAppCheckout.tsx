@@ -2,24 +2,51 @@
 
 import { useState } from "react";
 import { useCart } from "@/lib/CartContext";
+import { collection, addDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { cartItems: any[]; totalAmount: number; onClose?: () => void }) {
-  const { clearCart } = useCart(); // Aseguramos vaciar el carrito
+  const { clearCart } = useCart();
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [deliveryType, setDeliveryType] = useState<"DELIVERY" | "RECOJO">("DELIVERY");
   
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false); // Estado de éxito logístico
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleWhatsAppOrder = (e: React.FormEvent) => {
+  const handleWhatsAppOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName || !customerPhone) {
       alert("Por favor ingresa tu nombre y teléfono.");
       return;
     }
 
+    setLoading(true);
+    const todayStr = new Date().toISOString().split("T")[0];
+    const itemsDescription = cartItems.map(item => `${item.quantity}x ${item.name}`).join(", ");
+
+    try {
+      // 1. Guardar el pedido en Firebase Firestore (Colección "orders")
+      await addDoc(collection(db, "orders"), {
+        client: customerName,
+        phone: customerPhone,
+        address: deliveryType === "DELIVERY" ? (customerAddress || "No especificada") : "Recojo en Tienda",
+        type: deliveryType,
+        items: itemsDescription,
+        total: totalAmount,
+        status: "PENDIENTE",
+        date: todayStr,
+        createdAt: new Date()
+      });
+    } catch (error) {
+      console.error("Error al registrar pedido en Firebase:", error);
+    } finally {
+      setLoading(false);
+    }
+
+    // 2. Armar el mensaje de WhatsApp
     const phoneNumber = "51950323959"; 
     const typeText = deliveryType === "DELIVERY" ? "🛵 Envío a Domicilio" : "🏪 Recojo en Local";
 
@@ -41,7 +68,7 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, "_blank");
 
-    // Activamos el estado de éxito y limpiamos el carrito
+    // 3. Marcar éxito y limpiar carrito
     setIsSuccess(true);
     if (typeof clearCart === "function") {
       clearCart();
@@ -50,7 +77,6 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
 
   return (
     <div className="relative group w-full space-y-2">
-      {/* PANTALLA DE ÉXITO Y PREPARACIÓN */}
       {isSuccess ? (
         <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-4 text-center space-y-3 animate-fadeIn">
           <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg font-bold">
@@ -146,9 +172,10 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
 
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black py-2.5 px-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer border border-emerald-400/30 mt-1"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black py-2.5 px-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer border border-emerald-400/30 mt-1 disabled:opacity-50"
           >
-            <span>Enviar Pedido por WhatsApp 🚀</span>
+            <span>{loading ? "Registrando pedido..." : "Enviar Pedido por WhatsApp 🚀"}</span>
           </button>
         </form>
       )}
