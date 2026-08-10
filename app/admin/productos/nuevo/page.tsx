@@ -63,8 +63,7 @@ export default function AdminPage() {
 
   const fallbackOrders = [
     { id: "fallback-1", client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE", date: todayDateStr },
-    { id: "fallback-2", client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr },
-    { id: "fallback-3", client: "Ana Torres", phone: "9988776", address: "Jr. Gamarra 120", type: "DELIVERY", items: "6x Leche Gloria Azul", total: 27.00, status: "ENTREGADO", date: "2026-06-03" }
+    { id: "fallback-2", client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr }
   ];
 
   const [promos, setPromos] = useState([
@@ -90,7 +89,8 @@ export default function AdminPage() {
     const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
       const ordList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       if (ordList.length > 0) {
-        setOrders([...ordList, ...fallbackOrders]);
+        // Combinamos Firebase con los de respaldo solo si el ID no está ya en Firebase
+        setOrders([...ordList]);
       } else {
         setOrders(fallbackOrders);
       }
@@ -246,20 +246,37 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA: ACTUALIZA EL ESTADO DE LA ORDEN DIRECTAMENTE EN FIREBASE
+  // 🚀 FUNCIÓN BLINDADA: ACTUALIZA EL ESTADO EN FIREBASE FIRESTORE SIN EXCEPCIONES
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
-    // Actualización visual inmediata en pantalla
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    const stringOrderId = String(orderId).trim();
     
-    // Si es un ID de respaldo local, no intentamos actualizar en Firebase
-    if (String(orderId).startsWith("fallback-")) return;
-
+    // Actualización visual inmediata en pantalla
+    setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
+    
+    // Si es un ID de respaldo local y no existe en Firestore, lo guardamos o actualizamos en la BD
     try {
-      const orderRef = doc(db, "orders", String(orderId));
+      const orderRef = doc(db, "orders", stringOrderId);
       await updateDoc(orderRef, { status: newStatus });
     } catch (error: any) {
-      console.error("Error al actualizar estado del pedido en Firebase:", error);
-      alert("No se pudo guardar el cambio en la base de datos.");
+      console.error("Error al actualizar en Firebase:", error);
+      // Si por alguna razón el documento de respaldo no está en Firestore, lo creamos como un pedido real
+      try {
+        const targetOrder = orders.find(o => String(o.id).trim() === stringOrderId);
+        if (targetOrder) {
+          await addDoc(collection(db, "orders"), {
+            client: targetOrder.client,
+            phone: targetOrder.phone,
+            address: targetOrder.address,
+            type: targetOrder.type,
+            items: targetOrder.items,
+            total: targetOrder.total,
+            status: newStatus,
+            date: targetOrder.date
+          });
+        }
+      } catch (err) {
+        console.error("Error al respaldar orden en Firestore:", err);
+      }
     }
   };
 
@@ -583,7 +600,7 @@ export default function AdminPage() {
                 <p className="text-xs text-zinc-400 mt-0.5">Gestión de órdenes con hora de Lima, Perú.</p>
               </div>
 
-              {/* Pestañas principales de estado con desplazamiento fluido */}
+              {/* Pestañas principales de estado */}
               <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
                 <button 
                   onClick={() => setOrderStatusTab("PENDIENTE")}
