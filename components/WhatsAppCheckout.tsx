@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useCart } from "@/lib/CartContext";
 
 export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { cartItems: any[]; totalAmount: number; onClose?: () => void }) {
+  const { clearCart } = useCart(); // Aseguramos vaciar el carrito
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [deliveryType, setDeliveryType] = useState<"DELIVERY" | "RECOJO">("DELIVERY");
   
-  // Estado para desplegar u ocultar las opciones de entrega y datos
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false); // Estado de éxito logístico
 
   const handleWhatsAppOrder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,13 +40,39 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
 
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, "_blank");
-    if (onClose) onClose();
+
+    // Activamos el estado de éxito y limpiamos el carrito
+    setIsSuccess(true);
+    if (typeof clearCart === "function") {
+      clearCart();
+    }
   };
 
   return (
     <div className="relative group w-full space-y-2">
-      {/* Botón principal para desplegar el método de entrega y finalizar */}
-      {!isExpanded ? (
+      {/* PANTALLA DE ÉXITO Y PREPARACIÓN */}
+      {isSuccess ? (
+        <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-4 text-center space-y-3 animate-fadeIn">
+          <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg font-bold">
+            ✓
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-xs font-black text-emerald-300">¡Se procesó su compra con éxito!</h4>
+            <p className="text-[11px] text-zinc-300">El local de Minimarket Pamela se encuentra preparando su pedido 👨‍🍳📦</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsSuccess(false);
+              setIsExpanded(false);
+              if (onClose) onClose();
+            }}
+            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+          >
+            ← Volver a la tienda
+          </button>
+        </div>
+      ) : !isExpanded ? (
         <button
           type="button"
           onClick={() => setIsExpanded(true)}

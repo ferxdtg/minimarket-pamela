@@ -59,7 +59,7 @@ export default function CartDrawer() {
           ${cartOpen ? "translate-x-0" : "translate-x-full"}
         `}
       >
-        {/* ENCABEZADO COMPACTO */}
+        {/* ENCABEZADO */}
         <div className="flex justify-between items-center pb-3 border-b border-zinc-800/80 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-sm text-red-500 font-black">
@@ -82,7 +82,7 @@ export default function CartDrawer() {
           </button>
         </div>
 
-        {/* BANNER EXPRESS COMPACTO */}
+        {/* BANNER EXPRESS */}
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-2.5 my-3 flex items-center gap-2.5 shrink-0 shadow-inner">
           <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center text-xs shrink-0 border border-red-500/20">
             🛵
@@ -93,14 +93,22 @@ export default function CartDrawer() {
           </div>
         </div>
 
-        {/* LISTA DE PRODUCTOS ULTRA COMPACTA */}
+        {/* LISTA DE PRODUCTOS */}
         {cart.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-            <div className="w-14 h-14 rounded-2xl bg-zinc-900 flex items-center justify-center text-2xl mb-2.5 border border-zinc-800">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-zinc-900 flex items-center justify-center text-2xl border border-zinc-800">
               🛒
             </div>
-            <p className="text-zinc-200 font-bold text-xs">Tu carrito está vacío</p>
-            <p className="text-zinc-500 text-[11px] mt-0.5">Agrega productos del catálogo.</p>
+            <div>
+              <p className="text-zinc-200 font-bold text-xs">Tu carrito está vacío</p>
+              <p className="text-zinc-500 text-[11px] mt-0.5">Agrega productos del catálogo.</p>
+            </div>
+            <button
+              onClick={closeCart}
+              className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition cursor-pointer shadow-md"
+            >
+              Continuar comprando 🛍️
+            </button>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar min-h-0">
@@ -164,7 +172,7 @@ export default function CartDrawer() {
           </div>
         )}
 
-        {/* PIE DE PAGO FIJO Y COMPACTO */}
+        {/* PIE DE PAGO Y BOTONES DE CONTINUAR COMPRANDO */}
         {cart.length > 0 && (
           <div className="mt-3 border-t border-zinc-800/80 pt-3 space-y-2.5 shrink-0 bg-[#121214]">
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex justify-between items-center shadow-inner">
@@ -174,15 +182,24 @@ export default function CartDrawer() {
               </span>
             </div>
 
-            {/* CHECKOUT WHATSAPP CON OPCIÓN DESPLEGABLE */}
+            {/* CHECKOUT WHATSAPP CON ESTADO DE ÉXITO Y LIMPIEZA */}
             <WhatsAppCheckout cartItems={cart} totalAmount={total} onClose={closeCart} />
 
-            <button
-              onClick={() => setShowCheckout(true)}
-              className="w-full py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-[11px] transition-all cursor-pointer border border-zinc-800"
-            >
-              Completar con formulario web 📋
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setShowCheckout(true)}
+                className="py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-[11px] transition-all cursor-pointer border border-zinc-800"
+              >
+                Formulario Web 📋
+              </button>
+
+              <button
+                onClick={closeCart}
+                className="py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-[11px] transition-all cursor-pointer border border-zinc-800 text-center"
+              >
+                Continuar comprando 🛍️
+              </button>
+            </div>
 
             {showCheckout && (
               <CheckoutModal
