@@ -28,7 +28,7 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
     const itemsDescription = cartItems.map(item => `${item.quantity}x ${item.name}`).join(", ");
 
     try {
-      // 1. Guardar el pedido en Firebase Firestore (Colección "orders")
+      // 🚀 ALMACENA EL PEDIDO REAL EN FIREBASE FIRESTORE
       await addDoc(collection(db, "orders"), {
         client: customerName,
         phone: customerPhone,
@@ -46,7 +46,6 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
       setLoading(false);
     }
 
-    // 2. Armar el mensaje de WhatsApp
     const phoneNumber = "51950323959"; 
     const typeText = deliveryType === "DELIVERY" ? "🛵 Envío a Domicilio" : "🏪 Recojo en Local";
 
@@ -68,7 +67,6 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, "_blank");
 
-    // 3. Marcar éxito y limpiar carrito
     setIsSuccess(true);
     if (typeof clearCart === "function") {
       clearCart();
@@ -83,8 +81,8 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
             ✓
           </div>
           <div className="space-y-1">
-            <h4 className="text-xs font-black text-emerald-300">¡Se procesó su compra con éxito!</h4>
-            <p className="text-[11px] text-zinc-300">El local de Minimarket Pamela se encuentra preparando su pedido 👨‍🍳📦</p>
+            <h4 className="text-xs font-black text-emerald-300">¡Se almacenó y procesó su compra!</h4>
+            <p className="text-[11px] text-zinc-300">El local de Minimarket Pamela ya tiene su pedido en pantalla 👨‍🍳📦</p>
           </div>
           <button
             type="button"
@@ -175,7 +173,7 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
             disabled={loading}
             className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black py-2.5 px-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer border border-emerald-400/30 mt-1 disabled:opacity-50"
           >
-            <span>{loading ? "Registrando pedido..." : "Enviar Pedido por WhatsApp 🚀"}</span>
+            <span>{loading ? "Guardando pedido..." : "Enviar Pedido por WhatsApp 🚀"}</span>
           </button>
         </form>
       )}

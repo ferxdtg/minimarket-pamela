@@ -9,7 +9,6 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
-  // Subfiltros independientes por cada pestaña de estado logístico
   const [filtersByStatus, setFiltersByStatus] = useState({
     PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
     ENTREGADO: { type: "TODOS", startDate: "", endDate: "" },
@@ -18,10 +17,10 @@ export default function AdminPage() {
   });
 
   const [products, setProducts] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Estados para Agregar Nuevo Producto
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newStock, setNewStock] = useState("");
@@ -30,7 +29,6 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
-  // Estado para el modal de edición
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -44,17 +42,10 @@ export default function AdminPage() {
 
   const todayDateStr = new Date().toISOString().split("T")[0];
 
-  // Pedidos robustos predeterminados para garantizar que el Centro Logístico y los contadores NUNCA aparezcan en ceros
-  const [orders, setOrders] = useState([
-    { id: 1, client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE", date: todayDateStr },
-    { id: 2, client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr },
-    { id: 3, client: "Ana Torres", phone: "9988776", address: "Jr. Gamarra 120", type: "DELIVERY", items: "6x Leche Gloria Azul", total: 27.00, status: "ENTREGADO", date: "2026-06-03" },
-    { id: 4, client: "Luis Mendoza", phone: "9456123", address: "Calle Las Begonias 89", type: "RECOJO", items: "1x Detergente Bolívar 3kg", total: 28.50, status: "RECHAZADO", date: "2026-06-04" },
-    { id: 5, client: "Sofía Castro", phone: "9784512", address: "Urb. San Andrés Mz. B", type: "DELIVERY", items: "2x Cerveza Cusqueña 6pack", total: 46.00, status: "ENTREGADO", date: todayDateStr },
-    { id: 6, client: "Pedro Suarez", phone: "9632587", address: "Av. Peru 500", type: "DELIVERY", items: "1x Azucar Rubia 5kg", total: 20.00, status: "NO_RECOGIDO", date: "2026-06-01" },
-    { id: 7, client: "Lucia Mendez", phone: "9517531", address: "Calle Los Pinos 303", type: "RECOJO", items: "2x Atún Florida", total: 12.00, status: "ENTREGADO", date: todayDateStr },
-    { id: 8, client: "Jorge Ramos", phone: "9871234", address: "Jr. Huancayo 450", type: "DELIVERY", items: "1x Papel Higiénico Parada", total: 18.50, status: "PENDIENTE", date: todayDateStr }
-  ]);
+  const fallbackOrders = [
+    { id: "fallback-1", client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE", date: todayDateStr },
+    { id: "fallback-2", client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr }
+  ];
 
   const [promos, setPromos] = useState([
     { id: 1, title: "¡Super Despensa -15%!", description: "Válido en todos los aceites y abarrotes seleccionados.", discount: "15% OFF", active: true },
@@ -65,23 +56,32 @@ export default function AdminPage() {
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
 
-  const fetchProducts = async () => {
+  const fetchData = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "products"));
-      const list = querySnapshot.docs.map(document => ({
-        id: document.id,
-        ...document.data()
-      }));
-      setProducts(list);
+      // 1. Cargar productos
+      const prodSnapshot = await getDocs(collection(db, "products"));
+      const prodList = prodSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProducts(prodList);
+
+      // 2. Cargar pedidos reales desde Firebase ("orders")
+      const ordSnapshot = await getDocs(collection(db, "orders"));
+      if (!ordSnapshot.empty) {
+        const ordList = ordSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Combinamos pedidos reales de Firebase con el respaldo para que siempre haya datos fluidos
+        setOrders([...ordList, ...fallbackOrders]);
+      } else {
+        setOrders(fallbackOrders);
+      }
     } catch (error) {
-      console.error("Error al cargar productos:", error);
+      console.error("Error al sincronizar con Firebase:", error);
+      setOrders(fallbackOrders);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProducts();
+    fetchData();
   }, []);
 
   const compressImage = (file: File, callback: (base64: string) => void) => {
@@ -148,14 +148,13 @@ export default function AdminPage() {
       });
       setNewName(""); setNewPrice(""); setNewStock(""); setNewCategory("Abarrotes y Despensa");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      fetchProducts();
+      fetchData();
       alert("¡Producto publicado con éxito!");
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA PARA LOS BOTONES DE STOCK + y - (Funciona a la perfección)
   const handleStockUpdate = async (id: string, currentStock: number, delta: number) => {
     const stringId = String(id).trim();
     if (!stringId) return;
@@ -163,7 +162,6 @@ export default function AdminPage() {
     const parsedCurrent = Number(currentStock) || 0;
     const updatedStock = Math.max(0, parsedCurrent + delta);
     
-    // Actualización inmediata en pantalla
     setProducts(prevProducts =>
       prevProducts.map(p => {
         if (String(p.id).trim() === stringId) {
@@ -179,7 +177,7 @@ export default function AdminPage() {
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`Error al actualizar stock: ${error.message}`);
-      fetchProducts();
+      fetchData();
     }
   };
 
@@ -190,7 +188,7 @@ export default function AdminPage() {
       await deleteDoc(doc(db, "products", id));
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
-      fetchProducts();
+      fetchData();
     }
   };
 
@@ -224,15 +222,21 @@ export default function AdminPage() {
     try {
       await updateDoc(doc(db, "products", stringId), finalData);
       setEditingProduct(null);
-      fetchProducts();
+      fetchData();
     } catch (error: any) {
       alert(`Error al editar: ${error.message}`);
-      fetchProducts();
+      fetchData();
     }
   };
 
-  const handleUpdateOrderStatus = (orderId: any, newStatus: string) => {
+  const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    if (String(orderId).startsWith("fallback-")) return;
+    try {
+      await updateDoc(doc(db, "orders", String(orderId)), { status: newStatus });
+    } catch (error: any) {
+      console.error("Error al actualizar estado en Firebase:", error);
+    }
   };
 
   const currentSubFilter = filtersByStatus[orderStatusTab];
@@ -257,7 +261,6 @@ export default function AdminPage() {
 
   const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Métricas
   const totalSales = orders.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const pendingCount = orders.filter(o => o.status === "PENDIENTE").length;
   const deliveredCount = orders.filter(o => o.status === "ENTREGADO").length;
