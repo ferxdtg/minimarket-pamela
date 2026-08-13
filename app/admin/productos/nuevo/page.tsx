@@ -92,7 +92,6 @@ export default function AdminPage() {
 
   // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
-    // Inicializar categorías por defecto en Firestore si la colección está vacía
     const initDefaultCategories = async () => {
       try {
         const catSnap = await getDocs(collection(db, "categories"));
@@ -213,7 +212,7 @@ export default function AdminPage() {
         isFeatured: newIsFeatured,
         image: newImage || ""
       });
-      setNewName(""); setNewPrice(""); setNewStock("");
+      setNewName(""); setNewPrice(""); setNewStock(""); setNewCategory("Abarrotes y Despensa");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
       alert("¡Producto publicado con éxito!");
     } catch (error: any) {
@@ -293,7 +292,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS (SINCRONIZADAS 100% CON FIREBASE)
+  // 🏷️ GESTIÓN DE CATEGORÍAS
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -331,7 +330,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (catId: string, catName: string) => {
-    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos que la tengan asignada quedarán sin categoría válida.`)) return;
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
     try {
       await deleteDoc(doc(db, "categories", catId));
       alert(`Categoría "${catName}" eliminada con éxito.`);
@@ -472,11 +471,7 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  // Lista dinámica obtenida 100% de la base de datos de categorías de Firebase
   const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
-
-  // Validar si algún producto se quedó sin una categoría válida
-  const productsWithoutCategory = products?.filter(p => !p.category || !allCategories.includes(p.category)) || [];
 
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
@@ -618,25 +613,6 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🚨 ALERTA URGENTE SI HAY PRODUCTOS SIN CATEGORÍA VÁLIDA */}
-        {productsWithoutCategory.length > 0 && (
-          <div className="bg-red-950/80 border-2 border-red-600 text-red-200 p-3 rounded-xl shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 animate-pulse">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">⚠️</span>
-              <div>
-                <h3 className="font-black text-xs text-white uppercase tracking-wider">¡Alerta Urgente: Productos sin Categoría!</h3>
-                <p className="text-[10px] text-red-300">Hay {productsWithoutCategory.length} producto(s) sin categoría válida. Asígnales una categoría para que se muestren correctamente.</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setActiveTab("inventario")}
-              className="bg-red-600 hover:bg-red-700 text-white font-black px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider shrink-0 cursor-pointer"
-            >
-              Revisar Inventario ➔
-            </button>
-          </div>
-        )}
-
         {/* 🏢 ENCABEZADO FIJO PRINCIPAL */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div>
@@ -783,10 +759,9 @@ export default function AdminPage() {
                     const currentStock = Number(product.stock ?? 0);
                     const isOut = currentStock === 0;
                     const isLow = currentStock > 0 && currentStock <= 5;
-                    const hasNoCat = !product.category || product.category.trim() === "";
 
                     return (
-                      <div key={product.id} className={`bg-zinc-950 border rounded-lg p-2.5 flex items-center justify-between gap-2 ${hasNoCat ? "border-red-600 bg-red-950/20" : "border-zinc-800"}`}>
+                      <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
                             {product.image ? (
@@ -799,11 +774,7 @@ export default function AdminPage() {
                             <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
                             <div className="flex items-center gap-2">
                               <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                              {hasNoCat ? (
-                                <span className="text-[9px] text-red-400 font-bold bg-red-950/80 px-1.5 py-0.5 rounded border border-red-600 animate-pulse">⚠️ SIN CATEGORÍA</span>
-                              ) : (
-                                <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
-                              )}
+                              <span className="text-[9px] text-zinc-500 truncate">({product.category || "Sin categoría"})</span>
                             </div>
                           </div>
                         </div>
@@ -986,13 +957,13 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (Añadir, Editar y Eliminar sincronizado con Firebase) */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS */}
         {activeTab === "categorias" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
-                <h2 className="text-xs font-black text-white">🏷️ Gestión Avanzada de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita (incluso las por defecto) o elimina cualquier categoría de la tienda en tiempo real.</p>
+                <h2 className="text-xs font-black text-white">🏷️ Gestión de Categorías</h2>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina las categorías de la tienda en tiempo real.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
