@@ -365,77 +365,100 @@ export default function AdminPage() {
   const clientsList = Array.from(clientsMap.values());
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white p-4 sm:p-10 font-sans selection:bg-red-600 selection:text-white">
-      <div className="max-w-7xl mx-auto space-y-6">
-        
-        {/* ENCABEZADO */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/65 backdrop-blur-md border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl">
+    <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white">
+      
+      {/* 🎨 NUEVO SIDEBAR CORPORATIVO PROFESIONAL (Opción B) */}
+      <aside className="w-64 bg-zinc-950 border-r border-zinc-800/80 flex flex-col justify-between hidden md:flex shrink-0">
+        <div className="p-6 space-y-6">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">SISTEMA ERP INTEGRADO (LIMA, PERÚ)</span>
+              <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">LIMA, PERÚ</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">Minimarket Pamela Admin</h1>
+            <h1 className="text-base font-black tracking-tight text-white">Minimarket Pamela</h1>
+            <p className="text-[10px] text-zinc-400">Panel ERP Enterprise</p>
           </div>
 
-          <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-3 bg-zinc-950 border border-zinc-800 px-3 sm:px-4 py-2 rounded-xl text-xs shadow-inner">
-            <span className="text-zinc-400 font-medium truncate max-w-[150px] sm:max-w-none">Op: <strong className="text-white">ferxdtg@gmail.com</strong></span>
-            <button className="bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0">
-              Salir
+          <nav className="space-y-1.5">
+            <button
+              onClick={() => setActiveTab("inventario")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "inventario" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              📦 Inventario & Stock
             </button>
-          </div>
+            <button
+              onClick={() => setActiveTab("pedidos")}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "pedidos" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-3">🛒 Centro Logístico</span>
+              {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.5 rounded-full text-[10px] font-black">{pendingCount}</span>}
+            </button>
+            <button
+              onClick={() => setActiveTab("caja")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "caja" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              📊 Caja & Reportes
+            </button>
+            <button
+              onClick={() => setActiveTab("clientes")}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "clientes" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-3">👥 Clientes CRM</span>
+              <span className="text-[10px] text-zinc-500">({clientsList.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("proveedores")}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "proveedores" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-3">🧾 Compras & Gastos</span>
+              <span className="text-[10px] text-zinc-500">({suppliers.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("marketing")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "marketing" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              🎯 Marketing & Promos
+            </button>
+          </nav>
         </div>
 
-        {/* PESTAÑAS PRINCIPALES */}
-        <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
-          <button
-            onClick={() => setActiveTab("inventario")}
-            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
-              activeTab === "inventario" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
-            }`}
-          >
-            📦 Stock
+        <div className="p-4 border-t border-zinc-900 m-4 bg-zinc-950 rounded-xl space-y-2">
+          <div className="text-[11px] text-zinc-400 truncate">Op: <strong className="text-white">ferxdtg@gmail.com</strong></div>
+          <button className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-2 rounded-lg transition text-xs cursor-pointer">
+            Cerrar Sesión
           </button>
-          <button
-            onClick={() => setActiveTab("pedidos")}
-            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
-              activeTab === "pedidos" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
-            }`}
-          >
-            🛒 Pedidos {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.5 rounded-full text-[10px] font-black">{pendingCount}</span>}
-          </button>
-          <button
-            onClick={() => setActiveTab("caja")}
-            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
-              activeTab === "caja" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
-            }`}
-          >
-            📊 Caja & Reportes
-          </button>
-          <button
-            onClick={() => setActiveTab("clientes")}
-            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
-              activeTab === "clientes" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
-            }`}
-          >
-            👥 Clientes ({clientsList.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("proveedores")}
-            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
-              activeTab === "proveedores" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
-            }`}
-          >
-            🧾 Compras ({suppliers.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("marketing")}
-            className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs transition cursor-pointer flex items-center gap-2 shrink-0 shadow-lg ${
-              activeTab === "marketing" ? "bg-red-600 text-white shadow-red-900/30 ring-2 ring-red-500/50" : "bg-zinc-900/80 text-zinc-400 border border-zinc-800 hover:text-white"
-            }`}
-          >
-            🎯 Promos
-          </button>
+        </div>
+      </aside>
+
+      {/* ÁREA DE CONTENIDO PRINCIPAL */}
+      <main className="flex-1 min-h-screen p-4 sm:p-10 space-y-6 overflow-y-auto">
+        
+        {/* ENCABEZADO MÓVIL */}
+        <div className="flex md:hidden justify-between items-center bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
+          <h1 className="text-sm font-black">Minimarket Pamela Admin</h1>
+          <span className="text-[10px] text-emerald-400 font-bold">● En Línea</span>
+        </div>
+
+        {/* PESTAÑAS MÓVILES */}
+        <div className="flex md:hidden gap-2 overflow-x-auto pb-2 custom-scrollbar">
+          <button onClick={() => setActiveTab("inventario")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
+          <button onClick={() => setActiveTab("pedidos")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
+          <button onClick={() => setActiveTab("caja")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
+          <button onClick={() => setActiveTab("clientes")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
+          <button onClick={() => setActiveTab("proveedores")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Compras</button>
+          <button onClick={() => setActiveTab("marketing")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
         </div>
 
         {/* VISTA 1: INVENTARIO */}
@@ -855,44 +878,40 @@ export default function AdminPage() {
 
         {/* 📊 MÓDULO 1: CAJA & REPORTES DIARIOS */}
         {activeTab === "caja" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
-              <h2 className="text-sm font-black text-white flex items-center gap-2">📊 Corte de Caja Diario (Lima, Perú)</h2>
-              <p className="text-xs text-zinc-400">Resumen exclusivo de las ventas completadas el día de hoy: <strong className="text-white">{todayDateStr}</strong></p>
-              
-              <div className="bg-zinc-950 border border-zinc-800 p-5 rounded-2xl space-y-3">
-                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
-                  <span className="text-xs font-bold text-zinc-400 uppercase">Total Ingresos Hoy</span>
-                  <span className="text-xl font-black text-emerald-400">S/ {todaySalesTotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
-                  <span className="text-xs font-bold text-zinc-400 uppercase">Tickets Emitidos Hoy</span>
-                  <span className="text-sm font-black text-white">{todaySalesOrders.length}</span>
-                </div>
-                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
-                  <span className="text-xs font-bold text-zinc-400 uppercase">Ticket Promedio</span>
-                  <span className="text-sm font-black text-amber-400">S/ {todayTicketAverage.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-zinc-400 uppercase">Estado de Caja</span>
-                  <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-[10px] font-bold">🟢 Abierta & Cuadrada</span>
-                </div>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ingresos del Día (Lima)</span>
+                <div className="text-2xl font-black text-emerald-400">S/ {todaySalesTotal.toFixed(2)}</div>
+                <p className="text-[11px] text-zinc-500">Fecha actual: {todayDateStr}</p>
+              </div>
+
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Tickets Emitidos Hoy</span>
+                <div className="text-2xl font-black text-blue-400">{todaySalesOrders.length}</div>
+                <p className="text-[11px] text-zinc-500">Órdenes completadas y cobradas</p>
+              </div>
+
+              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ticket Promedio</span>
+                <div className="text-2xl font-black text-amber-400">S/ {todayTicketAverage.toFixed(2)}</div>
+                <p className="text-[11px] text-zinc-500">Valor medio por compra hoy</p>
               </div>
             </div>
 
             <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
-              <h2 className="text-sm font-black text-white">📋 Detalle de Tickets del Día</h2>
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              <h2 className="text-sm font-black text-white">📋 Detalle de Facturación del Día</h2>
+              <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
                 {todaySalesOrders.length === 0 ? (
-                  <p className="text-xs text-zinc-500 text-center py-10">No hay ventas entregadas todavía para el día de hoy.</p>
+                  <p className="text-xs text-zinc-500 text-center py-12">No hay ventas registradas para el día de hoy con hora de Lima.</p>
                 ) : (
                   todaySalesOrders.map((o: any) => (
-                    <div key={o.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex justify-between items-center text-xs">
+                    <div key={o.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 flex justify-between items-center text-xs">
                       <div>
-                        <p className="font-bold text-white">{o.client}</p>
-                        <p className="text-[10px] text-zinc-400">{o.items}</p>
+                        <p className="font-bold text-white text-sm">{o.client} <span className="text-[10px] text-zinc-500 font-normal">({o.phone})</span></p>
+                        <p className="text-[11px] text-zinc-400 mt-0.5">{o.items}</p>
                       </div>
-                      <span className="text-emerald-400 font-black">S/ {(Number(o.total) || 0).toFixed(2)}</span>
+                      <span className="text-emerald-400 font-black text-sm">S/ {(Number(o.total) || 0).toFixed(2)}</span>
                     </div>
                   ))
                 )}
@@ -1191,7 +1210,7 @@ export default function AdminPage() {
           </div>
         )}
 
-      </div>
+      </main>
     </div>
   );
 }
