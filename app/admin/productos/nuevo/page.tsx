@@ -48,7 +48,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados para Módulo de Compras (Facturas detalladas con múltiples ítems)
+  // Estados para Módulo de Compras (Facturas con múltiples ítems)
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceSupplier, setInvoiceSupplier] = useState("");
   const [invoiceItems, setInvoiceItems] = useState<
@@ -57,8 +57,10 @@ export default function AdminPage() {
     { name: "", quantity: 1, unitCost: 0, packageCost: 0 }
   ]);
 
-  // Estado para nueva categoría desde la gestión
+  // Estados para Gestión y Edición de Categorías
   const [newCatName, setNewCatName] = useState("");
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
+  const [editCatName, setEditCatName] = useState("");
 
   // 🕒 HORA EXACTA DE LIMA, PERÚ
   const getLimaDateStr = () => {
@@ -87,10 +89,6 @@ export default function AdminPage() {
     { id: 1, title: "¡Super Despensa -15%!", description: "Válido en todos los aceites y abarrotes seleccionados.", discount: "15% OFF", active: true },
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
-
-  const [newPromoTitle, setNewPromoTitle] = useState("");
-  const [newPromoDesc, setNewPromoDesc] = useState("");
-  const [newPromoDiscount, setNewPromoDiscount] = useState("");
 
   // 🚀 ESCUCHA EN TIEMPO REAL (REAL-TIME SNAPSHOT)
   useEffect(() => {
@@ -279,7 +277,7 @@ export default function AdminPage() {
     }
   };
 
-  // Función para registrar nueva categoría en Firebase
+  // 🏷️ GESTIÓN DE CATEGORÍAS (CREAR, EDITAR, ELIMINAR CON PROTECCIÓN DE NULOS)
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -292,15 +290,46 @@ export default function AdminPage() {
     }
   };
 
-  const handleDeleteCategory = async (id: string, name: string) => {
-    if (!window.confirm(`¿Eliminar la categoría "${name}"?`)) return;
+  const handleUpdateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory || !editCatName.trim()) return;
+    const oldName = editingCategory.name;
+    const newNameCat = editCatName.trim();
+
     try {
-      await deleteDoc(doc(db, "categories", id));
+      if (editingCategory.id) {
+        await updateDoc(doc(db, "categories", editingCategory.id), { name: newNameCat });
+      } else {
+        await addDoc(collection(db, "categories"), { name: newNameCat });
+      }
+
+      const affectedProducts = products.filter(p => p.category === oldName);
+      for (const prod of affectedProducts) {
+        await updateDoc(doc(db, "products", prod.id), { category: newNameCat });
+      }
+
+      setEditingCategory(null);
+      setEditCatName("");
+      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos!`);
+    } catch (error: any) {
+      alert(`Error al actualizar categoría: ${error.message}`);
+    }
+  };
+
+  const handleDeleteCategory = async (catName: string) => {
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos asociados quedarán sin categoría y mostrarán una alerta urgente.`)) return;
+    try {
+      const catObj = categoriesList?.find(c => c.name === catName);
+      if (catObj?.id) {
+        await deleteDoc(doc(db, "categories", catObj.id));
+      }
+      alert(`Categoría "${catName}" eliminada con éxito.`);
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
     }
   };
 
+  // 🚀 FUNCIÓN BLINDADA PARA PEDIDOS
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
@@ -379,40 +408,40 @@ export default function AdminPage() {
     }
   };
 
-  const currentSubFilter = filtersByStatus[orderStatusTab];
+  const currentSubFilter = filtersByStatus[orderStatusTab] || { type: "TODOS", startDate: "", endDate: "" };
 
   const updateSubFilter = (field: "type" | "startDate" | "endDate", value: string) => {
     setFiltersByStatus(prev => ({
       ...prev,
       [orderStatusTab]: {
-        ...prev[orderStatusTab],
+        ...(prev as any)[orderStatusTab],
         [field]: value
       }
     }));
   };
 
-  const filteredOrders = orders.filter(o => {
+  const filteredOrders = orders?.filter(o => {
     if (o.status !== orderStatusTab) return false;
     if (currentSubFilter.type !== "TODOS" && o.type !== currentSubFilter.type) return false;
     if (currentSubFilter.startDate && o.date < currentSubFilter.startDate) return false;
     if (currentSubFilter.endDate && o.date > currentSubFilter.endDate) return false;
     return true;
-  });
+  }) || [];
 
-  const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredProducts = products?.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase())) || [];
 
-  const totalSales = orders.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-  const pendingCount = orders.filter(o => o.status === "PENDIENTE").length;
-  const deliveredCount = orders.filter(o => o.status === "ENTREGADO").length;
-  const rejectedCount = orders.filter(o => o.status === "RECHAZADO").length;
-  const uncollectedCount = orders.filter(o => o.status === "NO_RECOGIDO").length;
+  const totalSales = orders?.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0) || 0;
+  const pendingCount = orders?.filter(o => o.status === "PENDIENTE").length || 0;
+  const deliveredCount = orders?.filter(o => o.status === "ENTREGADO").length || 0;
+  const rejectedCount = orders?.filter(o => o.status === "RECHAZADO").length || 0;
+  const uncollectedCount = orders?.filter(o => o.status === "NO_RECOGIDO").length || 0;
 
-  const todaySalesOrders = orders.filter(o => o.status === "ENTREGADO" && o.date === todayDateStr);
+  const todaySalesOrders = orders?.filter(o => o.status === "ENTREGADO" && o.date === todayDateStr) || [];
   const todaySalesTotal = todaySalesOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const todayTicketAverage = todaySalesOrders.length > 0 ? (todaySalesTotal / todaySalesOrders.length) : 0;
 
   const clientsMap = new Map();
-  orders.forEach(o => {
+  orders?.forEach(o => {
     if (o.client) {
       const phone = o.phone || "Sin teléfono";
       if (!clientsMap.has(phone)) {
@@ -432,10 +461,17 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  // Lista combinada de categorías (por defecto + las creadas en Firebase)
   const defaultCategories = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
-  const dynamicCategories = categoriesList.map(c => c.name);
+  const dynamicCategories = categoriesList?.map(c => c.name) || [];
   const allCategories = Array.from(new Set([...defaultCategories, ...dynamicCategories]));
+
+  const productsWithoutCategory = products?.filter(p => !p.category || !allCategories.includes(p.category)) || [];
+
+  const handleLogout = () => {
+    if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
+      window.location.href = "/";
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white text-xs">
@@ -556,7 +592,7 @@ export default function AdminPage() {
           {isSidebarExpanded ? (
             <div className="space-y-1.5">
               <span className="text-[10px] text-zinc-400 truncate block">ferxdtg@gmail.com</span>
-              <button onClick={(e) => e.stopPropagation()} className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-1.5 rounded transition text-[10px] cursor-pointer">
+              <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-1.5 rounded transition text-[10px] cursor-pointer">
                 Salir
               </button>
             </div>
@@ -571,6 +607,25 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
+        {/* 🚨 ALERTA URGENTE SI HAY PRODUCTOS SIN CATEGORÍA */}
+        {productsWithoutCategory.length > 0 && (
+          <div className="bg-red-950/80 border-2 border-red-600 text-red-200 p-3 rounded-xl shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 animate-pulse">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              <div>
+                <h3 className="font-black text-xs text-white uppercase tracking-wider">¡Alerta Urgente: Productos sin Categoría!</h3>
+                <p className="text-[10px] text-red-300">Hay {productsWithoutCategory.length} producto(s) huérfano(s) debido a una eliminación de categoría. Asígnales una categoría de inmediato.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveTab("inventario")}
+              className="bg-red-600 hover:bg-red-700 text-white font-black px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider shrink-0 cursor-pointer"
+            >
+              Revisar Inventario ➔
+            </button>
+          </div>
+        )}
+
         {/* 🏢 ENCABEZADO FIJO PRINCIPAL */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div>
@@ -583,7 +638,13 @@ export default function AdminPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
               <span className="text-zinc-300 font-medium truncate max-w-[130px] sm:max-w-none">ferxdtg@gmail.com</span>
             </div>
-            <span className="text-[9px] bg-zinc-900 px-2 py-0.5 rounded text-zinc-400 font-bold hidden sm:inline">Lima: {todayDateStr}</span>
+            <button
+              onClick={handleLogout}
+              className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900 px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer"
+              title="Cerrar Sesión"
+            >
+              Salir
+            </button>
           </div>
         </div>
 
@@ -646,7 +707,7 @@ export default function AdminPage() {
 
                 <div>
                   <div className="flex justify-between items-center mb-0.5">
-                    <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría</label>
+                    <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría de Tienda</label>
                     <button type="button" onClick={() => setActiveTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar Categorías</button>
                   </div>
                   <select
@@ -711,9 +772,10 @@ export default function AdminPage() {
                     const currentStock = Number(product.stock ?? 0);
                     const isOut = currentStock === 0;
                     const isLow = currentStock > 0 && currentStock <= 5;
+                    const hasNoCat = !product.category || !allCategories.includes(product.category);
 
                     return (
-                      <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                      <div key={product.id} className={`bg-zinc-950 border rounded-lg p-2.5 flex items-center justify-between gap-2 ${hasNoCat ? "border-red-600 bg-red-950/20" : "border-zinc-800"}`}>
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
                             {product.image ? (
@@ -724,7 +786,14 @@ export default function AdminPage() {
                           </div>
                           <div className="min-w-0">
                             <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                            <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                              {hasNoCat ? (
+                                <span className="text-[9px] text-red-400 font-bold bg-red-950/80 px-1.5 py-0.5 rounded border border-red-600 animate-pulse">⚠️ SIN CATEGORÍA</span>
+                              ) : (
+                                <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -761,6 +830,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => openEditModal(product)}
                             className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
+                            title="Editar"
                           >
                             ✏️
                           </button>
@@ -769,6 +839,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => handleDeleteProduct(product.id, product.name)}
                             className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
+                            title="Eliminar"
                           >
                             🗑️
                           </button>
@@ -904,49 +975,73 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA NUEVA: GESTIÓN DE CATEGORÍAS (Opción 1 y 2) */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (Añadir, Editar y Eliminar) */}
         {activeTab === "categorias" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
-              <h2 className="text-xs font-black text-white">🏷️ Añadir Nueva Categoría</h2>
-              <form onSubmit={handleAddCategory} className="space-y-3">
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre de Categoría</label>
-                  <input
-                    type="text"
-                    value={newCatName}
-                    onChange={e => setNewCatName(e.target.value)}
-                    placeholder="Ej. Bebidas Energizantes, Cuidado Personal"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                    required
-                  />
-                </div>
-                <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
-              </form>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
+              <div>
+                <h2 className="text-xs font-black text-white">🏷️ Gestión Avanzada de Categorías</h2>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda.</p>
+              </div>
+              <button
+                onClick={() => setActiveTab("inventario")}
+                className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+              >
+                ← Volver a Inventario & Stock
+              </button>
             </div>
 
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <h2 className="text-xs font-black text-white">Listado de Categorías Activas ({allCategories.length})</h2>
-              <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                {allCategories.map((cat, i) => {
-                  const dbCatObj = categoriesList.find(c => c.name === cat);
-                  return (
-                    <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
-                      <span className="font-bold text-white">{cat}</span>
-                      {dbCatObj ? (
-                        <button onClick={() => handleDeleteCategory(dbCatObj.id, cat)} className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2 py-1 rounded cursor-pointer">Eliminar</button>
-                      ) : (
-                        <span className="text-[9px] text-zinc-500 italic">Por defecto</span>
-                      )}
-                    </div>
-                  );
-                })}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
+                <h3 className="text-xs font-black text-white">✨ Crear Nueva Categoría</h3>
+                <form onSubmit={handleAddCategory} className="space-y-3">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
+                    <input
+                      type="text"
+                      value={newCatName}
+                      onChange={e => setNewCatName(e.target.value)}
+                      placeholder="Ej. Bebidas Energizantes, Lácteos Premium"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
+                </form>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+                <h3 className="text-xs font-black text-white">Listado de Categorías ({allCategories.length})</h3>
+                <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                  {allCategories.map((cat, i) => {
+                    const dbCatObj = categoriesList?.find(c => c.name === cat);
+                    return (
+                      <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                        <span className="font-bold text-white text-xs">{cat}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { setEditingCategory(dbCatObj || { name: cat }); setEditCatName(cat); }}
+                            className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCategory(cat)}
+                            className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
+                          >
+                            🗑️ Eliminar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* 📊 MÓDULO 1: CAJA & REPORTES */}
+        {/* 📊 MÓDULO 4: CAJA & REPORTES */}
         {activeTab === "caja" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -985,7 +1080,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 👥 MÓDULO 3: CLIENTES CRM */}
+        {/* 👥 MÓDULO 5: CLIENTES CRM */}
         {activeTab === "clientes" && (
           <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
             <h2 className="text-xs font-black text-white">👥 Clientes Frecuentes ({clientsList.length})</h2>
@@ -1008,7 +1103,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🧾 MÓDULO 4: FACTURAS DE COMPRAS DETALLADAS (Opción A) */}
+        {/* 🧾 MÓDULO 6: FACTURAS DE COMPRAS DETALLADAS (Opción A) */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
@@ -1073,7 +1168,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 6: MARKETING */}
+        {/* VISTA 7: MARKETING */}
         {activeTab === "marketing" && (
           <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
             <h2 className="text-xs font-black text-white">Banners y Promos Activas</h2>
@@ -1091,7 +1186,37 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* MODAL DE EDICIÓN DE PRODUCTO VALIDADO */}
+        {/* MODAL DE EDICIÓN DE CATEGORÍA */}
+        {editingCategory && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                <h3 className="text-xs font-black">Editar Categoría: "{editingCategory.name}"</h3>
+                <button type="button" onClick={() => setEditingCategory(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
+              </div>
+
+              <form onSubmit={handleUpdateCategory} className="space-y-3">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nuevo Nombre</label>
+                  <input
+                    type="text"
+                    value={editCatName}
+                    onChange={e => setEditCatName(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+                <p className="text-[10px] text-amber-400">⚠️ Al renombrar esta categoría, se actualizarán automáticamente todos los productos que la tengan asignada.</p>
+                <div className="flex gap-2 pt-2 border-t border-zinc-800">
+                  <button type="button" onClick={() => setEditingCategory(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
+                  <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white cursor-pointer shadow-lg">Actualizar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DE EDICIÓN DE PRODUCTO */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
