@@ -292,7 +292,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS (ELIMINACIÓN REAL EN FIREBASE)
+  // 🏷️ GESTIÓN DE CATEGORÍAS (ELIMINACIÓN LIBRE)
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -334,7 +334,7 @@ export default function AdminPage() {
     try {
       if (catId) {
         await deleteDoc(doc(db, "categories", catId));
-        alert(`Categoría "${catName}" eliminada con éxito de la base de datos.`);
+        alert(`Categoría "${catName}" eliminada con éxito.`);
       }
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
@@ -473,7 +473,6 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  // 🏷️ TODAS LAS CATEGORÍAS VIVEN EN FIREBASE
   const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
 
   const handleLogout = () => {
@@ -960,7 +959,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: GESTIÓN DE CATEGORÍAS */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (CUALQUIER CATEGORÍA SE PUEDE ELIMINAR O EDITAR) */}
         {activeTab === "categorias" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
