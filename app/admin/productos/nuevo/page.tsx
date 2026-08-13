@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -90,8 +90,23 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // 🚀 ESCUCHA EN TIEMPO REAL (REAL-TIME SNAPSHOT)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
+    const initDefaultCategories = async () => {
+      try {
+        const catSnap = await getDocs(collection(db, "categories"));
+        if (catSnap.empty) {
+          const defaults = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
+          for (const d of defaults) {
+            await addDoc(collection(db, "categories"), { name: d });
+          }
+        }
+      } catch (err) {
+        console.error("Error inicializando categorías:", err);
+      }
+    };
+    initDefaultCategories();
+
     const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
       const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prodList);
@@ -197,7 +212,7 @@ export default function AdminPage() {
         isFeatured: newIsFeatured,
         image: newImage || ""
       });
-      setNewName(""); setNewPrice(""); setNewStock(""); setNewCategory("Abarrotes y Despensa");
+      setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
       alert("¡Producto publicado con éxito!");
     } catch (error: any) {
@@ -277,7 +292,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS (CON RESPALDO POR DEFECTO Y FIREBASE)
+  // 🏷️ GESTIÓN DE CATEGORÍAS (TODAS TIENEN SU BOTÓN DE ELIMINAR)
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -299,9 +314,6 @@ export default function AdminPage() {
     try {
       if (editingCategory.id) {
         await updateDoc(doc(db, "categories", editingCategory.id), { name: newNameCat });
-      } else {
-        // Si era una categoría por defecto sin ID en Firebase, la registramos como nueva
-        await addDoc(collection(db, "categories"), { name: newNameCat });
       }
 
       const affectedProducts = products.filter(p => p.category === oldName);
@@ -318,12 +330,12 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (catId: string, catName: string) => {
-    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría principal "${catName}"?`)) return;
     try {
       if (catId) {
         await deleteDoc(doc(db, "categories", catId));
+        alert(`Categoría "${catName}" eliminada con éxito.`);
       }
-      alert(`Categoría "${catName}" eliminada con éxito.`);
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
     }
@@ -461,10 +473,8 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  // 🛡️ LISTA ROBUSTA DE CATEGORÍAS (Combina predeterminadas + Firestore sin perder ninguna)
-  const defaultCategories = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
-  const dynamicCategories = categoriesList?.map(c => c.name) || [];
-  const allCategories = Array.from(new Set([...defaultCategories, ...dynamicCategories]));
+  // 🏷️ TODAS LAS CATEGORÍAS VIVEN EN FIREBASE
+  const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
 
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
@@ -950,13 +960,13 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: GESTIÓN DE CATEGORÍAS */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (TODAS TIENEN EL BOTÓN DE ELIMINAR) */}
         {activeTab === "categorias" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
                 <h2 className="text-xs font-black text-white">🏷️ Gestión de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita o elimina las categorías de la tienda en tiempo real.</p>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría (incluyendo las principales).</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
@@ -1000,14 +1010,12 @@ export default function AdminPage() {
                           >
                             ✏️ Editar
                           </button>
-                          {dbCatObj?.id && (
-                            <button
-                              onClick={() => handleDeleteCategory(dbCatObj.id, cat)}
-                              className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
-                            >
-                              🗑️ Eliminar
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleDeleteCategory(dbCatObj?.id || "", cat)}
+                            className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
+                          >
+                            🗑️ Eliminar
+                          </button>
                         </div>
                       </div>
                     );
@@ -1256,7 +1264,7 @@ export default function AdminPage() {
                     <input type="checkbox" checked={editForm.isOnSale} onChange={e => setEditForm({ ...editForm, isOnSale: e.target.checked })} className="accent-red-600 w-3.5 h-3.5" /> Oferta 🔥
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                    <input type="checkbox" checked={editForm.isFeatured} onChange={e => setEditingProduct({ ...editForm, isFeatured: e.target.checked })} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
+                    <input type="checkbox" checked={editForm.isFeatured} onChange={e => setEditForm({ ...editForm, isFeatured: e.target.checked })} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
                   </label>
                 </div>
 
