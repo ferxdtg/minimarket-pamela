@@ -9,6 +9,9 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
+  // Estado para controlar si el Sidebar está expandido (por hover o clic)
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+
   // Subfiltros independientes por cada pestaña de estado logístico
   const [filtersByStatus, setFiltersByStatus] = useState({
     PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
@@ -259,10 +262,8 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA Y PERSISTENTE PARA ACTUALIZAR ESTADO DE PEDIDOS
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
-    
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
     
     if (stringOrderId.startsWith("fallback-")) {
@@ -367,78 +368,117 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white">
       
-      {/* 🎨 NUEVO SIDEBAR CORPORATIVO PROFESIONAL (Opción B) */}
-      <aside className="w-64 bg-zinc-950 border-r border-zinc-800/80 flex flex-col justify-between hidden md:flex shrink-0">
-        <div className="p-6 space-y-6">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">LIMA, PERÚ</span>
-            </div>
-            <h1 className="text-base font-black tracking-tight text-white">Minimarket Pamela</h1>
-            <p className="text-[10px] text-zinc-400">Panel ERP Enterprise</p>
+      {/* 🎨 SIDEBAR INTELIGENTE (Colapsado por defecto, se despliega al pasar el cursor o hacer clic) */}
+      <aside 
+        onMouseEnter={() => setIsSidebarExpanded(true)}
+        onMouseLeave={() => setIsSidebarExpanded(false)}
+        onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+        className={`transition-all duration-300 ease-in-out bg-zinc-950 border-r border-zinc-800/80 flex flex-col justify-between hidden md:flex shrink-0 z-40 ${
+          isSidebarExpanded ? "w-64 shadow-2xl" : "w-20"
+        }`}
+      >
+        <div className="p-4 space-y-6 overflow-hidden">
+          <div className="flex items-center gap-3 px-2 py-1">
+            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+            {isSidebarExpanded && (
+              <div className="whitespace-nowrap transition-opacity duration-300">
+                <h1 className="text-sm font-black tracking-tight text-white">Minimarket Pamela</h1>
+                <p className="text-[9px] text-zinc-400">ERP Enterprise (Lima)</p>
+              </div>
+            )}
           </div>
 
           <nav className="space-y-1.5">
             <button
-              onClick={() => setActiveTab("inventario")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
-                activeTab === "inventario" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setIsSidebarExpanded(false); }}
+              title="Inventario & Stock"
+              className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "inventario" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              📦 Inventario & Stock
+              <span className="text-base shrink-0">📦</span>
+              {isSidebarExpanded && <span className="whitespace-nowrap">Inventario & Stock</span>}
             </button>
+
             <button
-              onClick={() => setActiveTab("pedidos")}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
-                activeTab === "pedidos" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              onClick={(e) => { e.stopPropagation(); setActiveTab("pedidos"); setIsSidebarExpanded(false); }}
+              title="Centro Logístico"
+              className={`w-full flex items-center justify-between px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "pedidos" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="flex items-center gap-3">🛒 Centro Logístico</span>
-              {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.5 rounded-full text-[10px] font-black">{pendingCount}</span>}
+              <span className="flex items-center gap-4">
+                <span className="text-base shrink-0">🛒</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Centro Logístico</span>}
+              </span>
+              {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0">{pendingCount}</span>}
             </button>
+
             <button
-              onClick={() => setActiveTab("caja")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
-                activeTab === "caja" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              onClick={(e) => { e.stopPropagation(); setActiveTab("caja"); setIsSidebarExpanded(false); }}
+              title="Caja & Reportes"
+              className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "caja" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              📊 Caja & Reportes
+              <span className="text-base shrink-0">📊</span>
+              {isSidebarExpanded && <span className="whitespace-nowrap">Caja & Reportes</span>}
             </button>
+
             <button
-              onClick={() => setActiveTab("clientes")}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
-                activeTab === "clientes" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              onClick={(e) => { e.stopPropagation(); setActiveTab("clientes"); setIsSidebarExpanded(false); }}
+              title="Clientes CRM"
+              className={`w-full flex items-center justify-between px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "clientes" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="flex items-center gap-3">👥 Clientes CRM</span>
-              <span className="text-[10px] text-zinc-500">({clientsList.length})</span>
+              <span className="flex items-center gap-4">
+                <span className="text-base shrink-0">👥</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Clientes CRM</span>}
+              </span>
+              {isSidebarExpanded && <span className="text-[10px] text-zinc-500 shrink-0">({clientsList.length})</span>}
             </button>
+
             <button
-              onClick={() => setActiveTab("proveedores")}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
-                activeTab === "proveedores" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
+              title="Compras & Proveedores"
+              className={`w-full flex items-center justify-between px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "proveedores" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="flex items-center gap-3">🧾 Compras & Gastos</span>
-              <span className="text-[10px] text-zinc-500">({suppliers.length})</span>
+              <span className="flex items-center gap-4">
+                <span className="text-base shrink-0">🧾</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Facturas Compras</span>}
+              </span>
+              {isSidebarExpanded && <span className="text-[10px] text-zinc-500 shrink-0">({suppliers.length})</span>}
             </button>
+
             <button
-              onClick={() => setActiveTab("marketing")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
-                activeTab === "marketing" ? "bg-red-600 text-white shadow-lg shadow-red-900/30" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              onClick={(e) => { e.stopPropagation(); setActiveTab("marketing"); setIsSidebarExpanded(false); }}
+              title="Marketing & Promos"
+              className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+                activeTab === "marketing" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              🎯 Marketing & Promos
+              <span className="text-base shrink-0">🎯</span>
+              {isSidebarExpanded && <span className="whitespace-nowrap">Marketing & Promos</span>}
             </button>
           </nav>
         </div>
 
-        <div className="p-4 border-t border-zinc-900 m-4 bg-zinc-950 rounded-xl space-y-2">
-          <div className="text-[11px] text-zinc-400 truncate">Op: <strong className="text-white">ferxdtg@gmail.com</strong></div>
-          <button className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-2 rounded-lg transition text-xs cursor-pointer">
-            Cerrar Sesión
-          </button>
+        <div className="p-3 border-t border-zinc-900 m-3 bg-zinc-900/50 rounded-xl space-y-2">
+          {isSidebarExpanded ? (
+            <div className="space-y-2">
+              <div className="text-[11px] text-zinc-400 truncate">Op: <strong className="text-white">ferxdtg@gmail.com</strong></div>
+              <button onClick={(e) => e.stopPropagation()} className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-2 rounded-lg transition text-xs cursor-pointer">
+                Cerrar Sesión
+              </button>
+            </div>
+          ) : (
+            <div className="flex justify-center py-1">
+              <span className="w-2 h-2 rounded-full bg-red-500" title="Sesión Activa"></span>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -1179,7 +1219,7 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1">Fotografía del Producto</label>
+                  <label className="block text-zinc-400 font-bold mb-1">Fotografía delProducto</label>
                   <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl p-3">
                     <div className="relative w-12 h-12 bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-zinc-800">
                       {editForm.image ? (
@@ -1202,7 +1242,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="flex gap-2 pt-3 border-t border-zinc-800">
-                  <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 py-2.5 rounded-xl bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
+                  <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 py-2.5 rounded-xl bg-zinc-800 font-bold text-zinc-300 cursor-pointer">CancelarNav</button>
                   <button type="submit" className="flex-1 py-2.5 rounded-xl bg-red-600 font-bold text-white cursor-pointer shadow-lg">Guardar</button>
                 </div>
               </form>
