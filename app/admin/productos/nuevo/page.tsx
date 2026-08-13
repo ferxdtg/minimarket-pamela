@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -90,8 +90,24 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // 🚀 ESCUCHA EN TIEMPO REAL (REAL-TIME SNAPSHOT)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
+    // Inicializar categorías por defecto en Firestore si la colección está vacía
+    const initDefaultCategories = async () => {
+      try {
+        const catSnap = await getDocs(collection(db, "categories"));
+        if (catSnap.empty) {
+          const defaults = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
+          for (const d of defaults) {
+            await addDoc(collection(db, "categories"), { name: d });
+          }
+        }
+      } catch (err) {
+        console.error("Error inicializando categorías:", err);
+      }
+    };
+    initDefaultCategories();
+
     const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
       const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prodList);
@@ -197,7 +213,7 @@ export default function AdminPage() {
         isFeatured: newIsFeatured,
         image: newImage || ""
       });
-      setNewName(""); setNewPrice(""); setNewStock(""); setNewCategory("Abarrotes y Despensa");
+      setNewName(""); setNewPrice(""); setNewStock("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
       alert("¡Producto publicado con éxito!");
     } catch (error: any) {
@@ -277,7 +293,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS
+  // 🏷️ GESTIÓN DE CATEGORÍAS (SINCRONIZADAS 100% CON FIREBASE)
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -299,8 +315,6 @@ export default function AdminPage() {
     try {
       if (editingCategory.id) {
         await updateDoc(doc(db, "categories", editingCategory.id), { name: newNameCat });
-      } else {
-        await addDoc(collection(db, "categories"), { name: newNameCat });
       }
 
       const affectedProducts = products.filter(p => p.category === oldName);
@@ -316,13 +330,10 @@ export default function AdminPage() {
     }
   };
 
-  const handleDeleteCategory = async (catName: string) => {
-    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos que la tengan asignada pasarán a estar sin categoría válida.`)) return;
+  const handleDeleteCategory = async (catId: string, catName: string) => {
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos que la tengan asignada quedarán sin categoría válida.`)) return;
     try {
-      const catObj = categoriesList?.find(c => c.name === catName);
-      if (catObj?.id) {
-        await deleteDoc(doc(db, "categories", catObj.id));
-      }
+      await deleteDoc(doc(db, "categories", catId));
       alert(`Categoría "${catName}" eliminada con éxito.`);
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
@@ -461,12 +472,11 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  const defaultCategories = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
-  const dynamicCategories = categoriesList?.map(c => c.name) || [];
-  const allCategories = Array.from(new Set([...defaultCategories, ...dynamicCategories]));
+  // Lista dinámica obtenida 100% de la base de datos de categorías de Firebase
+  const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
 
-  // Lógica lógica real: un producto solo está sin categoría si su campo está vacío o nulo
-  const productsWithoutCategory = products?.filter(p => !p.category || p.category.trim() === "") || [];
+  // Validar si algún producto se quedó sin una categoría válida
+  const productsWithoutCategory = products?.filter(p => !p.category || !allCategories.includes(p.category)) || [];
 
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
@@ -608,14 +618,14 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🚨 ALERTA URGENTE LÓGICA SI HAY PRODUCTOS SIN CATEGORÍA VÁLIDA */}
+        {/* 🚨 ALERTA URGENTE SI HAY PRODUCTOS SIN CATEGORÍA VÁLIDA */}
         {productsWithoutCategory.length > 0 && (
           <div className="bg-red-950/80 border-2 border-red-600 text-red-200 p-3 rounded-xl shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 animate-pulse">
             <div className="flex items-center gap-2">
               <span className="text-lg">⚠️</span>
               <div>
                 <h3 className="font-black text-xs text-white uppercase tracking-wider">¡Alerta Urgente: Productos sin Categoría!</h3>
-                <p className="text-[10px] text-red-300">Hay {productsWithoutCategory.length} producto(s) sin categoría asignada. Asígnales una categoría de inmediato para que aparezcan correctamente en la tienda.</p>
+                <p className="text-[10px] text-red-300">Hay {productsWithoutCategory.length} producto(s) sin categoría válida. Asígnales una categoría para que se muestren correctamente.</p>
               </div>
             </div>
             <button
@@ -976,13 +986,13 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (Añadir, Editar y Eliminar) */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (Añadir, Editar y Eliminar sincronizado con Firebase) */}
         {activeTab === "categorias" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
                 <h2 className="text-xs font-black text-white">🏷️ Gestión Avanzada de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita (incluso las por defecto) o elimina cualquier categoría.</p>
+                <p className="text-[10px] text-zinc-400">Añade, edita (incluso las por defecto) o elimina cualquier categoría de la tienda en tiempo real.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
@@ -1026,12 +1036,14 @@ export default function AdminPage() {
                           >
                             ✏️ Editar
                           </button>
-                          <button
-                            onClick={() => handleDeleteCategory(cat)}
-                            className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
-                          >
-                            🗑️ Eliminar
-                          </button>
+                          {dbCatObj?.id && (
+                            <button
+                              onClick={() => handleDeleteCategory(dbCatObj.id, cat)}
+                              className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
