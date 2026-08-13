@@ -277,7 +277,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS (CREAR, EDITAR, ELIMINAR CON PROTECCIÓN DE NULOS)
+  // 🏷️ GESTIÓN DE CATEGORÍAS
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -317,7 +317,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (catName: string) => {
-    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos asociados quedarán sin categoría y mostrarán una alerta urgente.`)) return;
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos que la tengan asignada pasarán a estar sin categoría válida.`)) return;
     try {
       const catObj = categoriesList?.find(c => c.name === catName);
       if (catObj?.id) {
@@ -465,7 +465,8 @@ export default function AdminPage() {
   const dynamicCategories = categoriesList?.map(c => c.name) || [];
   const allCategories = Array.from(new Set([...defaultCategories, ...dynamicCategories]));
 
-  const productsWithoutCategory = products?.filter(p => !p.category || !allCategories.includes(p.category)) || [];
+  // Lógica lógica real: un producto solo está sin categoría si su campo está vacío o nulo
+  const productsWithoutCategory = products?.filter(p => !p.category || p.category.trim() === "") || [];
 
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
@@ -607,14 +608,14 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🚨 ALERTA URGENTE SI HAY PRODUCTOS SIN CATEGORÍA */}
+        {/* 🚨 ALERTA URGENTE LÓGICA SI HAY PRODUCTOS SIN CATEGORÍA VÁLIDA */}
         {productsWithoutCategory.length > 0 && (
           <div className="bg-red-950/80 border-2 border-red-600 text-red-200 p-3 rounded-xl shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 animate-pulse">
             <div className="flex items-center gap-2">
               <span className="text-lg">⚠️</span>
               <div>
                 <h3 className="font-black text-xs text-white uppercase tracking-wider">¡Alerta Urgente: Productos sin Categoría!</h3>
-                <p className="text-[10px] text-red-300">Hay {productsWithoutCategory.length} producto(s) huérfano(s) debido a una eliminación de categoría. Asígnales una categoría de inmediato.</p>
+                <p className="text-[10px] text-red-300">Hay {productsWithoutCategory.length} producto(s) sin categoría asignada. Asígnales una categoría de inmediato para que aparezcan correctamente en la tienda.</p>
               </div>
             </div>
             <button
@@ -772,7 +773,7 @@ export default function AdminPage() {
                     const currentStock = Number(product.stock ?? 0);
                     const isOut = currentStock === 0;
                     const isLow = currentStock > 0 && currentStock <= 5;
-                    const hasNoCat = !product.category || !allCategories.includes(product.category);
+                    const hasNoCat = !product.category || product.category.trim() === "";
 
                     return (
                       <div key={product.id} className={`bg-zinc-950 border rounded-lg p-2.5 flex items-center justify-between gap-2 ${hasNoCat ? "border-red-600 bg-red-950/20" : "border-zinc-800"}`}>
@@ -981,7 +982,7 @@ export default function AdminPage() {
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
                 <h2 className="text-xs font-black text-white">🏷️ Gestión Avanzada de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda.</p>
+                <p className="text-[10px] text-zinc-400">Añade, edita (incluso las por defecto) o elimina cualquier categoría.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
