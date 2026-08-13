@@ -12,7 +12,7 @@ export default function AdminPage() {
   // Estado para contraer/expandir el Sidebar lateral (solo botones)
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
-  // Subfiltros independientes por cada pestaña de estado logístico
+  // Subfiltros independientes por cada pestaña de estado logístico (con rangos de fecha originales)
   const [filtersByStatus, setFiltersByStatus] = useState({
     PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
     ENTREGADO: { type: "TODOS", startDate: "", endDate: "" },
@@ -517,10 +517,10 @@ export default function AdminPage() {
         </div>
       </aside>
 
-      {/* ÁREA DE CONTENIDO PRINCIPAL COMPACTO */}
+      {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO COMPACTO */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON TÍTULO DIVIDIDO E INDICADOR VERDE INTERMITENTE */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div>
             <h1 className="text-sm sm:text-lg font-black tracking-tight text-white leading-tight">Minimarket Pamela</h1>
@@ -784,7 +784,7 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Subfiltros internos */}
+              {/* Subfiltros internos originales */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="text-zinc-400 font-bold">Tipo:</span>
@@ -807,7 +807,7 @@ export default function AdminPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredOrders.length === 0 ? (
-                <p className="text-zinc-500 text-center py-12 col-span-full">No hay pedidos registrados en esta sección.</p>
+                <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en {orderStatusTab.toLowerCase()} con estos filtros.</p>
               ) : (
                 filteredOrders.map(order => (
                   <div key={order.id} className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3.5 space-y-2.5">
