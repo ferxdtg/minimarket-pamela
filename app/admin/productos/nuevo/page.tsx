@@ -292,7 +292,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS (TODAS TIENEN SU BOTÓN DE ELIMINAR)
+  // 🏷️ GESTIÓN DE CATEGORÍAS (ELIMINACIÓN LIBRE DE CUALQUIER CATEGORÍA)
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -330,7 +330,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (catId: string, catName: string) => {
-    if (!window.confirm(`¿Estás seguro de eliminar la categoría principal "${catName}"?`)) return;
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
     try {
       if (catId) {
         await deleteDoc(doc(db, "categories", catId));
@@ -960,7 +960,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (TODAS TIENEN EL BOTÓN DE ELIMINAR) */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (CUALQUIER CATEGORÍA ES ELIMINABLE) */}
         {activeTab === "categorias" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
