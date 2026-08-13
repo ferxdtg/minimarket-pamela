@@ -292,7 +292,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS (ELIMINACIÓN LIBRE DE CUALQUIER CATEGORÍA)
+  // 🏷️ GESTIÓN DE CATEGORÍAS (ELIMINACIÓN 100% FUNCIONAL Y DIRECTA DESDE FIREBASE)
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -473,7 +473,6 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  // 🏷️ TODAS LAS CATEGORÍAS VIVEN EN FIREBASE
   const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
 
   const handleLogout = () => {
@@ -542,7 +541,7 @@ export default function AdminPage() {
                 <span className="text-sm shrink-0">🏷️</span>
                 {isSidebarExpanded && <span className="whitespace-nowrap">Categorías</span>}
               </span>
-              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({allCategories.length})</span>}
+              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({categoriesList.length})</span>}
             </button>
 
             <button
@@ -960,13 +959,13 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (CUALQUIER CATEGORÍA ES ELIMINABLE) */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (CUALQUIER CATEGORÍA TIENE ID EN FIREBASE Y SE PUEDE ELIMINAR O EDITAR) */}
         {activeTab === "categorias" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
                 <h2 className="text-xs font-black text-white">🏷️ Gestión de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría (incluyendo las principales).</p>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda con total libertad.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
@@ -996,30 +995,27 @@ export default function AdminPage() {
               </div>
 
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <h3 className="text-xs font-black text-white">Listado de Categorías ({allCategories.length})</h3>
+                <h3 className="text-xs font-black text-white">Listado de Categorías ({categoriesList.length})</h3>
                 <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                  {allCategories.map((cat, i) => {
-                    const dbCatObj = categoriesList?.find(c => c.name === cat);
-                    return (
-                      <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
-                        <span className="font-bold text-white text-xs">{cat}</span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => { setEditingCategory(dbCatObj || { name: cat }); setEditCatName(cat); }}
-                            className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
-                          >
-                            ✏️ Editar
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCategory(dbCatObj?.id || "", cat)}
-                            className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
-                          >
-                            🗑️ Eliminar
-                          </button>
-                        </div>
+                  {categoriesList.map((catObj) => (
+                    <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                      <span className="font-bold text-white text-xs">{catObj.name}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
+                          className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
+                          className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
+                        >
+                          🗑️ Eliminar
+                        </button>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
