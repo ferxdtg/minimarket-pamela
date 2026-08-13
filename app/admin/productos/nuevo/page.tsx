@@ -6,13 +6,13 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores">("inventario");
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
-  // Estado para contraer/expandir el Sidebar lateral (solo botones)
+  // Estado para contraer/expandir el Sidebar lateral
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
-  // Subfiltros independientes por cada pestaña de estado logístico (con rangos de fecha)
+  // Subfiltros independientes por cada pestaña de estado logístico
   const [filtersByStatus, setFiltersByStatus] = useState({
     PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
     ENTREGADO: { type: "TODOS", startDate: "", endDate: "" },
@@ -23,6 +23,7 @@ export default function AdminPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -35,7 +36,7 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
-  // Estado completo y validado para el modal de edición de productos
+  // Estado para el modal de edición de productos
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -55,6 +56,9 @@ export default function AdminPage() {
   >([
     { name: "", quantity: 1, unitCost: 0, packageCost: 0 }
   ]);
+
+  // Estado para nueva categoría desde la gestión
+  const [newCatName, setNewCatName] = useState("");
 
   // 🕒 HORA EXACTA DE LIMA, PERÚ
   const getLimaDateStr = () => {
@@ -118,10 +122,18 @@ export default function AdminPage() {
       console.error("Error al escuchar proveedores:", error);
     });
 
+    const unsubscribeCategories = onSnapshot(collection(db, "categories"), (snapshot) => {
+      const catList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCategoriesList(catList);
+    }, (error) => {
+      console.error("Error al escuchar categorías:", error);
+    });
+
     return () => {
       unsubscribeProducts();
       unsubscribeOrders();
       unsubscribeSuppliers();
+      unsubscribeCategories();
     };
   }, []);
 
@@ -230,7 +242,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🛠️ FUNCIÓN VALIDADA PARA ABRIR EL MODAL DE EDICIÓN CON LOS DATOS EXACTOS
   const openEditModal = (product: any) => {
     setEditingProduct(product);
     setEditForm({
@@ -244,7 +255,6 @@ export default function AdminPage() {
     });
   };
 
-  // 🛠️ FUNCIÓN VALIDADA PARA GUARDAR CAMBIOS DESDE EL MODAL DE EDICIÓN
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -269,10 +279,30 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA Y PERSISTENTE PARA ACTUALIZAR ESTADO DE PEDIDOS
+  // Función para registrar nueva categoría en Firebase
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    try {
+      await addDoc(collection(db, "categories"), { name: newCatName.trim() });
+      setNewCatName("");
+      alert("¡Categoría creada con éxito!");
+    } catch (error: any) {
+      alert(`Error al crear categoría: ${error.message}`);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string, name: string) => {
+    if (!window.confirm(`¿Eliminar la categoría "${name}"?`)) return;
+    try {
+      await deleteDoc(doc(db, "categories", id));
+    } catch (error: any) {
+      alert(`Error al eliminar: ${error.message}`);
+    }
+  };
+
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
-    
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
     
     if (stringOrderId.startsWith("fallback-")) {
@@ -304,7 +334,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🧾 Manejo de la factura de compras detallada (Opción A)
   const handleAddInvoiceItem = () => {
     setInvoiceItems([...invoiceItems, { name: "", quantity: 1, unitCost: 0, packageCost: 0 }]);
   };
@@ -344,7 +373,7 @@ export default function AdminPage() {
       setInvoiceNumber("");
       setInvoiceSupplier("");
       setInvoiceItems([{ name: "", quantity: 1, unitCost: 0, packageCost: 0 }]);
-      alert("¡Factura de compra detallada registrada con éxito!");
+      alert("¡Factura de compra registrada con éxito!");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
     }
@@ -403,6 +432,11 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
+  // Lista combinada de categorías (por defecto + las creadas en Firebase)
+  const defaultCategories = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
+  const dynamicCategories = categoriesList.map(c => c.name);
+  const allCategories = Array.from(new Set([...defaultCategories, ...dynamicCategories]));
+
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white text-xs">
       
@@ -450,6 +484,20 @@ export default function AdminPage() {
                 {isSidebarExpanded && <span className="whitespace-nowrap">Centro Logístico</span>}
               </span>
               {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black shrink-0">{pendingCount}</span>}
+            </button>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); setActiveTab("categorias"); setIsSidebarExpanded(false); }}
+              title="Gestión de Categorías"
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                activeTab === "categorias" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🏷️</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Categorías</span>}
+              </span>
+              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({allCategories.length})</span>}
             </button>
 
             <button
@@ -543,6 +591,7 @@ export default function AdminPage() {
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => setActiveTab("inventario")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
+          <button onClick={() => setActiveTab("categorias")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
           <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
           <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Compras</button>
@@ -596,17 +645,18 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Categoría de Tienda</label>
+                  <div className="flex justify-between items-center mb-0.5">
+                    <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría</label>
+                    <button type="button" onClick={() => setActiveTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar Categorías</button>
+                  </div>
                   <select
                     value={newCategory}
                     onChange={e => setNewCategory(e.target.value)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                   >
-                    <option>Abarrotes y Despensa</option>
-                    <option>Snacks</option>
-                    <option>Bebidas y Lácteos</option>
-                    <option>Limpieza y Hogar</option>
-                    <option>Ofertas</option>
+                    {allCategories.map((cat, idx) => (
+                      <option key={idx} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -854,6 +904,48 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* VISTA NUEVA: GESTIÓN DE CATEGORÍAS (Opción 1 y 2) */}
+        {activeTab === "categorias" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
+              <h2 className="text-xs font-black text-white">🏷️ Añadir Nueva Categoría</h2>
+              <form onSubmit={handleAddCategory} className="space-y-3">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre de Categoría</label>
+                  <input
+                    type="text"
+                    value={newCatName}
+                    onChange={e => setNewCatName(e.target.value)}
+                    placeholder="Ej. Bebidas Energizantes, Cuidado Personal"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+                <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
+              </form>
+            </div>
+
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+              <h2 className="text-xs font-black text-white">Listado de Categorías Activas ({allCategories.length})</h2>
+              <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                {allCategories.map((cat, i) => {
+                  const dbCatObj = categoriesList.find(c => c.name === cat);
+                  return (
+                    <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                      <span className="font-bold text-white">{cat}</span>
+                      {dbCatObj ? (
+                        <button onClick={() => handleDeleteCategory(dbCatObj.id, cat)} className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2 py-1 rounded cursor-pointer">Eliminar</button>
+                      ) : (
+                        <span className="text-[9px] text-zinc-500 italic">Por defecto</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 📊 MÓDULO 1: CAJA & REPORTES */}
         {activeTab === "caja" && (
           <div className="space-y-4">
@@ -1051,11 +1143,9 @@ export default function AdminPage() {
                     onChange={e => setEditForm({ ...editForm, category: e.target.value })}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                   >
-                    <option>Abarrotes y Despensa</option>
-                    <option>Snacks</option>
-                    <option>Bebidas y Lácteos</option>
-                    <option>Limpieza y Hogar</option>
-                    <option>Ofertas</option>
+                    {allCategories.map((cat, idx) => (
+                      <option key={idx} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
