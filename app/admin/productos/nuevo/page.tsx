@@ -292,7 +292,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS (ELIMINACIÓN 100% FUNCIONAL Y DIRECTA DESDE FIREBASE)
+  // 🏷️ GESTIÓN DE CATEGORÍAS (ELIMINACIÓN REAL EN FIREBASE)
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -334,7 +334,7 @@ export default function AdminPage() {
     try {
       if (catId) {
         await deleteDoc(doc(db, "categories", catId));
-        alert(`Categoría "${catName}" eliminada con éxito.`);
+        alert(`Categoría "${catName}" eliminada con éxito de la base de datos.`);
       }
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
@@ -473,6 +473,7 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
+  // 🏷️ TODAS LAS CATEGORÍAS VIVEN EN FIREBASE
   const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
 
   const handleLogout = () => {
@@ -959,13 +960,13 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: GESTIÓN DE CATEGORÍAS (CUALQUIER CATEGORÍA TIENE ID EN FIREBASE Y SE PUEDE ELIMINAR O EDITAR) */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS */}
         {activeTab === "categorias" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
                 <h2 className="text-xs font-black text-white">🏷️ Gestión de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda con total libertad.</p>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda en tiempo real.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
