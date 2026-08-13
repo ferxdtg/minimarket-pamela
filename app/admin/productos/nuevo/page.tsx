@@ -9,7 +9,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
-  // Estado para contraer/expandir el Sidebar lateral (solo botones)
+  // Estado para contraer/expandir el Sidebar lateral (solo en PC)
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
   // Subfiltros independientes por cada pestaña de estado logístico
@@ -47,7 +47,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // 🧾 Estados para Módulo de Compras (Facturas con múltiples productos, costo unitario y paquete)
+  // Estados para Módulo de Compras (Facturas detalladas con múltiples ítems)
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceSupplier, setInvoiceSupplier] = useState("");
   const [invoiceItems, setInvoiceItems] = useState<
@@ -338,7 +338,7 @@ export default function AdminPage() {
       setInvoiceNumber("");
       setInvoiceSupplier("");
       setInvoiceItems([{ name: "", quantity: 1, unitCost: 0, packageCost: 0 }]);
-      alert("¡Factura de compra detallada registrada con éxito!");
+      alert("¡Factura de compra registrada con éxito!");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
     }
@@ -400,7 +400,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white">
       
-      {/* 🎨 SIDEBAR LATERAL INTELIGENTE (Solo los botones se ocultan y expanden) */}
+      {/* 🎨 SIDEBAR RETRÁCTIL (PC) */}
       <aside 
         onMouseEnter={() => setIsSidebarExpanded(true)}
         onMouseLeave={() => setIsSidebarExpanded(false)}
@@ -508,34 +508,34 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="flex justify-center py-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Sesión Activa"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" title="Sesión Activa"></span>
             </div>
           )}
         </div>
       </aside>
 
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
-      <main className="flex-1 min-h-screen p-4 sm:p-10 space-y-6 overflow-y-auto">
+      <main className="flex-1 min-h-screen p-3 sm:p-8 space-y-5 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON EL TÍTULO DIVIDIDO Y EL INDICADOR VERDE PARPADEANTE */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/75 backdrop-blur-md border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-          <div className="space-y-0.5">
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">Minimarket Pamela</h1>
-            <p className="text-xs font-semibold text-zinc-400">panel de administración</p>
+        {/* 🏢 ENCABEZADO OPTIMIZADO PARA MÓVIL Y ESCRITORIO */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-zinc-900/75 backdrop-blur-md border border-zinc-800 p-3.5 sm:p-5 rounded-2xl shadow-xl">
+          <div>
+            <h1 className="text-base sm:text-xl font-black tracking-tight text-white">Minimarket Pamela</h1>
+            <p className="text-[11px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
           </div>
 
-          <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-4 bg-zinc-950 border border-zinc-800 px-4 py-2.5 rounded-xl text-xs shadow-inner">
+          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 bg-zinc-950 border border-zinc-800 px-3 py-2 rounded-xl text-xs shadow-inner">
             <div className="flex items-center gap-2">
               {/* Indicador de operador que se enciende y apaga en verde */}
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
-              <span className="text-zinc-300 font-medium">ferxdtg@gmail.com</span>
+              <span className="text-zinc-300 font-medium truncate max-w-[140px] sm:max-w-none">ferxdtg@gmail.com</span>
             </div>
             <span className="text-[10px] bg-zinc-900 px-2.5 py-1 rounded-lg text-zinc-400 font-bold hidden sm:inline">Lima: {todayDateStr}</span>
           </div>
         </div>
 
-        {/* PESTAÑAS MÓVILES (Para dispositivos móviles donde el sidebar lateral está oculto) */}
-        <div className="flex md:hidden gap-2 overflow-x-auto pb-2 custom-scrollbar">
+        {/* PESTAÑAS MÓVILES (Celulares) */}
+        <div className="flex md:hidden gap-2 overflow-x-auto pb-1.5 custom-scrollbar">
           <button onClick={() => setActiveTab("inventario")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
           <button onClick={() => setActiveTab("caja")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
