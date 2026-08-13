@@ -44,7 +44,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // 🧾 Estados para Módulo de Compras (Facturas detalladas)
+  // Estados para Módulo de Compras (Facturas con múltiples ítems)
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceSupplier, setInvoiceSupplier] = useState("");
   const [invoiceItems, setInvoiceItems] = useState<
@@ -112,7 +112,7 @@ export default function AdminPage() {
       const supList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setSuppliers(supList);
     }, (error) => {
-      console.error("Error al escuchar proveedores:", error);
+      console.error("Error al escuchar compras:", error);
     });
 
     return () => {
@@ -952,13 +952,13 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🧾 MÓDULO 4: REGISTRO DE COMPRAS (FACTURAS DETALLADAS CON MÚLTIPLES PRODUCTOS, COSTO UNITARIO Y PAQUETE) */}
+        {/* 🧾 MÓDULO 4: REGISTRO DE COMPRAS (FACTURAS CON 1 O MÁS PRODUCTOS, COSTO UNITARIO Y PAQUETE) */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-6 shadow-xl h-fit space-y-4">
               <h2 className="text-sm font-black text-white flex items-center gap-2">🧾 Registrar Factura de Compra</h2>
-              <p className="text-xs text-zinc-400">Agrega una factura con varios productos, especificando cantidad, costo unitario o costo por paquete.</p>
+              <p className="text-xs text-zinc-400">Ingresa la factura del proveedor con 1 o más productos, cantidad, costo unitario o por paquete.</p>
 
               <form onSubmit={handleSaveInvoice} className="space-y-3.5 text-xs">
                 <div>
@@ -1060,7 +1060,7 @@ export default function AdminPage() {
                   type="submit"
                   className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition shadow-lg cursor-pointer mt-2"
                 >
-                  Guardar Factura en Firebase 🧾
+                  Registrar Factura en Firebase 🧾
                 </button>
               </form>
             </div>
@@ -1069,7 +1069,7 @@ export default function AdminPage() {
               <h2 className="text-sm font-black text-white">Historial de Facturas de Compra ({suppliers.length})</h2>
               <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                 {suppliers.length === 0 ? (
-                  <p className="text-zinc-500 text-center py-12 text-xs">No hay facturas registradas con proveedores todavía.</p>
+                  <p className="text-zinc-500 text-center py-12 text-xs">No hay facturas registradas todavía.</p>
                 ) : (
                   suppliers.map(sup => (
                     <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3 text-xs">
