@@ -12,7 +12,7 @@ export default function AdminPage() {
   // Estado para contraer/expandir el Sidebar lateral (solo botones)
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
-  // Subfiltros independientes por cada pestaña de estado logístico (con rangos de fecha originales)
+  // Subfiltros independientes por cada pestaña de estado logístico (con rangos de fecha)
   const [filtersByStatus, setFiltersByStatus] = useState({
     PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
     ENTREGADO: { type: "TODOS", startDate: "", endDate: "" },
@@ -35,7 +35,7 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
-  // Estado para el modal de edición
+  // Estado completo y validado para el modal de edición de productos
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -230,6 +230,7 @@ export default function AdminPage() {
     }
   };
 
+  // 🛠️ FUNCIÓN VALIDADA PARA ABRIR EL MODAL DE EDICIÓN CON LOS DATOS EXACTOS
   const openEditModal = (product: any) => {
     setEditingProduct(product);
     setEditForm({
@@ -243,6 +244,7 @@ export default function AdminPage() {
     });
   };
 
+  // 🛠️ FUNCIÓN VALIDADA PARA GUARDAR CAMBIOS DESDE EL MODAL DE EDICIÓN
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -261,8 +263,9 @@ export default function AdminPage() {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, finalData);
       setEditingProduct(null);
+      alert("¡Producto actualizado correctamente!");
     } catch (error: any) {
-      alert(`Error al editar: ${error.message}`);
+      alert(`Error al editar producto: ${error.message}`);
     }
   };
 
@@ -520,7 +523,7 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON TÍTULO DIVIDIDO E INDICADOR VERDE INTERMITENTE */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div>
             <h1 className="text-sm sm:text-lg font-black tracking-tight text-white leading-tight">Minimarket Pamela</h1>
@@ -784,7 +787,7 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Subfiltros internos originales */}
+              {/* Subfiltros internos */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="text-zinc-400 font-bold">Tipo:</span>
@@ -996,20 +999,101 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* MODAL DE EDICIÓN */}
+        {/* MODAL DE EDICIÓN DE PRODUCTO VALIDADO */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs">
-              <h3 className="text-xs font-black text-white border-b border-zinc-800 pb-2">Modificar Producto</h3>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                <h3 className="text-xs font-black">Modificar Producto</h3>
+                <button type="button" onClick={() => setEditingProduct(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
+              </div>
+
               <form onSubmit={handleSaveEdit} className="space-y-2.5">
-                <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white" required />
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="number" step="0.05" value={editForm.price} onChange={e => setEditForm({ ...editForm, price: parseFloat(e.target.value) || 0 })} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white" required />
-                  <input type="number" value={editForm.stock} onChange={e => setEditForm({ ...editForm, stock: parseInt(e.target.value) || 0 })} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white" required />
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
                 </div>
-                <div className="flex gap-2 pt-2">
-                  <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 py-2 bg-zinc-800 rounded-lg font-bold">Cancelar</button>
-                  <button type="submit" className="flex-1 py-2 bg-red-600 rounded-lg font-bold text-white">Guardar</button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Precio (S/)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={editForm.price}
+                      onChange={e => setEditForm({ ...editForm, price: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Stock</label>
+                    <input
+                      type="number"
+                      value={editForm.stock}
+                      onChange={e => setEditForm({ ...editForm, stock: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Categoría</label>
+                  <select
+                    value={editForm.category}
+                    onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
+                  >
+                    <option>Abarrotes y Despensa</option>
+                    <option>Snacks</option>
+                    <option>Bebidas y Lácteos</option>
+                    <option>Limpieza y Hogar</option>
+                    <option>Ofertas</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-4 pt-1 font-bold">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                    <input type="checkbox" checked={editForm.isOnSale} onChange={e => setEditForm({ ...editForm, isOnSale: e.target.checked })} className="accent-red-600 w-3.5 h-3.5" /> Oferta 🔥
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                    <input type="checkbox" checked={editForm.isFeatured} onChange={e => setEditForm({ ...editForm, isFeatured: e.target.checked })} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[9px]">Fotografía del Producto</label>
+                  <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg p-2">
+                    <div className="relative w-10 h-10 bg-zinc-900 rounded overflow-hidden shrink-0 border border-zinc-800">
+                      {editForm.image ? (
+                        <Image src={editForm.image} alt="Vista previa" fill className="object-contain p-0.5" />
+                      ) : (
+                        <span className="text-[8px] text-zinc-500 flex items-center justify-center h-full">N/A</span>
+                      )}
+                    </div>
+                    <div className="flex-1 grid grid-cols-2 gap-1.5">
+                      <label className="block bg-red-600 hover:bg-red-700 text-white text-center py-1 px-1.5 rounded font-bold text-[9px] cursor-pointer">
+                        📁 Subir
+                        <input type="file" accept="image/*" onChange={handleEditFileChange} className="hidden" />
+                      </label>
+                      <label className="block bg-zinc-800 hover:bg-zinc-700 text-white text-center py-1 px-1.5 rounded font-bold text-[9px] cursor-pointer">
+                        📷 Cámara
+                        <input type="file" accept="image/*" capture="environment" onChange={handleEditFileChange} className="hidden" />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t border-zinc-800">
+                  <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
+                  <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white cursor-pointer shadow-lg">Guardar Cambios</button>
                 </div>
               </form>
             </div>
