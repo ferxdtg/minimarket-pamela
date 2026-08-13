@@ -9,7 +9,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
-  // Estado para contraer/expandir el Sidebar lateral
+  // Estado para contraer/expandir el Sidebar lateral (solo botones)
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
   // Subfiltros independientes por cada pestaña de estado logístico
@@ -35,7 +35,7 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
-  // Estado para el modal de edición
+  // Estado para el modal de edición de productos
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -47,7 +47,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados para Compras / Proveedores
+  // Estados para Compras / Proveedores (Facturas detalladas con múltiples ítems)
   const [supName, setSupName] = useState("");
   const [supProduct, setSupProduct] = useState("");
   const [supCost, setSupCost] = useState("");
@@ -257,6 +257,7 @@ export default function AdminPage() {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, finalData);
       setEditingProduct(null);
+      alert("¡Producto actualizado correctamente!");
     } catch (error: any) {
       alert(`Error al editar: ${error.message}`);
     }
@@ -491,7 +492,7 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-4 sm:p-10 space-y-6 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO DE ALTO NIVEL */}
+        {/* 🏢 ENCABEZADO FIJO DE ALTO NIVEL CON TÍTULO DIVIDIDO */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/75 backdrop-blur-md border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl">
           <div className="space-y-0.5">
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">Minimarket Pamela</h1>
