@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores">("inventario");
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
-  // Estado para contraer/expandir el Sidebar lateral (solo botones)
+  // Estado para contraer/expandir el Sidebar lateral
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
   // Subfiltros independientes por cada pestaña de estado logístico
@@ -23,6 +23,7 @@ export default function AdminPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -47,10 +48,20 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados para Compras / Proveedores (Facturas detalladas con múltiples ítems)
+  // Estados para Módulo de Proveedores / Compras
   const [supName, setSupName] = useState("");
   const [supProduct, setSupProduct] = useState("");
   const [supCost, setSupCost] = useState("");
+
+  // Estados para Módulo de Marketing & Promos
+  const [newPromoTitle, setNewPromoTitle] = useState("");
+  const [newPromoDesc, setNewPromoDesc] = useState("");
+  const [newPromoDiscount, setNewPromoDiscount] = useState("");
+
+  // Estados para Gestión y Edición de Categorías
+  const [newCatName, setNewCatName] = useState("");
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
+  const [editCatName, setEditCatName] = useState("");
 
   // 🕒 HORA EXACTA DE LIMA, PERÚ
   const getLimaDateStr = () => {
@@ -80,12 +91,23 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  const [newPromoTitle, setNewPromoTitle] = useState("");
-  const [newPromoDesc, setNewPromoDesc] = useState("");
-  const [newPromoDiscount, setNewPromoDiscount] = useState("");
-
-  // 🚀 ESCUCHA EN TIEMPO REAL (REAL-TIME SNAPSHOT)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
+    const initDefaultCategories = async () => {
+      try {
+        const catSnap = await getDocs(collection(db, "categories"));
+        if (catSnap.empty) {
+          const defaults = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
+          for (const d of defaults) {
+            await addDoc(collection(db, "categories"), { name: d });
+          }
+        }
+      } catch (err) {
+        console.error("Error inicializando categorías:", err);
+      }
+    };
+    initDefaultCategories();
+
     const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
       const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prodList);
@@ -114,10 +136,18 @@ export default function AdminPage() {
       console.error("Error al escuchar proveedores:", error);
     });
 
+    const unsubscribeCategories = onSnapshot(collection(db, "categories"), (snapshot) => {
+      const catList = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+      setCategoriesList(catList);
+    }, (error) => {
+      console.error("Error al escuchar categorías:", error);
+    });
+
     return () => {
       unsubscribeProducts();
       unsubscribeOrders();
       unsubscribeSuppliers();
+      unsubscribeCategories();
     };
   }, []);
 
@@ -183,7 +213,7 @@ export default function AdminPage() {
         isFeatured: newIsFeatured,
         image: newImage || ""
       });
-      setNewName(""); setNewPrice(""); setNewStock(""); setNewCategory("Abarrotes y Despensa");
+      setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
       alert("¡Producto publicado con éxito!");
     } catch (error: any) {
@@ -259,10 +289,78 @@ export default function AdminPage() {
       setEditingProduct(null);
       alert("¡Producto actualizado correctamente!");
     } catch (error: any) {
-      alert(`Error al editar: ${error.message}`);
+      alert(`Error al editar producto: ${error.message}`);
     }
   };
 
+  // 🏷️ GESTIÓN DE CATEGORÍAS (CREAR, EDITAR, ELIMINAR CUALQUIERA)
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    try {
+      await addDoc(collection(db, "categories"), { name: newCatName.trim() });
+      setNewCatName("");
+      alert("¡Categoría creada con éxito!");
+    } catch (error: any) {
+      alert(`Error al crear categoría: ${error.message}`);
+    }
+  };
+
+  const handleUpdateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory || !editCatName.trim()) return;
+    const oldName = editingCategory.name;
+    const newNameCat = editCatName.trim();
+
+    try {
+      if (editingCategory.id) {
+        await updateDoc(doc(db, "categories", editingCategory.id), { name: newNameCat });
+      }
+
+      const affectedProducts = products.filter(p => p.category === oldName);
+      for (const prod of affectedProducts) {
+        await updateDoc(doc(db, "products", prod.id), { category: newNameCat });
+      }
+
+      setEditingCategory(null);
+      setEditCatName("");
+      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos!`);
+    } catch (error: any) {
+      alert(`Error al actualizar categoría: ${error.message}`);
+    }
+  };
+
+  const handleDeleteCategory = async (catId: string, catName: string) => {
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
+    try {
+      if (catId) {
+        await deleteDoc(doc(db, "categories", catId));
+        alert(`Categoría "${catName}" eliminada con éxito.`);
+      }
+    } catch (error: any) {
+      alert(`Error al eliminar: ${error.message}`);
+    }
+  };
+
+  // 📦 REGISTRAR PROVEEDOR / COMPRA
+  const handleAddSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supName || !supProduct) return;
+    try {
+      await addDoc(collection(db, "suppliers"), {
+        name: supName,
+        product: supProduct,
+        cost: parseFloat(supCost) || 0,
+        date: todayDateStr
+      });
+      setSupName(""); setSupProduct(""); setSupCost("");
+      alert("¡Compra y proveedor registrados con éxito!");
+    } catch (error: any) {
+      alert(`Error al registrar: ${error.message}`);
+    }
+  };
+
+  // 🚀 FUNCIÓN BLINDADA PARA PEDIDOS
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
@@ -296,57 +394,40 @@ export default function AdminPage() {
     }
   };
 
-  const handleAddSupplier = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!supName || !supProduct) return;
-    try {
-      await addDoc(collection(db, "suppliers"), {
-        name: supName,
-        product: supProduct,
-        cost: parseFloat(supCost) || 0,
-        date: todayDateStr
-      });
-      setSupName(""); setSupProduct(""); setSupCost("");
-      alert("¡Compra y proveedor registrados con éxito!");
-    } catch (error: any) {
-      alert(`Error al registrar: ${error.message}`);
-    }
-  };
-
-  const currentSubFilter = filtersByStatus[orderStatusTab];
+  const currentSubFilter = filtersByStatus[orderStatusTab] || { type: "TODOS", startDate: "", endDate: "" };
 
   const updateSubFilter = (field: "type" | "startDate" | "endDate", value: string) => {
     setFiltersByStatus(prev => ({
       ...prev,
       [orderStatusTab]: {
-        ...prev[orderStatusTab],
+        ...(prev as any)[orderStatusTab],
         [field]: value
       }
     }));
   };
 
-  const filteredOrders = orders.filter(o => {
+  const filteredOrders = orders?.filter(o => {
     if (o.status !== orderStatusTab) return false;
     if (currentSubFilter.type !== "TODOS" && o.type !== currentSubFilter.type) return false;
     if (currentSubFilter.startDate && o.date < currentSubFilter.startDate) return false;
     if (currentSubFilter.endDate && o.date > currentSubFilter.endDate) return false;
     return true;
-  });
+  }) || [];
 
-  const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredProducts = products?.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase())) || [];
 
-  const totalSales = orders.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-  const pendingCount = orders.filter(o => o.status === "PENDIENTE").length;
-  const deliveredCount = orders.filter(o => o.status === "ENTREGADO").length;
-  const rejectedCount = orders.filter(o => o.status === "RECHAZADO").length;
-  const uncollectedCount = orders.filter(o => o.status === "NO_RECOGIDO").length;
+  const totalSales = orders?.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0) || 0;
+  const pendingCount = orders?.filter(o => o.status === "PENDIENTE").length || 0;
+  const deliveredCount = orders?.filter(o => o.status === "ENTREGADO").length || 0;
+  const rejectedCount = orders?.filter(o => o.status === "RECHAZADO").length || 0;
+  const uncollectedCount = orders?.filter(o => o.status === "NO_RECOGIDO").length || 0;
 
-  const todaySalesOrders = orders.filter(o => o.status === "ENTREGADO" && o.date === todayDateStr);
+  const todaySalesOrders = orders?.filter(o => o.status === "ENTREGADO" && o.date === todayDateStr) || [];
   const todaySalesTotal = todaySalesOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const todayTicketAverage = todaySalesOrders.length > 0 ? (todaySalesTotal / todaySalesOrders.length) : 0;
 
   const clientsMap = new Map();
-  orders.forEach(o => {
+  orders?.forEach(o => {
     if (o.client) {
       const phone = o.phone || "Sin teléfono";
       if (!clientsMap.has(phone)) {
@@ -366,6 +447,8 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
+  const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
+
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
       window.location.href = "/";
@@ -373,116 +456,130 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white">
+    <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white text-xs">
       
-      {/* 🎨 SIDEBAR INTELIGENTE RETRÁCTIL */}
+      {/* 🎨 SIDEBAR RETRÁCTIL (PC) */}
       <aside 
         onMouseEnter={() => setIsSidebarExpanded(true)}
         onMouseLeave={() => setIsSidebarExpanded(false)}
         onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
         className={`transition-all duration-300 ease-in-out bg-zinc-950 border-r border-zinc-800/80 flex flex-col justify-between hidden md:flex shrink-0 z-40 select-none cursor-pointer ${
-          isSidebarExpanded ? "w-64 shadow-2xl" : "w-20"
+          isSidebarExpanded ? "w-56 shadow-2xl" : "w-16"
         }`}
       >
-        <div className="p-4 space-y-6 overflow-hidden">
-          <div className="flex items-center gap-3 px-2 py-1">
-            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+        <div className="p-3 space-y-4 overflow-hidden">
+          <div className="flex items-center gap-2.5 px-1 py-0.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
             {isSidebarExpanded && (
               <div className="whitespace-nowrap transition-opacity duration-300">
-                <h1 className="text-sm font-black tracking-tight text-white">Minimarket Pamela</h1>
-                <p className="text-[9px] text-zinc-400">ERP Enterprise (Lima)</p>
+                <h2 className="text-xs font-black tracking-tight text-white">Minimarket Pamela</h2>
+                <p className="text-[9px] text-zinc-400">Navegación Rápida</p>
               </div>
             )}
           </div>
 
-          <nav className="space-y-1.5">
+          <nav className="space-y-1">
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setIsSidebarExpanded(false); }}
               title="Inventario & Stock"
-              className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
                 activeTab === "inventario" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="text-base shrink-0">📦</span>
+              <span className="text-sm shrink-0">📦</span>
               {isSidebarExpanded && <span className="whitespace-nowrap">Inventario & Stock</span>}
             </button>
 
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("pedidos"); setIsSidebarExpanded(false); }}
               title="Centro Logístico"
-              className={`w-full flex items-center justify-between px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
                 activeTab === "pedidos" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="flex items-center gap-4">
-                <span className="text-base shrink-0">🛒</span>
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🛒</span>
                 {isSidebarExpanded && <span className="whitespace-nowrap">Centro Logístico</span>}
               </span>
-              {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.5 rounded-full text-[10px] font-black shrink-0">{pendingCount}</span>}
+              {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black shrink-0">{pendingCount}</span>}
+            </button>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); setActiveTab("categorias"); setIsSidebarExpanded(false); }}
+              title="Gestión de Categorías"
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                activeTab === "categorias" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🏷️</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Categorías</span>}
+              </span>
+              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({categoriesList.length})</span>}
             </button>
 
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("caja"); setIsSidebarExpanded(false); }}
               title="Caja & Reportes"
-              className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
                 activeTab === "caja" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="text-base shrink-0">📊</span>
+              <span className="text-sm shrink-0">📊</span>
               {isSidebarExpanded && <span className="whitespace-nowrap">Caja & Reportes</span>}
             </button>
 
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("clientes"); setIsSidebarExpanded(false); }}
               title="Clientes CRM"
-              className={`w-full flex items-center justify-between px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
                 activeTab === "clientes" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="flex items-center gap-4">
-                <span className="text-base shrink-0">👥</span>
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">👥</span>
                 {isSidebarExpanded && <span className="whitespace-nowrap">Clientes CRM</span>}
               </span>
-              {isSidebarExpanded && <span className="text-[10px] text-zinc-500 shrink-0">({clientsList.length})</span>}
+              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({clientsList.length})</span>}
             </button>
 
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
-              title="Compras & Proveedores"
-              className={`w-full flex items-center justify-between px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+              title="Facturas Compras"
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
                 activeTab === "proveedores" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="flex items-center gap-4">
-                <span className="text-base shrink-0">🧾</span>
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🧾</span>
                 {isSidebarExpanded && <span className="whitespace-nowrap">Facturas Compras</span>}
               </span>
-              {isSidebarExpanded && <span className="text-[10px] text-zinc-500 shrink-0">({suppliers.length})</span>}
+              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({suppliers.length})</span>}
             </button>
 
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("marketing"); setIsSidebarExpanded(false); }}
               title="Marketing & Promos"
-              className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl font-bold text-xs transition cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
                 activeTab === "marketing" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="text-base shrink-0">🎯</span>
+              <span className="text-sm shrink-0">🎯</span>
               {isSidebarExpanded && <span className="whitespace-nowrap">Marketing & Promos</span>}
             </button>
           </nav>
         </div>
 
-        <div className="p-3 border-t border-zinc-900 m-3 bg-zinc-900/50 rounded-xl space-y-2">
+        <div className="p-2.5 border-t border-zinc-900 m-2 bg-zinc-900/40 rounded-lg">
           {isSidebarExpanded ? (
-            <div className="space-y-2">
-              <div className="text-[11px] text-zinc-400 truncate">Op: <strong className="text-white">ferxdtg@gmail.com</strong></div>
-              <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-2 rounded-lg transition text-xs cursor-pointer">
-                Cerrar Sesión
+            <div className="space-y-1.5">
+              <span className="text-[10px] text-zinc-400 truncate block">ferxdtg@gmail.com</span>
+              <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-1.5 rounded transition text-[10px] cursor-pointer">
+                Salir
               </button>
             </div>
           ) : (
-            <div className="flex justify-center py-1">
+            <div className="flex justify-center py-0.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" title="Sesión Activa"></span>
             </div>
           )}
@@ -490,229 +587,220 @@ export default function AdminPage() {
       </aside>
 
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
-      <main className="flex-1 min-h-screen p-4 sm:p-10 space-y-6 overflow-y-auto">
+      <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO DE ALTO NIVEL CON TÍTULO DIVIDIDO */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/75 backdrop-blur-md border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl">
-          <div className="space-y-0.5">
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">Minimarket Pamela</h1>
-            <p className="text-xs font-semibold text-zinc-400">panel de administración</p>
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
+          <div>
+            <h1 className="text-sm sm:text-lg font-black tracking-tight text-white leading-tight">Minimarket Pamela</h1>
+            <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
           </div>
 
-          <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-4 bg-zinc-950 border border-zinc-800 px-4 py-2.5 rounded-xl text-xs shadow-inner">
+          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 bg-zinc-950 border border-zinc-800 px-3 py-2 rounded-xl shadow-inner">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
-              <span className="text-zinc-300 font-medium">ferxdtg@gmail.com</span>
+              <span className="text-zinc-300 font-medium truncate max-w-[130px] sm:max-w-none">ferxdtg@gmail.com</span>
             </div>
-            <span className="text-[10px] bg-zinc-900 px-2.5 py-1 rounded-lg text-zinc-400 font-bold hidden sm:inline">Lima: {todayDateStr}</span>
+            <button
+              onClick={handleLogout}
+              className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900 px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer"
+              title="Cerrar Sesión"
+            >
+              Salir
+            </button>
           </div>
         </div>
 
-        {/* PESTAÑAS MÓVILES */}
-        <div className="flex md:hidden gap-2 overflow-x-auto pb-2 custom-scrollbar">
-          <button onClick={() => setActiveTab("inventario")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
-          <button onClick={() => setActiveTab("pedidos")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
-          <button onClick={() => setActiveTab("caja")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
-          <button onClick={() => setActiveTab("clientes")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
-          <button onClick={() => setActiveTab("proveedores")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Compras</button>
-          <button onClick={() => setActiveTab("marketing")} className={`px-3 py-2 rounded-xl font-black text-xs shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
+        {/* PESTAÑAS MÓVILES (Celulares) */}
+        <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+          <button onClick={() => setActiveTab("inventario")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
+          <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
+          <button onClick={() => setActiveTab("categorias")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
+          <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
+          <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
+          <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Compras</button>
+          <button onClick={() => setActiveTab("marketing")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
         </div>
 
         {/* VISTA 1: INVENTARIO */}
         {activeTab === "inventario" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             
-            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-5 sm:p-6 shadow-xl h-fit space-y-4">
-              <h2 className="text-sm font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto</h2>
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
+              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto</h2>
               
-              <form onSubmit={handleCreateProduct} className="space-y-3.5 text-xs">
+              <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Nombre del artículo</label>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del artículo</label>
                   <input
                     type="text"
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
                     placeholder="Ej. Aceite Primor 1L"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600 transition"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                     required
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Precio (S/)</label>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Precio (S/)</label>
                     <input
                       type="number"
                       step="0.05"
                       value={newPrice}
                       onChange={e => setNewPrice(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600 transition"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Stock Inicial</label>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Stock Inicial</label>
                     <input
                       type="number"
                       value={newStock}
                       onChange={e => setNewStock(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600 transition"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Categoría de Tienda</label>
+                  <div className="flex justify-between items-center mb-0.5">
+                    <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría de Tienda</label>
+                    <button type="button" onClick={() => setActiveTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar Categorías</button>
+                  </div>
                   <select
                     value={newCategory}
                     onChange={e => setNewCategory(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600 transition"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                   >
-                    <option>Abarrotes y Despensa</option>
-                    <option>Snacks</option>
-                    <option>Bebidas y Lácteos</option>
-                    <option>Limpieza y Hogar</option>
-                    <option>Ofertas</option>
+                    {allCategories.map((cat, idx) => (
+                      <option key={idx} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
-                <div className="flex gap-4 pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
-                    <input
-                      type="checkbox"
-                      checked={newIsOnSale}
-                      onChange={e => setNewIsOnSale(e.target.checked)}
-                      className="accent-red-600 w-4 h-4 cursor-pointer"
-                    />
-                    En Oferta 🔥
+                <div className="flex gap-4 pt-1 font-bold">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                    <input type="checkbox" checked={newIsOnSale} onChange={e => setNewIsOnSale(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> En Oferta 🔥
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
-                    <input
-                      type="checkbox"
-                      checked={newIsFeatured}
-                      onChange={e => setNewIsFeatured(e.target.checked)}
-                      className="accent-red-600 w-4 h-4 cursor-pointer"
-                    />
-                    Destacado ⭐
+                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                    <input type="checkbox" checked={newIsFeatured} onChange={e => setNewIsFeatured(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
                   </label>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-zinc-400 font-bold uppercase text-[10px]">Fotografía del Producto</label>
+                <div className="space-y-1">
+                  <label className="block text-zinc-400 font-bold uppercase text-[9px]">Fotografía</label>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-3 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
-                      📁 Subir Archivo
-                      <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
+                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
+                      📁 Subir <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
                     </label>
-                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-3 rounded-xl font-bold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer text-center">
-                      📷 Usar Cámara
-                      <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
+                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
+                      📷 Cámara <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
                     </label>
                   </div>
-                  {newImage && <p className="text-[10px] text-emerald-400 font-bold pt-1">✓ Imagen capturada y optimizada</p>}
+                  {newImage && <p className="text-[9px] text-emerald-400 font-bold">✓ Imagen lista</p>}
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition shadow-lg shadow-red-900/30 cursor-pointer mt-2"
+                  className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
                 >
-                  Publicar en Catálogo Web
+                  Publicar Producto
                 </button>
               </form>
             </div>
 
-            <div className="lg:col-span-2 bg-zinc-900/70 backdrop-blur border border-zinc-800/80 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-4">
-                <h2 className="text-sm font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
-                
-                <div className="relative w-full sm:w-64">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-zinc-500">🔍</span>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    placeholder="Buscar producto..."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-red-600"
-                  />
-                </div>
+            <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                <h2 className="text-xs font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder="Buscar..."
+                  className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-48"
+                />
               </div>
 
               {loading ? (
-                <p className="text-zinc-500 text-center py-12">Sincronizando inventario...</p>
+                <p className="text-zinc-500 text-center py-8">Sincronizando inventario...</p>
               ) : (
-                <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                   {filteredProducts.map(product => {
                     const currentStock = Number(product.stock ?? 0);
                     const isOut = currentStock === 0;
                     const isLow = currentStock > 0 && currentStock <= 5;
 
                     return (
-                      <div key={product.id} className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-zinc-700 transition">
-                        <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">
-                          <div className="relative w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-xl overflow-hidden shrink-0 border border-zinc-800">
+                      <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
                             {product.image ? (
-                              <Image src={product.image} alt={product.name} fill className="object-contain p-1" />
+                              <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" />
                             ) : (
-                              <span className="text-[9px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
+                              <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
                             )}
                           </div>
-                          <div className="min-w-0 space-y-0.5 flex-1">
+                          <div className="min-w-0">
                             <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                            <p className="text-[11px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                            <span className="text-[9px] bg-zinc-900 border border-zinc-800 text-zinc-300 px-2 py-0.5 rounded uppercase font-bold">{product.category || "Abarrotes"}</span>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                              <span className="text-[9px] text-zinc-500 truncate">({product.category || "Abarrotes"})</span>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between w-full sm:w-auto gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-900">
+                        <div className="flex items-center gap-2">
                           <div>
                             {isOut ? (
-                              <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">🔴 Agotado</span>
+                              <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🔴 Agotado</span>
                             ) : isLow ? (
-                              <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">🟡 Bajo</span>
+                              <span className="bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟡 Bajo</span>
                             ) : (
-                              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">🟢 OK ({currentStock})</span>
+                              <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟢 OK</span>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
-                              <button
-                                type="button"
-                                onClick={() => handleStockUpdate(product.id, currentStock, -1)}
-                                className="w-6 h-6 sm:w-7 sm:h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
-                              >
-                                -
-                              </button>
-                              <span className="w-6 text-center font-black text-xs">{currentStock}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleStockUpdate(product.id, currentStock, 1)}
-                                className="w-6 h-6 sm:w-7 sm:h-7 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold flex items-center justify-center cursor-pointer text-xs transition"
-                              >
-                                +
-                              </button>
-                            </div>
-
+                          <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
                             <button
                               type="button"
-                              onClick={() => openEditModal(product)}
-                              className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-xl font-bold text-xs transition cursor-pointer"
+                              onClick={() => handleStockUpdate(product.id, currentStock, -1)}
+                              className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
                             >
-                              ✏️
+                              -
                             </button>
-
+                            <span className="w-5 text-center font-black">{currentStock}</span>
                             <button
                               type="button"
-                              onClick={() => handleDeleteProduct(product.id, product.name)}
-                              className="px-2.5 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-900/50 rounded-xl font-bold text-xs transition cursor-pointer"
-                              title="Eliminar"
+                              onClick={() => handleStockUpdate(product.id, currentStock, 1)}
+                              className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
                             >
-                              🗑️
+                              +
                             </button>
                           </div>
+
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(product)}
+                            className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
+                            title="Editar"
+                          >
+                            ✏️
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(product.id, product.name)}
+                            className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
+                            title="Eliminar"
+                          >
+                            🗑️
+                          </button>
                         </div>
                       </div>
                     );
@@ -726,204 +814,116 @@ export default function AdminPage() {
 
         {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD */}
         {activeTab === "pedidos" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-1.5 shadow-xl">
-                <span className="text-[10px] sm:text-xs font-bold text-zinc-400 uppercase tracking-wider">Ventas Totales</span>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
-                <p className="text-[10px] text-zinc-500">{deliveredCount} pedidos entregados</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Ventas Totales</span>
+                <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
               </div>
 
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-1.5 shadow-xl">
-                <span className="text-[10px] sm:text-xs font-bold text-zinc-400 uppercase tracking-wider">Pendientes</span>
-                <div className="text-xl sm:text-2xl font-black text-amber-400">{pendingCount}</div>
-                <p className="text-[10px] text-zinc-500">Atención inmediata</p>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Pendientes</span>
+                <div className="text-base font-black text-amber-400">{pendingCount}</div>
               </div>
 
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-1.5 shadow-xl">
-                <span className="text-[10px] sm:text-xs font-bold text-zinc-400 uppercase tracking-wider">Inventario</span>
-                <div className="text-xl sm:text-2xl font-black text-blue-400">{products.length}</div>
-                <p className="text-[10px] text-zinc-500">Artículos activos</p>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Inventario</span>
+                <div className="text-base font-black text-blue-400">{products.length}</div>
               </div>
 
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-1.5 shadow-xl">
-                <span className="text-[10px] sm:text-xs font-bold text-zinc-400 uppercase tracking-wider">Rechazados / Otros</span>
-                <div className="text-xl sm:text-2xl font-black text-red-400">{rejectedCount + uncollectedCount}</div>
-                <p className="text-[10px] text-zinc-500">Cancelados o devueltos</p>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Rechazados / Otros</span>
+                <div className="text-base font-black text-red-400">{rejectedCount + uncollectedCount}</div>
               </div>
             </div>
 
-            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 p-4 sm:p-5 rounded-2xl shadow-xl space-y-4">
-              <div>
-                <h2 className="text-sm font-black text-white">Centro Logístico en Tiempo Real (Live Feed)</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">Gestión de órdenes con hora de Lima, Perú.</p>
-              </div>
-
-              {/* Pestañas principales de estado */}
-              <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+            <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
                 <button 
                   onClick={() => setOrderStatusTab("PENDIENTE")}
-                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                 >
                   ⏳ Pendientes ({pendingCount})
                 </button>
                 <button 
                   onClick={() => setOrderStatusTab("ENTREGADO")}
-                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                 >
                   ✓ Entregados ({deliveredCount})
                 </button>
                 <button 
                   onClick={() => setOrderStatusTab("RECHAZADO")}
-                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                 >
                   ✕ Rechazados ({rejectedCount})
                 </button>
                 <button 
                   onClick={() => setOrderStatusTab("NO_RECOGIDO")}
-                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white shadow-lg" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
                 >
                   🏪 No Recogidos ({uncollectedCount})
                 </button>
               </div>
 
               {/* Subfiltros internos */}
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-zinc-950 border border-zinc-800/80 px-3 sm:px-4 py-3 rounded-xl text-xs">
-                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-                  <span className="text-zinc-400 font-bold shrink-0">Tipo:</span>
-                  <div className="flex gap-1 shrink-0">
-                    <button 
-                      onClick={() => updateSubFilter("type", "TODOS")}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
-                    >
-                      Todos
-                    </button>
-                    <button 
-                      onClick={() => updateSubFilter("type", "DELIVERY")}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
-                    >
-                      🛵 Delivery
-                    </button>
-                    <button 
-                      onClick={() => updateSubFilter("type", "RECOJO")}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400 border border-zinc-800"}`}
-                    >
-                      🏪 Recojo
-                    </button>
-                  </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-zinc-400 font-bold">Tipo:</span>
+                  <button onClick={() => updateSubFilter("type", "TODOS")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Todos</button>
+                  <button onClick={() => updateSubFilter("type", "DELIVERY")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Delivery</button>
+                  <button onClick={() => updateSubFilter("type", "RECOJO")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Recojo</button>
                 </div>
 
-                <div className="flex items-center gap-1.5 w-full md:w-auto justify-between md:justify-end overflow-x-auto pb-1 md:pb-0">
-                  <span className="text-zinc-400 font-bold shrink-0">Fecha:</span>
-                  <input 
-                    type="date" 
-                    value={currentSubFilter.startDate} 
-                    onChange={e => updateSubFilter("startDate", e.target.value)}
-                    className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-white text-[11px] focus:outline-none focus:border-red-600"
-                  />
-                  <span className="text-zinc-500">-</span>
-                  <input 
-                    type="date" 
-                    value={currentSubFilter.endDate} 
-                    onChange={e => updateSubFilter("endDate", e.target.value)}
-                    className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-white text-[11px] focus:outline-none focus:border-red-600"
-                  />
+                <div className="flex items-center gap-1">
+                  <span className="text-zinc-400 font-bold">Fecha:</span>
+                  <input type="date" value={currentSubFilter.startDate} onChange={e => updateSubFilter("startDate", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-white text-[10px]" />
+                  <span>-</span>
+                  <input type="date" value={currentSubFilter.endDate} onChange={e => updateSubFilter("endDate", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-white text-[10px]" />
                   {(currentSubFilter.startDate || currentSubFilter.endDate) && (
-                    <button 
-                      onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }}
-                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded-lg font-bold transition cursor-pointer text-[10px]"
-                    >
-                      Limpiar
-                    </button>
+                    <button onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }} className="bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Limpiar</button>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredOrders.length === 0 ? (
                 <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en {orderStatusTab.toLowerCase()} con estos filtros.</p>
               ) : (
                 filteredOrders.map(order => (
-                  <div key={order.id} className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-xl">
+                  <div key={order.id} className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3.5 space-y-2.5">
                     <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <span className={`inline-block text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                          order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-purple-500/20 text-purple-400 border border-purple-500/30"
-                        }`}>
-                          {order.type === "DELIVERY" ? "🛵 Envío a Domicilio" : "🏪 Recojo en Local"}
+                      <div>
+                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"}`}>
+                          {order.type}
                         </span>
-                        <h3 className="text-sm font-black text-white">{order.client}</h3>
-                        <p className="text-xs text-zinc-400">Tel: {order.phone} • {order.address}</p>
-                        <p className="text-[10px] text-zinc-500 font-medium">Registrado: {order.date}</p>
+                        <h3 className="text-xs font-black text-white mt-1">{order.client}</h3>
+                        <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
                       </div>
-
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                        order.status === "PENDIENTE" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
-                        order.status === "ENTREGADO" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
-                        order.status === "RECHAZADO" ? "bg-red-500/20 text-red-400 border-red-500/30" :
-                        "bg-purple-500/20 text-purple-400 border-purple-500/30"
-                      }`}>
-                        {order.status}
-                      </span>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-zinc-950 text-zinc-300">{order.status}</span>
                     </div>
 
-                    <div className="bg-zinc-950 border border-zinc-800/80 p-3 rounded-xl text-xs space-y-1.5">
-                      <div className="text-zinc-400 font-semibold uppercase text-[10px]">Detalle de Compra:</div>
-                      <div className="text-zinc-200">{order.items}</div>
-                      <div className="flex justify-between font-black text-white pt-2 border-t border-zinc-800">
-                        <span>TOTAL A PAGAR</span>
-                        <span className="text-red-400 text-sm">S/ {(Number(order.total) || 0).toFixed(2)}</span>
+                    <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
+                      <p className="text-zinc-300">{order.items}</p>
+                      <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900">
+                        <span>TOTAL</span>
+                        <span className="text-red-400">S/ {(Number(order.total) || 0).toFixed(2)}</span>
                       </div>
                     </div>
 
-                    <div className="space-y-2 pt-1">
+                    <div className="space-y-1.5">
                       {order.status === "PENDIENTE" && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <button 
-                            type="button" 
-                            onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")}
-                            className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] rounded-xl transition cursor-pointer text-center"
-                          >
-                            ✓ Entregar
-                          </button>
-                          <button 
-                            type="button" 
-                            onClick={() => handleUpdateOrderStatus(order.id, "RECHAZADO")}
-                            className="py-2.5 bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-black text-[11px] rounded-xl transition cursor-pointer text-center"
-                          >
-                            ✕ Rechazar
-                          </button>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")} className="py-1.5 bg-emerald-600 text-white font-bold text-[10px] rounded-lg">✓ Entregar</button>
+                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "RECHAZADO")} className="py-1.5 bg-red-950 text-red-400 border border-red-900 font-bold text-[10px] rounded-lg">✕ Rechazar</button>
                         </div>
                       )}
-
-                      {order.status === "RECHAZADO" && (
-                        <div className="w-full py-2.5 bg-red-950/30 text-red-400 font-bold text-xs rounded-xl text-center border border-red-900/30">
-                          Pedido Rechazado / Cancelado
-                        </div>
-                      )}
-
-                      {order.status === "NO_RECOGIDO" && (
-                        <div className="w-full py-2.5 bg-purple-950/30 text-purple-400 font-bold text-xs rounded-xl text-center border border-purple-900/30">
-                          No Recogido en Tienda (Stock Liberado)
-                        </div>
-                      )}
-
-                      {order.status === "ENTREGADO" && (
-                        <div className="w-full py-2.5 bg-zinc-950 text-emerald-400 font-bold text-xs rounded-xl text-center border border-emerald-900/30">
-                          Completado y Entregado ✓
-                        </div>
-                      )}
-
+                      {order.status === "RECHAZADO" && <div className="py-1 bg-red-950/30 text-red-400 text-center font-bold text-[10px] rounded border border-red-900/30">Rechazado</div>}
+                      {order.status === "NO_RECOGIDO" && <div className="py-1 bg-purple-950/30 text-purple-400 text-center font-bold text-[10px] rounded border border-purple-900/30">No Recogido</div>}
+                      {order.status === "ENTREGADO" && <div className="py-1 bg-zinc-950 text-emerald-400 text-center font-bold text-[10px] rounded border border-emerald-900/30">Entregado ✓</div>}
                       {order.status === "PENDIENTE" && order.type === "RECOJO" && (
-                        <button 
-                          type="button" 
-                          onClick={() => handleUpdateOrderStatus(order.id, "NO_RECOGIDO")}
-                          className="w-full py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-bold text-[10px] rounded-lg transition cursor-pointer text-center border border-zinc-800"
-                        >
-                          Marcar como No Recogido
-                        </button>
+                        <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "NO_RECOGIDO")} className="w-full py-1 bg-zinc-950 text-zinc-400 border border-zinc-800 font-bold text-[9px] rounded">Marcar No Recogido</button>
                       )}
                     </div>
                   </div>
@@ -933,42 +933,100 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 📊 MÓDULO 1: CAJA & REPORTES DIARIOS */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS */}
+        {activeTab === "categorias" && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
+              <div>
+                <h2 className="text-xs font-black text-white">🏷️ Gestión de Categorías</h2>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda con total libertad.</p>
+              </div>
+              <button
+                onClick={() => setActiveTab("inventario")}
+                className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+              >
+                ← Volver a Inventario & Stock
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
+                <h3 className="text-xs font-black text-white">✨ Crear Nueva Categoría</h3>
+                <form onSubmit={handleAddCategory} className="space-y-3">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
+                    <input
+                      type="text"
+                      value={newCatName}
+                      onChange={e => setNewCatName(e.target.value)}
+                      placeholder="Ej. Bebidas Energizantes, Lácteos Premium"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
+                </form>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+                <h3 className="text-xs font-black text-white">Listado de Categorías ({categoriesList.length})</h3>
+                <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                  {categoriesList.map((catObj) => (
+                    <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                      <span className="font-bold text-white text-xs">{catObj.name}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
+                          className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
+                          className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VISTA 4: CAJA & REPORTES */}
         {activeTab === "caja" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ingresos del Día (Lima)</span>
-                <div className="text-2xl font-black text-emerald-400">S/ {todaySalesTotal.toFixed(2)}</div>
-                <p className="text-[11px] text-zinc-500">Fecha actual: {todayDateStr}</p>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Ingresos Hoy (Lima)</span>
+                <div className="text-lg font-black text-emerald-400">S/ {todaySalesTotal.toFixed(2)}</div>
               </div>
-
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Tickets Emitidos Hoy</span>
-                <div className="text-2xl font-black text-blue-400">{todaySalesOrders.length}</div>
-                <p className="text-[11px] text-zinc-500">Órdenes completadas y cobradas</p>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Tickets Emitidos</span>
+                <div className="text-lg font-black text-blue-400">{todaySalesOrders.length}</div>
               </div>
-
-              <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-5 space-y-2 shadow-xl">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ticket Promedio</span>
-                <div className="text-2xl font-black text-amber-400">S/ {todayTicketAverage.toFixed(2)}</div>
-                <p className="text-[11px] text-zinc-500">Valor medio por compra hoy</p>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Ticket Promedio</span>
+                <div className="text-lg font-black text-amber-400">S/ {todayTicketAverage.toFixed(2)}</div>
               </div>
             </div>
 
-            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
-              <h2 className="text-sm font-black text-white">📋 Detalle de Facturación del Día</h2>
-              <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+              <h2 className="text-xs font-black text-white">📋 Detalle de Facturación ({todayDateStr})</h2>
+              <div className="space-y-2 max-h-[350px] overflow-y-auto">
                 {todaySalesOrders.length === 0 ? (
-                  <p className="text-xs text-zinc-500 text-center py-12">No hay ventas registradas para el día de hoy con hora de Lima.</p>
+                  <p className="text-zinc-500 text-center py-8">No hay ventas registradas hoy.</p>
                 ) : (
                   todaySalesOrders.map((o: any) => (
-                    <div key={o.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 flex justify-between items-center text-xs">
+                    <div key={o.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
                       <div>
-                        <p className="font-bold text-white text-sm">{o.client} <span className="text-[10px] text-zinc-500 font-normal">({o.phone})</span></p>
-                        <p className="text-[11px] text-zinc-400 mt-0.5">{o.items}</p>
+                        <p className="font-bold text-white">{o.client} <span className="text-[9px] text-zinc-500">({o.phone})</span></p>
+                        <p className="text-[10px] text-zinc-400">{o.items}</p>
                       </div>
-                      <span className="text-emerald-400 font-black text-sm">S/ {(Number(o.total) || 0).toFixed(2)}</span>
+                      <span className="text-emerald-400 font-black">S/ {Number(o.total || 0).toFixed(2)}</span>
                     </div>
                   ))
                 )}
@@ -977,94 +1035,85 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 👥 MÓDULO 3: BASE DE DATOS DE CLIENTES (CRM BÁSICO) */}
+        {/* VISTA 5: CLIENTES CRM */}
         {activeTab === "clientes" && (
-          <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
-            <h2 className="text-sm font-black text-white">👥 Directorio de Clientes Frecuentes ({clientsList.length})</h2>
-            <p className="text-xs text-zinc-400">Lista extraída automáticamente de las órdenes registradas en el minimarket.</p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {clientsList.map((client: any, idx: number) => (
-                <div key={idx} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2 shadow-sm">
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+            <h2 className="text-xs font-black text-white">👥 Clientes Frecuentes ({clientsList.length})</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {clientsList.map((c: any, i) => (
+                <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 space-y-1">
                   <div className="flex justify-between items-start">
-                    <h3 className="text-xs font-black text-white">{client.name}</h3>
-                    <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-bold">{client.totalOrders} compras</span>
+                    <h3 className="font-bold text-white">{c.name}</h3>
+                    <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">{c.totalOrders} compras</span>
                   </div>
-                  <p className="text-xs text-zinc-400">📱 {client.phone}</p>
-                  <p className="text-xs text-zinc-400 truncate">🏠 {client.address}</p>
-                  <div className="pt-2 border-t border-zinc-800 flex justify-between text-xs font-bold">
-                    <span className="text-zinc-500">Total gastado:</span>
-                    <span className="text-emerald-400">S/ {client.spent.toFixed(2)}</span>
-                  </div>
+                  <p className="text-zinc-400">📱 {c.phone}</p>
+                  <p className="text-zinc-400 truncate">🏠 {c.address}</p>
+                  <p className="text-emerald-400 font-black pt-1 border-t border-zinc-900 flex justify-between">
+                    <span>Total gastado:</span>
+                    <span>S/ {c.spent.toFixed(2)}</span>
+                  </p>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* 🧾 MÓDULO 4: COMPRAS Y PROVEEDORES */}
+        {/* VISTA 6: PROVEEDORES & COMPRAS */}
         {activeTab === "proveedores" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
-              <h2 className="text-sm font-black text-white">🧾 Registrar Reposición / Compra</h2>
-              <p className="text-xs text-zinc-400">Registra qué proveedor te trajo mercadería y cuánto costó.</p>
-
-              <form onSubmit={handleAddSupplier} className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
+              <h2 className="text-xs font-black text-white">🧾 Registrar Reposición / Compra</h2>
+              <form onSubmit={handleAddSupplier} className="space-y-3">
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Nombre del Proveedor</label>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del Proveedor</label>
                   <input
                     type="text"
                     value={supName}
                     onChange={e => setSupName(e.target.value)}
                     placeholder="Ej. Distribuidora Lácteos Gloria"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Productos Suministrados</label>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Productos Suministrados</label>
                   <input
                     type="text"
                     value={supProduct}
                     onChange={e => setSupProduct(e.target.value)}
                     placeholder="Ej. 50x Leche Azul 400g"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Costo Total Factura (S/)</label>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Costo Total Factura (S/)</label>
                   <input
                     type="number"
                     step="0.05"
                     value={supCost}
                     onChange={e => setSupCost(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                     required
                   />
                 </div>
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition shadow-lg cursor-pointer mt-1"
-                >
-                  Guardar Factura de Compra
-                </button>
+                <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Guardar Compra</button>
               </form>
             </div>
 
-            <div className="lg:col-span-2 bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
-              <h2 className="text-sm font-black text-white">Historial de Proveedores & Compras ({suppliers.length})</h2>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+            <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+              <h2 className="text-xs font-black text-white">Historial de Compras ({suppliers.length})</h2>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
                 {suppliers.length === 0 ? (
-                  <p className="text-zinc-500 text-center py-12 text-xs">No hay compras registradas con proveedores todavía.</p>
+                  <p className="text-zinc-500 text-center py-8">No hay compras registradas.</p>
                 ) : (
                   suppliers.map(sup => (
-                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex justify-between items-center text-xs">
-                      <div className="space-y-1">
+                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex justify-between items-center">
+                      <div>
                         <h3 className="font-bold text-white">{sup.name}</h3>
                         <p className="text-zinc-400">{sup.product}</p>
-                        <p className="text-[10px] text-zinc-500">Fecha: {sup.date}</p>
+                        <p className="text-[9px] text-zinc-500">Fecha: {sup.date}</p>
                       </div>
                       <span className="text-red-400 font-black">S/ {(Number(sup.cost) || 0).toFixed(2)}</span>
                     </div>
@@ -1075,13 +1124,11 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: MARKETING & PROMOCIONES */}
+        {/* VISTA 7: MARKETING */}
         {activeTab === "marketing" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
               <h2 className="text-sm font-black text-white">🎯 Crear Campaña Flash</h2>
-              <p className="text-xs text-zinc-400">Publica un anuncio flotante o banner de descuento en la web principal.</p>
-              
               <form onSubmit={(e) => {
                 e.preventDefault();
                 if (!newPromoTitle) return;
@@ -1120,10 +1167,7 @@ export default function AdminPage() {
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
                   />
                 </div>
-                <button
-                  type="submit"
-                  className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition shadow-lg shadow-red-900/30 cursor-pointer mt-2"
-                >
+                <button type="submit" className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-2">
                   Lanzar Anuncio en Vivo
                 </button>
               </form>
@@ -1133,31 +1177,11 @@ export default function AdminPage() {
               <h2 className="text-sm font-black text-white">Banners y Campañas Activas ({promos.length})</h2>
               <div className="space-y-3">
                 {promos.map(promo => (
-                  <div key={promo.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-black">
-                          {promo.discount}
-                        </span>
-                        <h3 className="text-xs font-bold text-white">{promo.title}</h3>
-                      </div>
-                      <p className="text-xs text-zinc-400">{promo.description}</p>
-                    </div>
-                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-                        promo.active ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700"
-                      }`}>
-                        {promo.active ? "EN VIVO" : "PAUSADO"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setPromos(prev => prev.map(p => p.id === promo.id ? { ...p, active: !p.active } : p))}
-                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
-                          promo.active ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300" : "bg-red-600 hover:bg-red-700 text-white"
-                        }`}
-                      >
-                        {promo.active ? "Pausar" : "Activar"}
-                      </button>
+                  <div key={promo.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex justify-between items-center">
+                    <div>
+                      <span className="text-red-400 font-black text-[10px]">{promo.discount}</span>
+                      <h3 className="font-bold text-white text-xs">{promo.title}</h3>
+                      <p className="text-zinc-400 text-[10px]">{promo.description}</p>
                     </div>
                   </div>
                 ))}
@@ -1166,91 +1190,119 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* MODAL DE EDICIÓN DE CATEGORÍA */}
+        {editingCategory && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                <h3 className="text-xs font-black">Editar Categoría: "{editingCategory.name}"</h3>
+                <button type="button" onClick={() => setEditingCategory(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
+              </div>
+
+              <form onSubmit={handleUpdateCategory} className="space-y-3">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nuevo Nombre</label>
+                  <input
+                    type="text"
+                    value={editCatName}
+                    onChange={e => setEditCatName(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+                <p className="text-[10px] text-amber-400">⚠️ Al renombrar esta categoría, se actualizarán automáticamente todos los productos que la tengan asignada.</p>
+                <div className="flex gap-2 pt-2 border-t border-zinc-800">
+                  <button type="button" onClick={() => setEditingCategory(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
+                  <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white cursor-pointer shadow-lg">Actualizar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* MODAL DE EDICIÓN DE PRODUCTO */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl text-white space-y-4">
-              <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
-                <h3 className="text-sm font-black">Modificar Producto</h3>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                <h3 className="text-xs font-black">Modificar Producto</h3>
                 <button type="button" onClick={() => setEditingProduct(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
               </div>
 
-              <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
+              <form onSubmit={handleSaveEdit} className="space-y-2.5">
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1">Nombre</label>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
                   <input
                     type="text"
                     value={editForm.name}
                     onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-zinc-400 font-bold mb-1">Precio (S/)</label>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Precio (S/)</label>
                     <input
                       type="number"
                       step="0.05"
                       value={editForm.price}
                       onChange={e => setEditForm({ ...editForm, price: parseFloat(e.target.value) || 0 })}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 font-bold mb-1">Stock</label>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Stock</label>
                     <input
                       type="number"
                       value={editForm.stock}
                       onChange={e => setEditForm({ ...editForm, stock: parseInt(e.target.value) || 0 })}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1">Categoría</label>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Categoría</label>
                   <select
                     value={editForm.category}
                     onChange={e => setEditForm({ ...editForm, category: e.target.value })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-red-600"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                   >
-                    <option>Abarrotes y Despensa</option>
-                    <option>Snacks</option>
-                    <option>Bebidas y Lácteos</option>
-                    <option>Limpieza y Hogar</option>
-                    <option>Ofertas</option>
+                    {allCategories.map((cat, idx) => (
+                      <option key={idx} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
-                <div className="flex gap-4 pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
-                    <input type="checkbox" checked={editForm.isOnSale} onChange={e => setEditForm({ ...editForm, isOnSale: e.target.checked })} className="accent-red-600 w-4 h-4" /> Oferta 🔥
+                <div className="flex gap-4 pt-1 font-bold">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                    <input type="checkbox" checked={editForm.isOnSale} onChange={e => setEditForm({ ...editForm, isOnSale: e.target.checked })} className="accent-red-600 w-3.5 h-3.5" /> Oferta 🔥
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-zinc-300 font-bold">
-                    <input type="checkbox" checked={editForm.isFeatured} onChange={e => setEditForm({ ...editForm, isFeatured: e.target.checked })} className="accent-red-600 w-4 h-4" /> Destacado ⭐
+                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                    <input type="checkbox" checked={editForm.isFeatured} onChange={e => setEditForm({ ...editForm, isFeatured: e.target.checked })} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
                   </label>
                 </div>
 
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-1">Fotografía del Producto</label>
-                  <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl p-3">
-                    <div className="relative w-12 h-12 bg-zinc-900 rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[9px]">Fotografía del Producto</label>
+                  <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg p-2">
+                    <div className="relative w-10 h-10 bg-zinc-900 rounded overflow-hidden shrink-0 border border-zinc-800">
                       {editForm.image ? (
-                        <Image src={editForm.image} alt="Vista previa" fill className="object-contain p-1" />
+                        <Image src={editForm.image} alt="Vista previa" fill className="object-contain p-0.5" />
                       ) : (
-                        <span className="text-[9px] text-zinc-500 flex items-center justify-center h-full">N/A</span>
+                        <span className="text-[8px] text-zinc-500 flex items-center justify-center h-full">N/A</span>
                       )}
                     </div>
-                    <div className="flex-1 grid grid-cols-2 gap-2">
-                      <label className="block bg-red-600 hover:bg-red-700 text-white text-center py-1.5 px-2 rounded-lg font-bold text-[10px] cursor-pointer transition">
+                    <div className="flex-1 grid grid-cols-2 gap-1.5">
+                      <label className="block bg-red-600 hover:bg-red-700 text-white text-center py-1 px-1.5 rounded font-bold text-[9px] cursor-pointer">
                         📁 Subir
                         <input type="file" accept="image/*" onChange={handleEditFileChange} className="hidden" />
                       </label>
-                      <label className="block bg-zinc-800 hover:bg-zinc-700 text-white text-center py-1.5 px-2 rounded-lg font-bold text-[10px] cursor-pointer transition">
+                      <label className="block bg-zinc-800 hover:bg-zinc-700 text-white text-center py-1 px-1.5 rounded font-bold text-[9px] cursor-pointer">
                         📷 Cámara
                         <input type="file" accept="image/*" capture="environment" onChange={handleEditFileChange} className="hidden" />
                       </label>
@@ -1258,9 +1310,9 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-3 border-t border-zinc-800">
-                  <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 py-2.5 rounded-xl bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
-                  <button type="submit" className="flex-1 py-2.5 rounded-xl bg-red-600 font-bold text-white cursor-pointer shadow-lg">Guardar</button>
+                <div className="flex gap-2 pt-2 border-t border-zinc-800">
+                  <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
+                  <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white cursor-pointer shadow-lg">Guardar Cambios</button>
                 </div>
               </form>
             </div>
