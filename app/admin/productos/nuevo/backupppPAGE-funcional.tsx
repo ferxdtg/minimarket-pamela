@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores">("inventario");
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
-  // Estado para contraer/expandir el Sidebar lateral (solo botones)
+  // Estado para contraer/expandir el Sidebar lateral
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
-  // Subfiltros independientes por cada pestaña de estado logístico (con rangos de fecha)
+  // Subfiltros independientes por cada pestaña de estado logístico
   const [filtersByStatus, setFiltersByStatus] = useState({
     PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
     ENTREGADO: { type: "TODOS", startDate: "", endDate: "" },
@@ -23,6 +23,7 @@ export default function AdminPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -35,7 +36,7 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
-  // Estado completo y validado para el modal de edición de productos
+  // Estado para el modal de edición de productos
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -47,14 +48,20 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados para Módulo de Compras (Facturas detalladas con múltiples ítems)
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [invoiceSupplier, setInvoiceSupplier] = useState("");
-  const [invoiceItems, setInvoiceItems] = useState<
-    { name: string; quantity: number; unitCost: number; packageCost: number }[]
-  >([
-    { name: "", quantity: 1, unitCost: 0, packageCost: 0 }
-  ]);
+  // Estados para Módulo de Proveedores / Compras
+  const [supName, setSupName] = useState("");
+  const [supProduct, setSupProduct] = useState("");
+  const [supCost, setSupCost] = useState("");
+
+  // Estados para Módulo de Marketing & Promos
+  const [newPromoTitle, setNewPromoTitle] = useState("");
+  const [newPromoDesc, setNewPromoDesc] = useState("");
+  const [newPromoDiscount, setNewPromoDiscount] = useState("");
+
+  // Estados para Gestión y Edición de Categorías
+  const [newCatName, setNewCatName] = useState("");
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
+  const [editCatName, setEditCatName] = useState("");
 
   // 🕒 HORA EXACTA DE LIMA, PERÚ
   const getLimaDateStr = () => {
@@ -84,12 +91,23 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  const [newPromoTitle, setNewPromoTitle] = useState("");
-  const [newPromoDesc, setNewPromoDesc] = useState("");
-  const [newPromoDiscount, setNewPromoDiscount] = useState("");
-
-  // 🚀 ESCUCHA EN TIEMPO REAL (REAL-TIME SNAPSHOT)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
+    const initDefaultCategories = async () => {
+      try {
+        const catSnap = await getDocs(collection(db, "categories"));
+        if (catSnap.empty) {
+          const defaults = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
+          for (const d of defaults) {
+            await addDoc(collection(db, "categories"), { name: d });
+          }
+        }
+      } catch (err) {
+        console.error("Error inicializando categorías:", err);
+      }
+    };
+    initDefaultCategories();
+
     const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
       const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prodList);
@@ -118,10 +136,18 @@ export default function AdminPage() {
       console.error("Error al escuchar proveedores:", error);
     });
 
+    const unsubscribeCategories = onSnapshot(collection(db, "categories"), (snapshot) => {
+      const catList = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+      setCategoriesList(catList);
+    }, (error) => {
+      console.error("Error al escuchar categorías:", error);
+    });
+
     return () => {
       unsubscribeProducts();
       unsubscribeOrders();
       unsubscribeSuppliers();
+      unsubscribeCategories();
     };
   }, []);
 
@@ -187,7 +213,7 @@ export default function AdminPage() {
         isFeatured: newIsFeatured,
         image: newImage || ""
       });
-      setNewName(""); setNewPrice(""); setNewStock(""); setNewCategory("Abarrotes y Despensa");
+      setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
       alert("¡Producto publicado con éxito!");
     } catch (error: any) {
@@ -230,7 +256,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🛠️ FUNCIÓN VALIDADA PARA ABRIR EL MODAL DE EDICIÓN CON LOS DATOS EXACTOS
   const openEditModal = (product: any) => {
     setEditingProduct(product);
     setEditForm({
@@ -244,7 +269,6 @@ export default function AdminPage() {
     });
   };
 
-  // 🛠️ FUNCIÓN VALIDADA PARA GUARDAR CAMBIOS DESDE EL MODAL DE EDICIÓN
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -269,10 +293,76 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA Y PERSISTENTE PARA ACTUALIZAR ESTADO DE PEDIDOS
+  // 🏷️ GESTIÓN DE CATEGORÍAS (CREAR, EDITAR, ELIMINAR CUALQUIERA)
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    try {
+      await addDoc(collection(db, "categories"), { name: newCatName.trim() });
+      setNewCatName("");
+      alert("¡Categoría creada con éxito!");
+    } catch (error: any) {
+      alert(`Error al crear categoría: ${error.message}`);
+    }
+  };
+
+  const handleUpdateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory || !editCatName.trim()) return;
+    const oldName = editingCategory.name;
+    const newNameCat = editCatName.trim();
+
+    try {
+      if (editingCategory.id) {
+        await updateDoc(doc(db, "categories", editingCategory.id), { name: newNameCat });
+      }
+
+      const affectedProducts = products.filter(p => p.category === oldName);
+      for (const prod of affectedProducts) {
+        await updateDoc(doc(db, "products", prod.id), { category: newNameCat });
+      }
+
+      setEditingCategory(null);
+      setEditCatName("");
+      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos!`);
+    } catch (error: any) {
+      alert(`Error al actualizar categoría: ${error.message}`);
+    }
+  };
+
+  const handleDeleteCategory = async (catId: string, catName: string) => {
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
+    try {
+      if (catId) {
+        await deleteDoc(doc(db, "categories", catId));
+        alert(`Categoría "${catName}" eliminada con éxito.`);
+      }
+    } catch (error: any) {
+      alert(`Error al eliminar: ${error.message}`);
+    }
+  };
+
+  // 📦 REGISTRAR PROVEEDOR / COMPRA
+  const handleAddSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supName || !supProduct) return;
+    try {
+      await addDoc(collection(db, "suppliers"), {
+        name: supName,
+        product: supProduct,
+        cost: parseFloat(supCost) || 0,
+        date: todayDateStr
+      });
+      setSupName(""); setSupProduct(""); setSupCost("");
+      alert("¡Compra y proveedor registrados con éxito!");
+    } catch (error: any) {
+      alert(`Error al registrar: ${error.message}`);
+    }
+  };
+
+  // 🚀 FUNCIÓN BLINDADA PARA PEDIDOS
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
-    
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
     
     if (stringOrderId.startsWith("fallback-")) {
@@ -304,86 +394,40 @@ export default function AdminPage() {
     }
   };
 
-  // 🧾 Manejo de la factura de compras detallada (Opción A)
-  const handleAddInvoiceItem = () => {
-    setInvoiceItems([...invoiceItems, { name: "", quantity: 1, unitCost: 0, packageCost: 0 }]);
-  };
-
-  const handleInvoiceItemChange = (index: number, field: string, value: any) => {
-    const updated = [...invoiceItems];
-    (updated[index] as any)[field] = value;
-    setInvoiceItems(updated);
-  };
-
-  const handleRemoveInvoiceItem = (index: number) => {
-    setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
-  };
-
-  const handleSaveInvoice = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!invoiceNumber || !invoiceSupplier || invoiceItems.length === 0) {
-      alert("Por favor completa el número de factura, proveedor y al menos un producto.");
-      return;
-    }
-
-    const totalInvoiceCost = invoiceItems.reduce((sum, item) => {
-      const subtotal = Number(item.packageCost) > 0 ? Number(item.packageCost) : (Number(item.quantity) * Number(item.unitCost));
-      return sum + subtotal;
-    }, 0);
-
-    try {
-      await addDoc(collection(db, "suppliers"), {
-        invoiceNumber,
-        supplier: invoiceSupplier,
-        items: invoiceItems,
-        totalCost: totalInvoiceCost,
-        date: todayDateStr,
-        createdAt: new Date()
-      });
-
-      setInvoiceNumber("");
-      setInvoiceSupplier("");
-      setInvoiceItems([{ name: "", quantity: 1, unitCost: 0, packageCost: 0 }]);
-      alert("¡Factura de compra detallada registrada con éxito!");
-    } catch (error: any) {
-      alert(`Error al registrar factura: ${error.message}`);
-    }
-  };
-
-  const currentSubFilter = filtersByStatus[orderStatusTab];
+  const currentSubFilter = filtersByStatus[orderStatusTab] || { type: "TODOS", startDate: "", endDate: "" };
 
   const updateSubFilter = (field: "type" | "startDate" | "endDate", value: string) => {
     setFiltersByStatus(prev => ({
       ...prev,
       [orderStatusTab]: {
-        ...prev[orderStatusTab],
+        ...(prev as any)[orderStatusTab],
         [field]: value
       }
     }));
   };
 
-  const filteredOrders = orders.filter(o => {
+  const filteredOrders = orders?.filter(o => {
     if (o.status !== orderStatusTab) return false;
     if (currentSubFilter.type !== "TODOS" && o.type !== currentSubFilter.type) return false;
     if (currentSubFilter.startDate && o.date < currentSubFilter.startDate) return false;
     if (currentSubFilter.endDate && o.date > currentSubFilter.endDate) return false;
     return true;
-  });
+  }) || [];
 
-  const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredProducts = products?.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase())) || [];
 
-  const totalSales = orders.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-  const pendingCount = orders.filter(o => o.status === "PENDIENTE").length;
-  const deliveredCount = orders.filter(o => o.status === "ENTREGADO").length;
-  const rejectedCount = orders.filter(o => o.status === "RECHAZADO").length;
-  const uncollectedCount = orders.filter(o => o.status === "NO_RECOGIDO").length;
+  const totalSales = orders?.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0) || 0;
+  const pendingCount = orders?.filter(o => o.status === "PENDIENTE").length || 0;
+  const deliveredCount = orders?.filter(o => o.status === "ENTREGADO").length || 0;
+  const rejectedCount = orders?.filter(o => o.status === "RECHAZADO").length || 0;
+  const uncollectedCount = orders?.filter(o => o.status === "NO_RECOGIDO").length || 0;
 
-  const todaySalesOrders = orders.filter(o => o.status === "ENTREGADO" && o.date === todayDateStr);
+  const todaySalesOrders = orders?.filter(o => o.status === "ENTREGADO" && o.date === todayDateStr) || [];
   const todaySalesTotal = todaySalesOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const todayTicketAverage = todaySalesOrders.length > 0 ? (todaySalesTotal / todaySalesOrders.length) : 0;
 
   const clientsMap = new Map();
-  orders.forEach(o => {
+  orders?.forEach(o => {
     if (o.client) {
       const phone = o.phone || "Sin teléfono";
       if (!clientsMap.has(phone)) {
@@ -402,6 +446,14 @@ export default function AdminPage() {
     }
   });
   const clientsList = Array.from(clientsMap.values());
+
+  const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
+
+  const handleLogout = () => {
+    if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
+      window.location.href = "/";
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white text-xs">
@@ -450,6 +502,20 @@ export default function AdminPage() {
                 {isSidebarExpanded && <span className="whitespace-nowrap">Centro Logístico</span>}
               </span>
               {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black shrink-0">{pendingCount}</span>}
+            </button>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); setActiveTab("categorias"); setIsSidebarExpanded(false); }}
+              title="Gestión de Categorías"
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                activeTab === "categorias" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🏷️</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Categorías</span>}
+              </span>
+              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({categoriesList.length})</span>}
             </button>
 
             <button
@@ -508,7 +574,7 @@ export default function AdminPage() {
           {isSidebarExpanded ? (
             <div className="space-y-1.5">
               <span className="text-[10px] text-zinc-400 truncate block">ferxdtg@gmail.com</span>
-              <button onClick={(e) => e.stopPropagation()} className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-1.5 rounded transition text-[10px] cursor-pointer">
+              <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-1.5 rounded transition text-[10px] cursor-pointer">
                 Salir
               </button>
             </div>
@@ -535,7 +601,13 @@ export default function AdminPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
               <span className="text-zinc-300 font-medium truncate max-w-[130px] sm:max-w-none">ferxdtg@gmail.com</span>
             </div>
-            <span className="text-[9px] bg-zinc-900 px-2 py-0.5 rounded text-zinc-400 font-bold hidden sm:inline">Lima: {todayDateStr}</span>
+            <button
+              onClick={handleLogout}
+              className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900 px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer"
+              title="Cerrar Sesión"
+            >
+              Salir
+            </button>
           </div>
         </div>
 
@@ -543,6 +615,7 @@ export default function AdminPage() {
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => setActiveTab("inventario")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
+          <button onClick={() => setActiveTab("categorias")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
           <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
           <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Compras</button>
@@ -596,17 +669,18 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Categoría de Tienda</label>
+                  <div className="flex justify-between items-center mb-0.5">
+                    <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría de Tienda</label>
+                    <button type="button" onClick={() => setActiveTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar Categorías</button>
+                  </div>
                   <select
                     value={newCategory}
                     onChange={e => setNewCategory(e.target.value)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                   >
-                    <option>Abarrotes y Despensa</option>
-                    <option>Snacks</option>
-                    <option>Bebidas y Lácteos</option>
-                    <option>Limpieza y Hogar</option>
-                    <option>Ofertas</option>
+                    {allCategories.map((cat, idx) => (
+                      <option key={idx} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -674,7 +748,10 @@ export default function AdminPage() {
                           </div>
                           <div className="min-w-0">
                             <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                            <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                              <span className="text-[9px] text-zinc-500 truncate">({product.category || "Abarrotes"})</span>
+                            </div>
                           </div>
                         </div>
 
@@ -711,6 +788,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => openEditModal(product)}
                             className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
+                            title="Editar"
                           >
                             ✏️
                           </button>
@@ -719,6 +797,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => handleDeleteProduct(product.id, product.name)}
                             className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
+                            title="Eliminar"
                           >
                             🗑️
                           </button>
@@ -854,7 +933,70 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 📊 MÓDULO 1: CAJA & REPORTES */}
+        {/* VISTA 3: GESTIÓN DE CATEGORÍAS */}
+        {activeTab === "categorias" && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
+              <div>
+                <h2 className="text-xs font-black text-white">🏷️ Gestión de Categorías</h2>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda con total libertad.</p>
+              </div>
+              <button
+                onClick={() => setActiveTab("inventario")}
+                className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+              >
+                ← Volver a Inventario & Stock
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
+                <h3 className="text-xs font-black text-white">✨ Crear Nueva Categoría</h3>
+                <form onSubmit={handleAddCategory} className="space-y-3">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
+                    <input
+                      type="text"
+                      value={newCatName}
+                      onChange={e => setNewCatName(e.target.value)}
+                      placeholder="Ej. Bebidas Energizantes, Lácteos Premium"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
+                </form>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+                <h3 className="text-xs font-black text-white">Listado de Categorías ({categoriesList.length})</h3>
+                <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                  {categoriesList.map((catObj) => (
+                    <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                      <span className="font-bold text-white text-xs">{catObj.name}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
+                          className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
+                          className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VISTA 4: CAJA & REPORTES */}
         {activeTab === "caja" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -893,7 +1035,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 👥 MÓDULO 3: CLIENTES CRM */}
+        {/* VISTA 5: CLIENTES CRM */}
         {activeTab === "clientes" && (
           <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
             <h2 className="text-xs font-black text-white">👥 Clientes Frecuentes ({clientsList.length})</h2>
@@ -916,63 +1058,64 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🧾 MÓDULO 4: FACTURAS DE COMPRAS DETALLADAS (Opción A) */}
+        {/* VISTA 6: PROVEEDORES & COMPRAS */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-              <h2 className="text-xs font-black text-white">🧾 Registrar Factura</h2>
-              <form onSubmit={handleSaveInvoice} className="space-y-3">
-                <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="N° Factura / Guía" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" required />
-                <input type="text" value={invoiceSupplier} onChange={e => setInvoiceSupplier(e.target.value)} placeholder="Proveedor" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" required />
-
-                <div className="space-y-2 pt-2 border-t border-zinc-800">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-zinc-300 uppercase text-[9px]">Productos</span>
-                    <button type="button" onClick={handleAddInvoiceItem} className="bg-zinc-800 text-white px-2 py-0.5 rounded text-[9px] font-bold">+ Agregar</button>
-                  </div>
-
-                  {invoiceItems.map((item, index) => (
-                    <div key={index} className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-2">
-                      <div className="flex gap-1.5">
-                        <input type="text" value={item.name} onChange={e => handleInvoiceItemChange(index, "name", e.target.value)} placeholder="Producto" className="flex-1 bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white" required />
-                        {invoiceItems.length > 1 && <button type="button" onClick={() => handleRemoveInvoiceItem(index)} className="bg-red-950 text-red-400 px-2 rounded font-bold">✕</button>}
-                      </div>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        <input type="number" min="1" value={item.quantity} onChange={e => handleInvoiceItemChange(index, "quantity", parseInt(e.target.value) || 1)} placeholder="Cant" className="bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white" required />
-                        <input type="number" step="0.05" value={item.unitCost} onChange={e => handleInvoiceItemChange(index, "unitCost", parseFloat(e.target.value) || 0)} placeholder="C. Unit" className="bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white" />
-                        <input type="number" step="0.05" value={item.packageCost} onChange={e => handleInvoiceItemChange(index, "packageCost", parseFloat(e.target.value) || 0)} placeholder="C. Paq" className="bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white" />
-                      </div>
-                    </div>
-                  ))}
+              <h2 className="text-xs font-black text-white">🧾 Registrar Reposición / Compra</h2>
+              <form onSubmit={handleAddSupplier} className="space-y-3">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del Proveedor</label>
+                  <input
+                    type="text"
+                    value={supName}
+                    onChange={e => setSupName(e.target.value)}
+                    placeholder="Ej. Distribuidora Lácteos Gloria"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
                 </div>
-
-                <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg">Guardar Factura</button>
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Productos Suministrados</label>
+                  <input
+                    type="text"
+                    value={supProduct}
+                    onChange={e => setSupProduct(e.target.value)}
+                    placeholder="Ej. 50x Leche Azul 400g"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Costo Total Factura (S/)</label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    value={supCost}
+                    onChange={e => setSupCost(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+                <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Guardar Compra</button>
               </form>
             </div>
 
             <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <h2 className="text-xs font-black text-white">Historial de Facturas ({suppliers.length})</h2>
-              <div className="space-y-2 max-h-[450px] overflow-y-auto">
+              <h2 className="text-xs font-black text-white">Historial de Compras ({suppliers.length})</h2>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
                 {suppliers.length === 0 ? (
-                  <p className="text-zinc-500 text-center py-8">No hay facturas registradas.</p>
+                  <p className="text-zinc-500 text-center py-8">No hay compras registradas.</p>
                 ) : (
-                  suppliers.map(s => (
-                    <div key={s.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 space-y-2">
-                      <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
-                        <div>
-                          <h3 className="font-bold text-white">Factura: {s.invoiceNumber} <span className="text-zinc-400 font-normal">({s.supplier})</span></h3>
-                          <p className="text-[9px] text-zinc-500">{s.date}</p>
-                        </div>
-                        <span className="text-red-400 font-black">S/ {Number(s.totalCost || 0).toFixed(2)}</span>
+                  suppliers.map(sup => (
+                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex justify-between items-center">
+                      <div>
+                        <h3 className="font-bold text-white">{sup.name}</h3>
+                        <p className="text-zinc-400">{sup.product}</p>
+                        <p className="text-[9px] text-zinc-500">Fecha: {sup.date}</p>
                       </div>
-                      <div className="space-y-1">
-                        {s.items?.map((it: any, i: number) => (
-                          <div key={i} className="flex justify-between text-zinc-300 text-[11px]">
-                            <span>{it.quantity}x {it.name}</span>
-                            <span className="text-zinc-400">{Number(it.packageCost) > 0 ? `Paq: S/${it.packageCost}` : `Unit: S/${it.unitCost}`}</span>
-                          </div>
-                        ))}
-                      </div>
+                      <span className="text-red-400 font-black">S/ {(Number(sup.cost) || 0).toFixed(2)}</span>
                     </div>
                   ))
                 )}
@@ -981,25 +1124,103 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 6: MARKETING */}
+        {/* VISTA 7: MARKETING */}
         {activeTab === "marketing" && (
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-            <h2 className="text-xs font-black text-white">Banners y Promos Activas</h2>
-            <div className="space-y-2">
-              {promos.map(pr => (
-                <div key={pr.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex justify-between items-center">
-                  <div>
-                    <span className="text-red-400 font-black text-[10px]">{pr.discount}</span>
-                    <h3 className="font-bold text-white text-xs">{pr.title}</h3>
-                    <p className="text-zinc-400 text-[10px]">{pr.description}</p>
-                  </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
+              <h2 className="text-sm font-black text-white">🎯 Crear Campaña Flash</h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!newPromoTitle) return;
+                setPromos([{ id: Date.now(), title: newPromoTitle, description: newPromoDesc || "Promoción especial", discount: newPromoDiscount || "OFERTA", active: true }, ...promos]);
+                setNewPromoTitle(""); setNewPromoDesc(""); setNewPromoDiscount("");
+                alert("¡Campaña publicada en la web!");
+              }} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Título de Campaña</label>
+                  <input
+                    type="text"
+                    value={newPromoTitle}
+                    onChange={e => setNewPromoTitle(e.target.value)}
+                    placeholder="Ej. ¡Mega Oferta de Lácteos!"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
                 </div>
-              ))}
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Descripción</label>
+                  <input
+                    type="text"
+                    value={newPromoDesc}
+                    onChange={e => setNewPromoDesc(e.target.value)}
+                    placeholder="Ej. 20% en abarrotes seleccionados."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Etiqueta / Badge</label>
+                  <input
+                    type="text"
+                    value={newPromoDiscount}
+                    onChange={e => setNewPromoDiscount(e.target.value)}
+                    placeholder="Ej. -20% OFF"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600"
+                  />
+                </div>
+                <button type="submit" className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-2">
+                  Lanzar Anuncio en Vivo
+                </button>
+              </form>
+            </div>
+
+            <div className="lg:col-span-2 bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h2 className="text-sm font-black text-white">Banners y Campañas Activas ({promos.length})</h2>
+              <div className="space-y-3">
+                {promos.map(promo => (
+                  <div key={promo.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex justify-between items-center">
+                    <div>
+                      <span className="text-red-400 font-black text-[10px]">{promo.discount}</span>
+                      <h3 className="font-bold text-white text-xs">{promo.title}</h3>
+                      <p className="text-zinc-400 text-[10px]">{promo.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* MODAL DE EDICIÓN DE PRODUCTO VALIDADO */}
+        {/* MODAL DE EDICIÓN DE CATEGORÍA */}
+        {editingCategory && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                <h3 className="text-xs font-black">Editar Categoría: "{editingCategory.name}"</h3>
+                <button type="button" onClick={() => setEditingCategory(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
+              </div>
+
+              <form onSubmit={handleUpdateCategory} className="space-y-3">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nuevo Nombre</label>
+                  <input
+                    type="text"
+                    value={editCatName}
+                    onChange={e => setEditCatName(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+                <p className="text-[10px] text-amber-400">⚠️ Al renombrar esta categoría, se actualizarán automáticamente todos los productos que la tengan asignada.</p>
+                <div className="flex gap-2 pt-2 border-t border-zinc-800">
+                  <button type="button" onClick={() => setEditingCategory(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
+                  <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white cursor-pointer shadow-lg">Actualizar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DE EDICIÓN DE PRODUCTO */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
@@ -1051,11 +1272,9 @@ export default function AdminPage() {
                     onChange={e => setEditForm({ ...editForm, category: e.target.value })}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                   >
-                    <option>Abarrotes y Despensa</option>
-                    <option>Snacks</option>
-                    <option>Bebidas y Lácteos</option>
-                    <option>Limpieza y Hogar</option>
-                    <option>Ofertas</option>
+                    {allCategories.map((cat, idx) => (
+                      <option key={idx} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 

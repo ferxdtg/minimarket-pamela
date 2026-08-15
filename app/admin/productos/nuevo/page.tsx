@@ -48,12 +48,12 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados para Módulo de Proveedores / Compras
+  // Estados declarados para Proveedores / Compras
   const [supName, setSupName] = useState("");
   const [supProduct, setSupProduct] = useState("");
   const [supCost, setSupCost] = useState("");
 
-  // Estados para Módulo de Marketing & Promos
+  // Estados declarados para Marketing & Promos
   const [newPromoTitle, setNewPromoTitle] = useState("");
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
@@ -139,6 +139,9 @@ export default function AdminPage() {
     const unsubscribeCategories = onSnapshot(collection(db, "categories"), (snapshot) => {
       const catList = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
       setCategoriesList(catList);
+      if (catList.length > 0 && !catList.some((c: any) => c.name === newCategory)) {
+        setNewCategory(catList[0].name);
+      }
     }, (error) => {
       console.error("Error al escuchar categorías:", error);
     });
@@ -262,7 +265,7 @@ export default function AdminPage() {
       name: product.name || "",
       price: Number(product.price || 0),
       stock: Number(product.stock || 0),
-      category: product.category || "Abarrotes y Despensa",
+      category: product.category || categoriesList[0]?.name || "Abarrotes y Despensa",
       isOnSale: product.isOnSale || false,
       isFeatured: product.isFeatured || false,
       image: product.image || ""
@@ -289,11 +292,11 @@ export default function AdminPage() {
       setEditingProduct(null);
       alert("¡Producto actualizado correctamente!");
     } catch (error: any) {
-      alert(`Error al editar producto: ${error.message}`);
+      alert(`Error al editar: ${error.message}`);
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS (CREAR, EDITAR, ELIMINAR CUALQUIERA)
+  // 🏷️ GESTIÓN Y MODIFICACIÓN DE CATEGORÍAS
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -324,13 +327,17 @@ export default function AdminPage() {
 
       setEditingCategory(null);
       setEditCatName("");
-      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos!`);
+      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos con éxito!`);
     } catch (error: any) {
       alert(`Error al actualizar categoría: ${error.message}`);
     }
   };
 
   const handleDeleteCategory = async (catId: string, catName: string) => {
+    if (categoriesList.length <= 1) {
+      alert("Debes mantener al menos una categoría en el sistema.");
+      return;
+    }
     if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
     try {
       if (catId) {
@@ -360,7 +367,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA PARA PEDIDOS
+  // Pedidos
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
@@ -447,7 +454,7 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
+  const allCategoryNames = categoriesList?.map((c: any) => c.name) || ["Abarrotes y Despensa"];
 
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
@@ -678,7 +685,7 @@ export default function AdminPage() {
                     onChange={e => setNewCategory(e.target.value)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                   >
-                    {allCategories.map((cat, idx) => (
+                    {allCategoryNames.map((cat, idx) => (
                       <option key={idx} value={cat}>{cat}</option>
                     ))}
                   </select>
@@ -938,8 +945,8 @@ export default function AdminPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
-                <h2 className="text-xs font-black text-white">🏷️ Gestión de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda con total libertad.</p>
+                <h2 className="text-xs font-black text-white">🏷️ Gestión y Modificación de Categorías</h2>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda, incluidas las antiguas o principales.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
@@ -969,7 +976,7 @@ export default function AdminPage() {
               </div>
 
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <h3 className="text-xs font-black text-white">Listado de Categorías ({categoriesList.length})</h3>
+                <h3 className="text-xs font-black text-white">Listado General ({categoriesList.length})</h3>
                 <div className="space-y-2 max-h-[350px] overflow-y-auto">
                   {categoriesList.map((catObj) => (
                     <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
@@ -979,7 +986,7 @@ export default function AdminPage() {
                           onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
                           className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
                         >
-                          ✏️ Editar
+                          ✏️ Modificar
                         </button>
                         <button
                           onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
@@ -1195,7 +1202,7 @@ export default function AdminPage() {
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
               <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                <h3 className="text-xs font-black">Editar Categoría: "{editingCategory.name}"</h3>
+                <h3 className="text-xs font-black">Modificar Categoría: "{editingCategory.name}"</h3>
                 <button type="button" onClick={() => setEditingCategory(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
               </div>
 
@@ -1210,7 +1217,7 @@ export default function AdminPage() {
                     required
                   />
                 </div>
-                <p className="text-[10px] text-amber-400">⚠️ Al renombrar esta categoría, se actualizarán automáticamente todos los productos que la tengan asignada.</p>
+                <p className="text-[10px] text-amber-400">⚠️ Al modificar esta categoría, se actualizarán automáticamente todos los productos asociados.</p>
                 <div className="flex gap-2 pt-2 border-t border-zinc-800">
                   <button type="button" onClick={() => setEditingCategory(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
                   <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white cursor-pointer shadow-lg">Actualizar</button>
@@ -1272,7 +1279,7 @@ export default function AdminPage() {
                     onChange={e => setEditForm({ ...editForm, category: e.target.value })}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                   >
-                    {allCategories.map((cat, idx) => (
+                    {allCategoryNames.map((cat, idx) => (
                       <option key={idx} value={cat}>{cat}</option>
                     ))}
                   </select>
