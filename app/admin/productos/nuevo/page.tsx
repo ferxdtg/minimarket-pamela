@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -48,12 +48,12 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados declarados para Proveedores / Compras (Soluciona los errores de compilación)
+  // Estados declarados para Proveedores / Compras
   const [supName, setSupName] = useState("");
   const [supProduct, setSupProduct] = useState("");
   const [supCost, setSupCost] = useState("");
 
-  // Estados declarados para Marketing & Promos (Soluciona los errores de compilación)
+  // Estados declarados para Marketing & Promos
   const [newPromoTitle, setNewPromoTitle] = useState("");
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
@@ -91,25 +91,8 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
+  // 🚀 ESCUCHA EN TIEMPO REAL (SIN RECREAR AUTOMÁTICAMENTE CATEGORÍAS BORRADAS)
   useEffect(() => {
-    const initDefaultCategories = async () => {
-      try {
-        const catSnap = await getDocs(collection(db, "categories"));
-        const existingNames = catSnap.docs.map(d => d.data().name);
-        const defaults = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
-        
-        for (const d of defaults) {
-          if (!existingNames.includes(d)) {
-            await addDoc(collection(db, "categories"), { name: d });
-          }
-        }
-      } catch (err) {
-        console.error("Error inicializando categorías por defecto:", err);
-      }
-    };
-    initDefaultCategories();
-
     const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
       const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prodList);
@@ -298,7 +281,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN Y MODIFICACIÓN DE CATEGORÍAS (ANTIGUAS Y NUEVAS)
+  // 🏷️ GESTIÓN Y MODIFICACIÓN DE CATEGORÍAS
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -948,7 +931,7 @@ export default function AdminPage() {
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
                 <h2 className="text-xs font-black text-white">🏷️ Gestión y Modificación de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda, incluidas las antiguas o principales.</p>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
