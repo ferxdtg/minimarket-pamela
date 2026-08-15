@@ -48,17 +48,17 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados declarados para Proveedores / Compras
+  // Estados declarados para Proveedores / Compras (Soluciona los errores de compilación)
   const [supName, setSupName] = useState("");
   const [supProduct, setSupProduct] = useState("");
   const [supCost, setSupCost] = useState("");
 
-  // Estados declarados para Marketing & Promos
+  // Estados declarados para Marketing & Promos (Soluciona los errores de compilación)
   const [newPromoTitle, setNewPromoTitle] = useState("");
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
 
-  // Estados para Gestión y Edición de Categorías
+  // Estados para Gestión, Edición y Eliminación de Categorías
   const [newCatName, setNewCatName] = useState("");
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [editCatName, setEditCatName] = useState("");
@@ -96,14 +96,16 @@ export default function AdminPage() {
     const initDefaultCategories = async () => {
       try {
         const catSnap = await getDocs(collection(db, "categories"));
-        if (catSnap.empty) {
-          const defaults = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
-          for (const d of defaults) {
+        const existingNames = catSnap.docs.map(d => d.data().name);
+        const defaults = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
+        
+        for (const d of defaults) {
+          if (!existingNames.includes(d)) {
             await addDoc(collection(db, "categories"), { name: d });
           }
         }
       } catch (err) {
-        console.error("Error inicializando categorías:", err);
+        console.error("Error inicializando categorías por defecto:", err);
       }
     };
     initDefaultCategories();
@@ -296,7 +298,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN Y MODIFICACIÓN DE CATEGORÍAS
+  // 🏷️ GESTIÓN Y MODIFICACIÓN DE CATEGORÍAS (ANTIGUAS Y NUEVAS)
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
