@@ -48,12 +48,13 @@ export default function AdminPage() {
     category: "Abarrotes y Despensa",
     expiryDate: "",
     batchCode: "",
+    sku: "",
     isOnSale: false,
     isFeatured: false,
     image: ""
   });
 
-  // 🧾 ESTADOS DE FACTURACIÓN Y REPOSICIÓN PROFESIONAL
+  // 🧾 ESTADOS DE FACTURACIÓN Y REPOSICIÓN PROFESIONAL CON SKU AUTOMÁTICO
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceProvider, setInvoiceProvider] = useState("");
   const [invoiceRuc, setInvoiceRuc] = useState("");
@@ -202,8 +203,10 @@ export default function AdminPage() {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const generatedSku = `SKU-${Math.floor(100000 + Math.random() * 900000)}`;
       await addDoc(collection(db, "products"), {
         name: newName,
+        sku: generatedSku,
         price: parseFloat(newPrice) || 0,
         stock: parseInt(newStock) || 0,
         category: newCategory,
@@ -216,7 +219,7 @@ export default function AdminPage() {
       setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewExpiryDate(""); setNewBatchCode("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      alert("¡Producto publicado con éxito!");
+      alert(`¡Producto publicado con éxito! Código SKU asignado: ${generatedSku}`);
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
@@ -267,6 +270,7 @@ export default function AdminPage() {
       category: product.category || defaultCat,
       expiryDate: product.expiryDate || "",
       batchCode: product.batchCode || "",
+      sku: product.sku || `SKU-${Math.floor(100000 + Math.random() * 900000)}`,
       isOnSale: product.isOnSale || false,
       isFeatured: product.isFeatured || false,
       image: product.image || ""
@@ -284,9 +288,10 @@ export default function AdminPage() {
       category: editForm.category,
       expiryDate: editForm.expiryDate,
       batchCode: editForm.batchCode,
+      sku: editForm.sku,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
-      isNewRestock: false, // Al editar se limpia la etiqueta de nuevo ingreso
+      isNewRestock: false,
       image: editForm.image || editingProduct.image || ""
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
@@ -317,6 +322,7 @@ export default function AdminPage() {
             h3 { margin: 5px 0; font-size: 16px; }
             p { margin: 5px 0; font-size: 14px; font-weight: bold; }
             .barcode { font-size: 28px; letter-spacing: 4px; margin: 10px 0; font-weight: bold; }
+            .sku { font-size: 11px; color: #333; }
           </style>
         </head>
         <body>
@@ -325,7 +331,7 @@ export default function AdminPage() {
             <p>${product.name}</p>
             <div class="barcode">||| | |||| || | ||</div>
             <p>S/ ${(Number(product.price) || 0).toFixed(2)}</p>
-            <small>Lote: ${product.batchCode || 'GENERAL'}</small>
+            <div class="sku">SKU: ${product.sku || 'N/A'} | Lote: ${product.batchCode || 'GEN'}</div>
           </div>
           <script>
             window.onload = function() { window.print(); window.close(); }
@@ -336,7 +342,7 @@ export default function AdminPage() {
     printWindow.document.close();
   };
 
-  // 🧾 GESTIÓN DE ÍTEMS EN FACTURA
+  // 🧾 GESTIÓN DE ÍTEMS EN FACTURA CON AUTOCOMPLETADO
   const handleAddInvoiceItem = () => {
     setInvoiceItems([...invoiceItems, { productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
   };
@@ -361,7 +367,7 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 GUARDAR FACTURA Y ACTUALIZAR / CREAR STOCK AUTOMÁTICAMENTE (NIVEL MUNDIAL)
+  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO (EVITANDO REDUNDANCIAS CON AUTO-SKU)
   const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceNumber || !invoiceProvider) {
@@ -370,7 +376,6 @@ export default function AdminPage() {
     }
 
     try {
-      // 1. Guardar la factura en la colección suppliers
       await addDoc(collection(db, "suppliers"), {
         invoiceNumber,
         provider: invoiceProvider,
@@ -384,32 +389,30 @@ export default function AdminPage() {
         registeredAt: todayDateStr
       });
 
-      // 2. Impactar automáticamente el inventario (Stock + Alerta verde de producto nuevo)
       const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
 
       for (const item of invoiceItems) {
         const cleanName = String(item.productName || "").trim();
         if (!cleanName) continue;
 
-        // Buscar si ya existe el producto en stock
         const existingProd = products.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
 
         if (existingProd) {
-          // Si ya existe, sumamos la cantidad al stock actual
           const newStockVal = Number(existingProd.stock || 0) + Number(item.quantity || 0);
           await updateDoc(doc(db, "products", existingProd.id), { stock: newStockVal });
         } else {
-          // Si es un producto NUEVO, lo creamos con alerta verde y datos por defecto
+          const generatedSku = `SKU-${Math.floor(100000 + Math.random() * 900000)}`;
           await addDoc(collection(db, "products"), {
             name: cleanName,
-            price: Number((item.unitCost * 1.3).toFixed(2)), // Margen sugerido 30%
+            sku: generatedSku,
+            price: Number((item.unitCost * 1.3).toFixed(2)),
             stock: Number(item.quantity || 1),
             category: defaultCategory,
             expiryDate: "",
             batchCode: `L-${invoiceNumber}`,
             isOnSale: false,
             isFeatured: false,
-            isNewRestock: true, // 🟢 Bandera de producto nuevo registrado por factura
+            isNewRestock: true,
             image: ""
           });
         }
@@ -421,7 +424,7 @@ export default function AdminPage() {
       setInvoiceDate("");
       setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
       
-      alert("¡Factura registrada y stock actualizado con éxito en el inventario!");
+      alert("¡Factura registrada y stock sincronizado sin duplicados!");
       setActiveTab("inventario");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
@@ -542,7 +545,7 @@ export default function AdminPage() {
   }) : [];
 
   const filteredProducts = products?.filter(p => {
-    const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
     if (!matchesSearch) return false;
     if (filterOrphanOnly) {
       const cat = String(p.category || "").trim().toLowerCase();
@@ -806,7 +809,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (IoT/Lotes)</h2>
+              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (Auto-SKU)</h2>
               
               <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
                 <div>
@@ -911,7 +914,7 @@ export default function AdminPage() {
                   type="submit"
                   className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
                 >
-                  Publicar Producto con Lote
+                  Publicar Producto (Auto SKU)
                 </button>
               </form>
             </div>
@@ -934,8 +937,8 @@ export default function AdminPage() {
                   type="text"
                   value={searchTerm}
                   onChange={e => { setSearchTerm(e.target.value); setFilterOrphanOnly(false); }}
-                  placeholder="Buscar..."
-                  className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-48"
+                  placeholder="Buscar por nombre o SKU..."
+                  className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-56"
                 />
               </div>
 
@@ -967,7 +970,6 @@ export default function AdminPage() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                                {/* 🟢 ALERTA VERDE DE PRODUCTO NUEVO INGRESADO POR FACTURA */}
                                 {product.isNewRestock && (
                                   <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-1.5 py-0.2 rounded text-[8px] font-black animate-pulse">
                                     ✨ ¡Nuevo (Asignar Categoría y Foto)!
@@ -976,20 +978,20 @@ export default function AdminPage() {
                               </div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                                <span className="text-[9px] text-zinc-400 font-mono bg-zinc-900 px-1 rounded">[{product.sku || 'SKU-GEN'}]</span>
                                 {hasValidCategory ? (
                                   <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
                                 ) : (
                                   <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
                                 )}
                                 <span className={`text-[8px] px-1.5 py-0.2 rounded border font-bold ${expiryInfo.color}`}>
-                                  {expiryInfo.label} {product.batchCode ? `[${product.batchCode}]` : ""}
+                                  {expiryInfo.label}
                                 </span>
                               </div>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {/* 🏷️ BOTÓN GENERAR ETIQUETA CÓDIGO DE BARRAS */}
                             <button
                               type="button"
                               onClick={() => handlePrintBarcode(product)}
@@ -1078,7 +1080,7 @@ export default function AdminPage() {
                           </span>
                         </div>
                         <p className="text-[10px] text-zinc-400">
-                          Lote: <strong className="text-zinc-200">{product.batchCode || "N/A"}</strong> • Vencimiento: <strong className="text-zinc-200">{product.expiryDate || "No registrada"}</strong> • Stock: {product.stock} un.
+                          SKU: <strong className="text-zinc-200">{product.sku || 'N/A'}</strong> • Lote: <strong className="text-zinc-200">{product.batchCode || "N/A"}</strong> • Vencimiento: <strong className="text-zinc-200">{product.expiryDate || "No registrada"}</strong> • Stock: {product.stock} un.
                         </p>
                       </div>
 
@@ -1104,7 +1106,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🧾 VISTA SUPERIOR: FACTURAS Y REPOSICIONES AUTOMÁTICAS */}
+        {/* 🧾 VISTA SUPERIOR: FACTURAS CON AUTOCOMPLETADO ANTIRREDUNDANCIA Y SKU */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -1174,7 +1176,7 @@ export default function AdminPage() {
 
                 <div className="border-t border-zinc-800 pt-3 space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-zinc-300 uppercase text-[10px]">Detalle de Ítems / Unidades</span>
+                    <span className="font-bold text-zinc-300 uppercase text-[10px]">Detalle de Ítems / Autocompletado</span>
                     <button type="button" onClick={handleAddInvoiceItem} className="text-red-400 font-bold hover:underline">+ Agregar Ítem</button>
                   </div>
 
@@ -1182,14 +1184,24 @@ export default function AdminPage() {
                     {invoiceItems.map((item, index) => (
                       <div key={index} className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-2 relative">
                         <div className="flex justify-between items-center gap-2">
-                          <input
-                            type="text"
-                            value={item.productName}
-                            onChange={e => handleInvoiceItemChange(index, "productName", e.target.value)}
-                            placeholder="Nombre del producto (ej. Leche Gloria)"
-                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white"
-                            required
-                          />
+                          {/* 🔍 BUSCADOR / AUTOCOMPLETABLE DE PRODUCTOS */}
+                          <div className="flex-1 relative">
+                            <input
+                              type="text"
+                              list={`products-list-${index}`}
+                              value={item.productName}
+                              onChange={e => handleInvoiceItemChange(index, "productName", e.target.value)}
+                              placeholder="Escribe o busca producto..."
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-xs"
+                              required
+                            />
+                            <datalist id={`products-list-${index}`}>
+                              {products.map((p) => (
+                                <option key={p.id} value={p.name} />
+                              ))}
+                            </datalist>
+                          </div>
+
                           <select
                             value={item.unitType}
                             onChange={e => handleInvoiceItemChange(index, "unitType", e.target.value)}
@@ -1688,7 +1700,16 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">SKU / Código</label>
+                    <input
+                      type="text"
+                      value={editForm.sku}
+                      onChange={e => setEditForm({ ...editForm, sku: e.target.value })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    />
+                  </div>
                   <div>
                     <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Vencimiento ⏳</label>
                     <input
@@ -1704,7 +1725,7 @@ export default function AdminPage() {
                       type="text"
                       value={editForm.batchCode}
                       onChange={e => setEditForm({ ...editForm, batchCode: e.target.value })}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
                     />
                   </div>
                 </div>
