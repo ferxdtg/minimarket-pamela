@@ -122,7 +122,6 @@ export default function AdminPage() {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Si el producto no tiene SKU, se le asigna uno por única vez y se guarda en Firebase de forma permanente
       for (let prod of prodList) {
         if (!prod.sku || String(prod.sku).length !== 6) {
           const autoSku = generateRandom6DigitSku(prodList);
@@ -318,11 +317,10 @@ export default function AdminPage() {
       category: editForm.category,
       expiryDate: editForm.expiryDate,
       batchCode: editForm.batchCode,
-      // El SKU NO se modifica al editar; se mantiene el original inalterable (DNI del producto)
       sku: editingProduct.sku,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
-      isNewRestock: false, // Al editar se desactiva la alerta de nuevo producto
+      isNewRestock: false, // Al editar se desactiva la alerta verde de nuevo producto
       image: editForm.image || editingProduct.image || ""
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
@@ -398,7 +396,7 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO (CON ALERTA VERDE ACTIVA PARA PRODUCTOS NUEVOS)
+  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO (CON ALERTA VERDE CLARA PARA PRODUCTOS NUEVOS)
   const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceNumber || !invoiceProvider) {
@@ -445,7 +443,7 @@ export default function AdminPage() {
             batchCode: `L-${invoiceNumber}`,
             isOnSale: false,
             isFeatured: false,
-            isNewRestock: true, // 🟢 Alerta verde de producto nuevo que requiere atención
+            isNewRestock: true, // 🟢 Bandera explícita para mostrar la alerta verde de atención
             image: ""
           });
           currentProductsList.push({
@@ -465,7 +463,7 @@ export default function AdminPage() {
       setInvoiceDate("");
       setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
       
-      alert("¡Factura registrada! Revisa el inventario: los productos nuevos muestran su alerta verde de atención.");
+      alert("¡Factura registrada con éxito! Los productos nuevos ya aparecen en el inventario con su alerta verde.");
       setActiveTab("inventario");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
@@ -955,7 +953,7 @@ export default function AdminPage() {
                   type="submit"
                   className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
                 >
-                  Publicar Producto (Auto SKU 6D)
+                  Publicar Producto (SKU 6D)
                 </button>
               </form>
             </div>
@@ -1011,10 +1009,10 @@ export default function AdminPage() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                                {/* 🟢 ALERTA VERDE DE PRODUCTO NUEVO INGRESADO POR FACTURA */}
+                                {/* 🟢 ALERTA VERDE CLARA Y VISIBLE DE PRODUCTO NUEVO */}
                                 {product.isNewRestock && (
-                                  <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-1.5 py-0.2 rounded text-[8px] font-black animate-pulse">
-                                    ✨ ¡Nuevo (Asignar Categoría y Foto)!
+                                  <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 px-2 py-0.5 rounded text-[9px] font-black animate-pulse">
+                                    ✨ ¡Nuevo Ingreso (Asignar Foto y Categoría)!
                                   </span>
                                 )}
                               </div>
