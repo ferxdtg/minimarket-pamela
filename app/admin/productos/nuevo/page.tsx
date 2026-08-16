@@ -6,7 +6,13 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
+  // Pestañas principales o sub-vistas del inventario
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos">("inventario");
+  const [inventorySubTab, setInventorySubTab] = useState<"productos" | "vencimientos" | "categorias">("productos");
+  
+  // Estado para expandir el menú desplegable de Inventario & Stock en el Sidebar
+  const [isInventoryDropdownOpen, setIsInventoryDropdownOpen] = useState(false);
+
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
   // Estado para contraer/expandir el Sidebar lateral
@@ -102,7 +108,7 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // Generador estricto de SKU único de 6 dígitos que evalúa sobre la lista real actual
+  // Generador de SKU aleatorio de 6 dígitos único (Inmutable / Como un DNI)
   const generateUniqueSku = (existingList: any[]) => {
     let randomSku = "";
     let exists = true;
@@ -122,7 +128,6 @@ export default function AdminPage() {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Solo si el producto no tiene SKU en Firebase, se genera una sola vez y se graba de forma permanente
       for (let prod of prodList) {
         if (!prod.sku || String(prod.sku).length !== 6) {
           const permanentSku = generateUniqueSku(prodList);
@@ -249,7 +254,7 @@ export default function AdminPage() {
       setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewExpiryDate(""); setNewBatchCode("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      alert(`¡Producto publicado con éxito! SKU estático asignado: ${uniqueSku}`);
+      alert(`¡Producto publicado con éxito! Código SKU (DNI): ${uniqueSku}`);
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
@@ -318,10 +323,10 @@ export default function AdminPage() {
       category: editForm.category,
       expiryDate: editForm.expiryDate,
       batchCode: editForm.batchCode,
-      sku: editingProduct.sku, // Mantiene el SKU estático original inalterable
+      sku: editingProduct.sku,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
-      isNewRestock: false, // Quita la alerta verde al editar
+      isNewRestock: false,
       image: editForm.image || editingProduct.image || ""
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
@@ -329,7 +334,7 @@ export default function AdminPage() {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, finalData);
       setEditingProduct(null);
-      alert("¡Producto actualizado manteniendo su SKU intacto!");
+      alert("¡Producto actualizado correctamente manteniendo su SKU único!");
     } catch (error: any) {
       alert(`Error al editar: ${error.message}`);
     }
@@ -397,7 +402,7 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO (CON ALERTA VERDE CLARA PARA PRODUCTOS NUEVOS)
+  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO
   const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceNumber || !invoiceProvider) {
@@ -430,8 +435,9 @@ export default function AdminPage() {
 
         if (existingProd) {
           const newStockVal = Number(existingProd.stock || 0) + Number(item.quantity || 0);
-          await updateDoc(doc(db, "products", existingProd.id), { stock: newStockVal });
+          await updateDoc(doc(db, "products", existingProd.id), { stock: newStockVal, isNewRestock: true });
           existingProd.stock = newStockVal;
+          existingProd.isNewRestock = true;
         } else {
           const uniqueSku = generateUniqueSku(currentProductsList);
           const newDocRef = await addDoc(collection(db, "products"), {
@@ -464,8 +470,9 @@ export default function AdminPage() {
       setInvoiceDate("");
       setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
       
-      alert("¡Factura registrada! Los productos nuevos ya aparecen en el inventario con su alerta verde.");
+      alert("¡Factura registrada! Los productos ingresados ya aparecen en el inventario con su alerta verde.");
       setActiveTab("inventario");
+      setInventorySubTab("productos");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
     }
@@ -638,7 +645,7 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  // 🔔 FILTROS GLOBALES PARA VENCIMIENTOS (PRODUCTOS POR VENCER Y VENCIDOS)
+  // 🔔 FILTROS GLOBALES PARA VENCIMIENTOS
   const expiredProductsList = products.filter(p => {
     if (!p.expiryDate) return false;
     const diffDays = Math.ceil((new Date(p.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
@@ -681,34 +688,64 @@ export default function AdminPage() {
           </div>
 
           <nav className="space-y-1">
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setFilterOrphanOnly(false); setIsSidebarExpanded(false); }}
-              title="Inventario & Stock"
-              className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
-                activeTab === "inventario" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
-              }`}
-            >
-              <span className="text-sm shrink-0">📦</span>
-              {isSidebarExpanded && <span className="whitespace-nowrap">Inventario & Stock</span>}
-            </button>
-
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("vencimientos"); setIsSidebarExpanded(false); }}
-              title="Control de Vencimientos"
-              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
-                activeTab === "vencimientos" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-sm shrink-0">⏳</span>
-                {isSidebarExpanded && <span className="whitespace-nowrap">Vencimientos (Merma 0)</span>}
-              </span>
-              {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
-                <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[9px] font-black shrink-0">
-                  {expiredProductsList.length + expiringSoonProductsList.length}
+            {/* 📦 INVENTARIO & STOCK CON SUBMENÚS (Vencimientos y Categorías) */}
+            <div className="space-y-1">
+              <button
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  setActiveTab("inventario"); 
+                  setInventorySubTab("productos");
+                  setFilterOrphanOnly(false); 
+                  setIsInventoryDropdownOpen(!isInventoryDropdownOpen);
+                }}
+                title="Inventario & Stock"
+                className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                  activeTab === "inventario" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <span className="text-sm shrink-0">📦</span>
+                  {isSidebarExpanded && <span className="whitespace-nowrap">Inventario & Stock</span>}
                 </span>
+                {isSidebarExpanded && <span className="text-[10px]">{isInventoryDropdownOpen ? "▼" : "▶"}</span>}
+              </button>
+
+              {/* Submenús desplegables del Inventario */}
+              {isSidebarExpanded && isInventoryDropdownOpen && (
+                <div className="pl-6 space-y-1 pt-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }}
+                    className={`w-full text-left px-2 py-1.5 rounded font-semibold text-[11px] transition ${
+                      activeTab === "inventario" && inventorySubTab === "productos" ? "text-white bg-red-950/60" : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    • Productos & Stock
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setInventorySubTab("vencimientos"); }}
+                    className={`w-full text-left px-2 py-1.5 rounded font-semibold text-[11px] transition flex justify-between items-center ${
+                      activeTab === "inventario" && inventorySubTab === "vencimientos" ? "text-white bg-red-950/60" : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <span>• Vencimientos (Merma 0)</span>
+                    {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
+                      <span className="bg-red-500 text-white px-1.5 py-0.1 rounded-full text-[8px] font-black">
+                        {expiredProductsList.length + expiringSoonProductsList.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setInventorySubTab("categorias"); }}
+                    className={`w-full text-left px-2 py-1.5 rounded font-semibold text-[11px] transition flex justify-between items-center ${
+                      activeTab === "inventario" && inventorySubTab === "categorias" ? "text-white bg-red-950/60" : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <span>• Categorías</span>
+                    <span className="text-[9px] text-zinc-500">({categoriesList.length})</span>
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
 
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
@@ -736,20 +773,6 @@ export default function AdminPage() {
                 {isSidebarExpanded && <span className="whitespace-nowrap">Centro Logístico</span>}
               </span>
               {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black shrink-0">{pendingCount}</span>}
-            </button>
-
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("categorias"); setIsSidebarExpanded(false); }}
-              title="Gestión de Categorías"
-              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
-                activeTab === "categorias" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-sm shrink-0">🏷️</span>
-                {isSidebarExpanded && <span className="whitespace-nowrap">Categorías</span>}
-              </span>
-              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({categoriesList.length})</span>}
             </button>
 
             <button
@@ -809,7 +832,7 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ALARMAS (ORPHAN + VENCIMIENTOS) */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ICONO DE ALARTA INTERACTIVO (HOVER / CLIC) */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div className="flex items-center gap-3 flex-wrap">
             <div>
@@ -817,10 +840,10 @@ export default function AdminPage() {
               <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
             </div>
 
-            {/* 🚨 ALARMA 1: PRODUCTOS HUÉRFANOS */}
+            {/* ALARMA 1: PRODUCTOS HUÉRFANOS */}
             {orphanProducts.length > 0 && (
               <div 
-                onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(true); }}
+                onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(true); }}
                 title="Haz clic para ubicar los productos huérfanos en el inventario"
                 className="relative group flex items-center cursor-pointer ml-2"
               >
@@ -834,14 +857,22 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* 🚨 ALARMA 2: PRODUCTOS POR VENCER O VENCIDOS (EXIGIDO POR EL USUARIO) */}
+            {/* ⏳ ICONO DE ALERTA DE VENCIMIENTOS (TOOLTIP + TRASLADO AUTOMÁTICO AL HACER CLIC) */}
             {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
               <div 
-                onClick={() => setActiveTab("vencimientos")}
-                title="Haz clic para ver productos por vencer o vencidos"
-                className="relative group flex items-center cursor-pointer ml-2 bg-amber-950/60 border border-amber-500/50 px-2 py-1 rounded-lg text-amber-300 text-[10px] font-black animate-pulse"
+                onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }}
+                title="Haz clic para ir directamente a la sección de vencimientos"
+                className="relative group flex items-center cursor-pointer ml-2 bg-amber-950/80 border border-amber-500/80 px-2.5 py-1 rounded-lg text-amber-300 text-[10px] font-black animate-pulse hover:bg-amber-900 transition"
               >
-                ⚠️ Alerta Vencimientos: {expiredProductsList.length} vencidos, {expiringSoonProductsList.length} por vencer
+                ⏳ Alerta Vencimiento: {expiredProductsList.length} vencidos | {expiringSoonProductsList.length} por vencer
+
+                {/* Tooltip con información puntual al pasar el cursor */}
+                <div className="absolute left-0 top-7 z-50 hidden group-hover:block bg-zinc-950 text-white border border-amber-500/60 p-3 rounded-xl shadow-2xl w-64 text-[10px] leading-tight pointer-events-none space-y-1">
+                  <p className="font-black text-amber-400">Estado de Vencimientos:</p>
+                  <p>• Vencidos: {expiredProductsList.length} artículos</p>
+                  <p>• Por vencer (&le; 10 días): {expiringSoonProductsList.length} artículos</p>
+                  <p className="text-[9px] text-zinc-400 pt-1 italic">Haz clic para revisar y liquidar stock.</p>
+                </div>
               </div>
             )}
           </div>
@@ -863,308 +894,519 @@ export default function AdminPage() {
 
         {/* PESTAÑAS MÓVILES (Celulares) */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
-          <button onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
-          <button onClick={() => setActiveTab("vencimientos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
+          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "productos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
+          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
+          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("categorias"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Facturas</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
-          <button onClick={() => setActiveTab("categorias")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
           <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
           <button onClick={() => setActiveTab("marketing")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
         </div>
 
-        {/* VISTA 1: INVENTARIO */}
+        {/* 📦 CONTENEDOR PRINCIPAL DE INVENTARIO Y SUS SUBMENÚS */}
         {activeTab === "inventario" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="space-y-4">
             
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (SKU 6D)</h2>
-              
-              <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del artículo</label>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    placeholder="Ej. Yogur Gloria 1L"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Precio (S/)</label>
-                    <input
-                      type="number"
-                      step="0.05"
-                      value={newPrice}
-                      onChange={e => setNewPrice(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Stock Inicial</label>
-                    <input
-                      type="number"
-                      value={newStock}
-                      onChange={e => setNewStock(e.target.value)}
-                      placeholder="0"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Fecha de Vencimiento ⏳</label>
-                    <input
-                      type="date"
-                      value={newExpiryDate}
-                      onChange={e => setNewExpiryDate(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600 text-[10px]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">N° de Lote 🏷️</label>
-                    <input
-                      type="text"
-                      value={newBatchCode}
-                      onChange={e => setNewBatchCode(e.target.value)}
-                      placeholder="Ej. L-8842"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-0.5">
-                    <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría de Tienda</label>
-                    <button type="button" onClick={() => setActiveTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar Categorías</button>
-                  </div>
-                  <select
-                    value={newCategory}
-                    onChange={e => setNewCategory(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                  >
-                    {categoriesList.map((cat, idx) => (
-                      <option key={idx} value={cat.name}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex gap-4 pt-1 font-bold">
-                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                    <input type="checkbox" checked={newIsOnSale} onChange={e => setNewIsOnSale(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> En Oferta 🔥
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                    <input type="checkbox" checked={newIsFeatured} onChange={e => setNewIsFeatured(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
-                  </label>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-zinc-400 font-bold uppercase text-[9px]">Fotografía</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
-                      📁 Subir <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
-                    </label>
-                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
-                      📷 Cámara <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
-                    </label>
-                  </div>
-                  {newImage && <p className="text-[9px] text-emerald-400 font-bold">✓ Imagen lista</p>}
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
-                >
-                  Publicar Producto (SKU 6D)
-                </button>
-              </form>
-            </div>
-
-            <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-zinc-800 pb-2">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xs font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
-                  {filterOrphanOnly && (
-                    <button 
-                      onClick={() => setFilterOrphanOnly(false)} 
-                      className="bg-red-950/80 border border-red-900 text-red-400 px-2 py-0.5 rounded text-[9px] font-bold transition cursor-pointer"
-                    >
-                      ✕ Quitar filtro de atención
-                    </button>
-                  )}
-                </div>
-
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={e => { setSearchTerm(e.target.value); setFilterOrphanOnly(false); }}
-                  placeholder="Buscar por nombre o SKU..."
-                  className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-56"
-                />
-              </div>
-
-              {loading ? (
-                <p className="text-zinc-500 text-center py-8">Sincronizando inventario...</p>
-              ) : (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                  {filteredProducts.length === 0 ? (
-                    <p className="text-zinc-500 text-center py-12 text-xs">No hay productos que coincidan con la vista.</p>
-                  ) : (
-                    filteredProducts.map(product => {
-                      const currentStock = Number(product.stock ?? 0);
-                      const isOut = currentStock === 0;
-                      const isLow = currentStock > 0 && currentStock <= 5;
-                      const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
-                      const hasValidCategory = allCategoryNames.includes(prodCatTrimmed);
-                      const expiryInfo = getExpiryStatus(product.expiryDate);
-
-                      return (
-                        <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
-                              {product.image ? (
-                                <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" />
-                              ) : (
-                                <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                                {/* 🟢 ALERTA VERDE CLARA Y VISIBLE DE PRODUCTO NUEVO */}
-                                {product.isNewRestock && (
-                                  <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 px-2 py-0.5 rounded text-[9px] font-black animate-pulse">
-                                    ✨ ¡Nuevo Ingreso (Asignar Foto y Categoría)!
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                                <span className="text-[9px] text-zinc-300 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">SKU: {product.sku || 'N/A'}</span>
-                                {hasValidCategory ? (
-                                  <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
-                                ) : (
-                                  <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
-                                )}
-                                <span className={`text-[8px] px-1.5 py-0.2 rounded border font-bold ${expiryInfo.color}`}>
-                                  {expiryInfo.label}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handlePrintBarcode(product)}
-                              className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition"
-                              title="Generar Etiqueta PDF con Código de Barras"
-                            >
-                              🏷️ Etiqueta
-                            </button>
-
-                            <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
-                              <button
-                                type="button"
-                                onClick={() => handleStockUpdate(product.id, currentStock, -1)}
-                                className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
-                              >
-                                -
-                              </button>
-                              <span className="w-5 text-center font-black">{currentStock}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleStockUpdate(product.id, currentStock, 1)}
-                                className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
-                              >
-                                +
-                              </button>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(product)}
-                              className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
-                              title="Editar"
-                            >
-                              ✏️
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteProduct(product.id, product.name)}
-                              className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
-                              title="Eliminar"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-
-          </div>
-        )}
-
-        {/* VISTA NUEVA: CONTROL DE VENCIMIENTOS (MERMA 0) CON ALERTAS DEDICADAS */}
-        {activeTab === "vencimientos" && (
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
-            <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
-              <div>
-                <h2 className="text-sm font-black text-white">⏳ Semáforo de Vencimientos y Alertas (Merma 0)</h2>
-                <p className="text-[10px] text-zinc-400">Listado completo de productos por vencer (hasta 10 días) y productos ya vencidos.</p>
-              </div>
+            {/* Pestañas internas de navegación para los submenús de inventario */}
+            <div className="flex gap-2 border-b border-zinc-800 pb-2">
               <button
-                onClick={() => setActiveTab("inventario")}
-                className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                onClick={() => { setInventorySubTab("productos"); setFilterOrphanOnly(false); }}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  inventorySubTab === "productos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                }`}
               >
-                ← Volver al Inventario
+                📦 Productos & Stock
+              </button>
+              <button
+                onClick={() => setInventorySubTab("vencimientos")}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-2 ${
+                  inventorySubTab === "vencimientos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                }`}
+              >
+                <span>⏳ Control de Vencimientos</span>
+                {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
+                  <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[9px] font-black">
+                    {expiredProductsList.length + expiringSoonProductsList.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setInventorySubTab("categorias")}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  inventorySubTab === "categorias" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                }`}
+              >
+                🏷️ Gestión de Categorías ({categoriesList.length})
               </button>
             </div>
 
-            {/* Sub-sección 1: Vencidos */}
-            <div className="space-y-2">
-              <h3 className="text-xs font-black text-red-400 uppercase">🔴 Productos Vencidos ({expiredProductsList.length})</h3>
-              {expiredProductsList.length === 0 ? (
-                <p className="text-zinc-500 text-[11px] pb-2">No hay productos vencidos.</p>
-              ) : (
-                expiredProductsList.map(product => (
-                  <div key={product.id} className="bg-red-950/30 border border-red-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
+            {/* SUBMENÚ 1: PRODUCTOS & STOCK */}
+            {inventorySubTab === "productos" && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                
+                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
+                  <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (SKU 6D)</h2>
+                  
+                  <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
                     <div>
-                      <h4 className="font-bold text-white text-xs">{product.name}</h4>
-                      <p className="text-[10px] text-red-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
+                      <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del artículo</label>
+                      <input
+                        type="text"
+                        value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                        placeholder="Ej. Yogur Gloria 1L"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                        required
+                      />
                     </div>
-                    <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-red-600 text-white font-bold rounded text-xs">Retirar / Liquidar</button>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Precio (S/)</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={newPrice}
+                          onChange={e => setNewPrice(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Stock Inicial</label>
+                        <input
+                          type="number"
+                          value={newStock}
+                          onChange={e => setNewStock(e.target.value)}
+                          placeholder="0"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Fecha de Vencimiento ⏳</label>
+                        <input
+                          type="date"
+                          value={newExpiryDate}
+                          onChange={e => setNewExpiryDate(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">N° de Lote 🏷️</label>
+                        <input
+                          type="text"
+                          value={newBatchCode}
+                          onChange={e => setNewBatchCode(e.target.value)}
+                          placeholder="Ej. L-8842"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-0.5">
+                        <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría de Tienda</label>
+                        <button type="button" onClick={() => setInventorySubTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar Categorías</button>
+                      </div>
+                      <select
+                        value={newCategory}
+                        onChange={e => setNewCategory(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                      >
+                        {categoriesList.map((cat, idx) => (
+                          <option key={idx} value={cat.name}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex gap-4 pt-1 font-bold">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                        <input type="checkbox" checked={newIsOnSale} onChange={e => setNewIsOnSale(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> En Oferta 🔥
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                        <input type="checkbox" checked={newIsFeatured} onChange={e => setNewIsFeatured(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
+                      </label>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-zinc-400 font-bold uppercase text-[9px]">Fotografía</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
+                          📁 Subir <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
+                        </label>
+                        <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
+                          📷 Cámara <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
+                        </label>
+                      </div>
+                      {newImage && <p className="text-[9px] text-emerald-400 font-bold">✓ Imagen lista</p>}
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
+                    >
+                      Publicar Producto (SKU 6D)
+                    </button>
+                  </form>
+                </div>
+
+                <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-zinc-800 pb-2">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xs font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
+                      {filterOrphanOnly && (
+                        <button 
+                          onClick={() => setFilterOrphanOnly(false)} 
+                          className="bg-red-950/80 border border-red-900 text-red-400 px-2 py-0.5 rounded text-[9px] font-bold transition cursor-pointer"
+                        >
+                          ✕ Quitar filtro de atención
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={e => { setSearchTerm(e.target.value); setFilterOrphanOnly(false); }}
+                      placeholder="Buscar por nombre o SKU..."
+                      className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-56"
+                    />
                   </div>
-                ))
-              )}
+
+                  {loading ? (
+                    <p className="text-zinc-500 text-center py-8">Sincronizando inventario...</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                      {filteredProducts.length === 0 ? (
+                        <p className="text-zinc-500 text-center py-12 text-xs">No hay productos que coincidan con la vista.</p>
+                      ) : (
+                        filteredProducts.map(product => {
+                          const currentStock = Number(product.stock ?? 0);
+                          const isOut = currentStock === 0;
+                          const isLow = currentStock > 0 && currentStock <= 5;
+                          const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
+                          const hasValidCategory = allCategoryNames.includes(prodCatTrimmed);
+                          const expiryInfo = getExpiryStatus(product.expiryDate);
+
+                          return (
+                            <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                                  {product.image ? (
+                                    <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" />
+                                  ) : (
+                                    <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
+                                    {/* 🟢 ALERTA VERDE CLARA Y VISIBLE DE PRODUCTO NUEVO */}
+                                    {product.isNewRestock && (
+                                      <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 px-2 py-0.5 rounded text-[9px] font-black animate-pulse">
+                                        ✨ ¡Nuevo Ingreso (Asignar Foto y Categoría)!
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                                    <span className="text-[9px] text-zinc-300 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">SKU: {product.sku || 'N/A'}</span>
+                                    {hasValidCategory ? (
+                                      <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
+                                    ) : (
+                                      <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
+                                    )}
+                                    <span className={`text-[8px] px-1.5 py-0.2 rounded border font-bold ${expiryInfo.color}`}>
+                                      {expiryInfo.label}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintBarcode(product)}
+                                  className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition"
+                                  title="Generar Etiqueta PDF con Código de Barras"
+                                >
+                                  🏷️ Etiqueta
+                                </button>
+
+                                <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStockUpdate(product.id, currentStock, -1)}
+                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="w-5 text-center font-black">{currentStock}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStockUpdate(product.id, currentStock, 1)}
+                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(product)}
+                                  className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
+                                  title="Editar"
+                                >
+                                  ✏️
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProduct(product.id, product.name)}
+                                  className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
+                                  title="Eliminar"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+
+            {/* SUBMENÚ 2: CONTROL DE VENCIMIENTOS (MERMA 0) */}
+            {inventorySubTab === "vencimientos" && (
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <div>
+                    <h2 className="text-sm font-black text-white">⏳ Semáforo de Vencimientos y Alertas (Merma 0)</h2>
+                    <p className="text-[10px] text-zinc-400">Listado completo de productos por vencer (hasta 10 días) y productos ya vencidos.</p>
+                  </div>
+                  <button
+                    onClick={() => setInventorySubTab("productos")}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                  >
+                    ← Volver a Productos
+                  </button>
+                </div>
+
+                {/* Sub-sección 1: Vencidos */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black text-red-400 uppercase">🔴 Productos Vencidos ({expiredProductsList.length})</h3>
+                  {expiredProductsList.length === 0 ? (
+                    <p className="text-zinc-500 text-[11px] pb-2">No hay productos vencidos.</p>
+                  ) : (
+                    expiredProductsList.map(product => (
+                      <div key={product.id} className="bg-red-950/30 border border-red-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                        <div>
+                          <h4 className="font-bold text-white text-xs">{product.name}</h4>
+                          <p className="text-[10px] text-red-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
+                        </div>
+                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-red-600 text-white font-bold rounded text-xs">Retirar / Liquidar</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Sub-sección 2: Por Vencer */}
+                <div className="space-y-2 pt-2 border-t border-zinc-800">
+                  <h3 className="text-xs font-black text-yellow-400 uppercase">⚡ Productos por Vencer en 10 días o menos ({expiringSoonProductsList.length})</h3>
+                  {expiringSoonProductsList.length === 0 ? (
+                    <p className="text-zinc-500 text-[11px]">No hay productos próximos a vencer.</p>
+                  ) : (
+                    expiringSoonProductsList.map(product => (
+                      <div key={product.id} className="bg-yellow-950/30 border border-yellow-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                        <div>
+                          <h4 className="font-bold text-white text-xs">{product.name}</h4>
+                          <p className="text-[10px] text-yellow-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
+                        </div>
+                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-yellow-600 text-black font-black rounded text-xs">Crear Oferta Flash 🔥</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* SUBMENÚ 3: GESTIÓN DE CATEGORÍAS */}
+            {inventorySubTab === "categorias" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
+                    <h3 className="text-xs font-black text-white">✨ Crear Nueva Categoría</h3>
+                    <form onSubmit={handleAddCategory} className="space-y-3">
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
+                        <input
+                          type="text"
+                          value={newCatName}
+                          onChange={e => setNewCatName(e.target.value)}
+                          placeholder="Ej. Bebidas Energizantes, Lácteos Premium"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                          required
+                        />
+                      </div>
+                      <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
+                    </form>
+                  </div>
+
+                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+                    <h3 className="text-xs font-black text-white">Listado General ({categoriesList.length})</h3>
+                    <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                      {categoriesList.map((catObj) => (
+                        <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                          <span className="font-bold text-white text-xs">{catObj.name}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
+                              className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
+                            >
+                              ✏️ Modificar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
+                              className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD */}
+        {activeTab === "pedidos" && (
+          <div className="space-y-4">
+            
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Ventas Totales</span>
+                <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Pendientes</span>
+                <div className="text-base font-black text-amber-400">{pendingCount}</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Inventario</span>
+                <div className="text-base font-black text-blue-400">{products.length}</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Rechazados / Otros</span>
+                <div className="text-base font-black text-red-400">{rejectedCount + uncollectedCount}</div>
+              </div>
             </div>
 
-            {/* Sub-sección 2: Por Vencer */}
-            <div className="space-y-2 pt-2 border-t border-zinc-800">
-              <h3 className="text-xs font-black text-yellow-400 uppercase">⚡ Productos por Vencer en 10 días o menos ({expiringSoonProductsList.length})</h3>
-              {expiringSoonProductsList.length === 0 ? (
-                <p className="text-zinc-500 text-[11px]">No hay productos próximos a vencer.</p>
+            <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                <button 
+                  onClick={() => setOrderStatusTab("PENDIENTE")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ⏳ Pendientes ({pendingCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("ENTREGADO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ✓ Entregados ({deliveredCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("RECHAZADO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ✕ Rechazados ({rejectedCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("NO_RECOGIDO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🏪 No Recogidos ({uncollectedCount})
+                </button>
+              </div>
+
+              {/* Subfiltros internos */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-zinc-400 font-bold">Tipo:</span>
+                  <button onClick={() => updateSubFilter("type", "TODOS")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Todos</button>
+                  <button onClick={() => updateSubFilter("type", "DELIVERY")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Delivery</button>
+                  <button onClick={() => updateSubFilter("type", "RECOJO")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Recojo</button>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <span className="text-zinc-400 font-bold">Fecha:</span>
+                  <input type="date" value={currentSubFilter.startDate} onChange={e => updateSubFilter("startDate", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-white text-[10px]" />
+                  <span>-</span>
+                  <input type="date" value={currentSubFilter.endDate} onChange={e => updateSubFilter("endDate", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-white text-[10px]" />
+                  {(currentSubFilter.startDate || currentSubFilter.endDate) && (
+                    <button onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }} className="bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Limpiar</button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredOrders.length === 0 ? (
+                <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en {orderStatusTab.toLowerCase()} con estos filtros.</p>
               ) : (
-                expiringSoonProductsList.map(product => (
-                  <div key={product.id} className="bg-yellow-950/30 border border-yellow-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
-                    <div>
-                      <h4 className="font-bold text-white text-xs">{product.name}</h4>
-                      <p className="text-[10px] text-yellow-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
+                filteredOrders.map(order => (
+                  <div key={order.id} className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3.5 space-y-2.5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"}`}>
+                          {order.type}
+                        </span>
+                        <h3 className="text-xs font-black text-white mt-1">{order.client}</h3>
+                        <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
+                      </div>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-zinc-950 text-zinc-300">{order.status}</span>
                     </div>
-                    <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-yellow-600 text-black font-black rounded text-xs">Crear Oferta Flash 🔥</button>
+
+                    <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
+                      <p className="text-zinc-300">{order.items}</p>
+                      <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900">
+                        <span>TOTAL</span>
+                        <span className="text-red-400">S/ {(Number(order.total) || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {order.status === "PENDIENTE" && (
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")} className="py-1.5 bg-emerald-600 text-white font-bold text-[10px] rounded-lg">✓ Entregar</button>
+                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "RECHAZADO")} className="py-1.5 bg-red-950 text-red-400 border border-red-900 font-bold text-[10px] rounded-lg">✕ Rechazar</button>
+                        </div>
+                      )}
+                      {order.status === "RECHAZADO" && <div className="py-1 bg-red-950/30 text-red-400 text-center font-bold text-[10px] rounded border border-red-900/30">Rechazado</div>}
+                      {order.status === "NO_RECOGIDO" && <div className="py-1 bg-purple-950/30 text-purple-400 text-center font-bold text-[10px] rounded border border-purple-900/30">No Recogido</div>}
+                      {order.status === "ENTREGADO" && <div className="py-1 bg-zinc-950 text-emerald-400 text-center font-bold text-[10px] rounded border border-emerald-900/30">Entregado ✓</div>}
+                      {order.status === "PENDIENTE" && order.type === "RECOJO" && (
+                        <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "NO_RECOGIDO")} className="w-full py-1 bg-zinc-950 text-zinc-400 border border-zinc-800 font-bold text-[9px] rounded">Marcar No Recogido</button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
@@ -1172,7 +1414,69 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🧾 VISTA SUPERIOR: FACTURAS CON AUTOCOMPLETADO ANTIRREDUNDANCIA Y SKU DE 6 DÍGITOS */}
+        {/* VISTA 3: CAJA & REPORTES */}
+        {activeTab === "caja" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Ingresos Hoy (Lima)</span>
+                <div className="text-lg font-black text-emerald-400">S/ {todaySalesTotal.toFixed(2)}</div>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Tickets Emitidos</span>
+                <div className="text-lg font-black text-blue-400">{todaySalesOrders.length}</div>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Ticket Promedio</span>
+                <div className="text-lg font-black text-amber-400">S/ {todayTicketAverage.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+              <h2 className="text-xs font-black text-white">📋 Detalle de Facturación ({todayDateStr})</h2>
+              <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                {todaySalesOrders.length === 0 ? (
+                  <p className="text-zinc-500 text-center py-8">No hay ventas registradas hoy.</p>
+                ) : (
+                  todaySalesOrders.map((o: any) => (
+                    <div key={o.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-white">{o.client} <span className="text-[9px] text-zinc-500">({o.phone})</span></p>
+                        <p className="text-[10px] text-zinc-400">{o.items}</p>
+                      </div>
+                      <span className="text-emerald-400 font-black">S/ {Number(o.total || 0).toFixed(2)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VISTA 4: CLIENTES CRM */}
+        {activeTab === "clientes" && (
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+            <h2 className="text-xs font-black text-white">👥 Clientes Frecuentes ({clientsList.length})</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {clientsList.map((c: any, i) => (
+                <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 space-y-1">
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-bold text-white">{c.name}</h3>
+                    <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">{c.totalOrders} compras</span>
+                  </div>
+                  <p className="text-zinc-400">📱 {c.phone}</p>
+                  <p className="text-zinc-400 truncate">🏠 {c.address}</p>
+                  <p className="text-emerald-400 font-black pt-1 border-t border-zinc-900 flex justify-between">
+                    <span>Total gastado:</span>
+                    <span>S/ {c.spent.toFixed(2)}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* VISTA 5: FACTURAS Y REPOSICIÓN */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -1250,7 +1554,6 @@ export default function AdminPage() {
                     {invoiceItems.map((item, index) => (
                       <div key={index} className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-2 relative">
                         <div className="flex justify-between items-center gap-2">
-                          {/* 🔍 BUSCADOR / AUTOCOMPLETABLE DE PRODUCTOS */}
                           <div className="flex-1 relative">
                             <input
                               type="text"
@@ -1379,253 +1682,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD */}
-        {activeTab === "pedidos" && (
-          <div className="space-y-4">
-            
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase">Ventas Totales</span>
-                <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
-              </div>
-
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase">Pendientes</span>
-                <div className="text-base font-black text-amber-400">{pendingCount}</div>
-              </div>
-
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase">Inventario</span>
-                <div className="text-base font-black text-blue-400">{products.length}</div>
-              </div>
-
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase">Rechazados / Otros</span>
-                <div className="text-base font-black text-red-400">{rejectedCount + uncollectedCount}</div>
-              </div>
-            </div>
-
-            <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
-              <div className="flex gap-1.5 overflow-x-auto pb-1">
-                <button 
-                  onClick={() => setOrderStatusTab("PENDIENTE")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  ⏳ Pendientes ({pendingCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("ENTREGADO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  ✓ Entregados ({deliveredCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("RECHAZADO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  ✕ Rechazados ({rejectedCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("NO_RECOGIDO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  🏪 No Recogidos ({uncollectedCount})
-                </button>
-              </div>
-
-              {/* Subfiltros internos */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-zinc-400 font-bold">Tipo:</span>
-                  <button onClick={() => updateSubFilter("type", "TODOS")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Todos</button>
-                  <button onClick={() => updateSubFilter("type", "DELIVERY")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Delivery</button>
-                  <button onClick={() => updateSubFilter("type", "RECOJO")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Recojo</button>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <span className="text-zinc-400 font-bold">Fecha:</span>
-                  <input type="date" value={currentSubFilter.startDate} onChange={e => updateSubFilter("startDate", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-white text-[10px]" />
-                  <span>-</span>
-                  <input type="date" value={currentSubFilter.endDate} onChange={e => updateSubFilter("endDate", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-white text-[10px]" />
-                  {(currentSubFilter.startDate || currentSubFilter.endDate) && (
-                    <button onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }} className="bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Limpiar</button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredOrders.length === 0 ? (
-                <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en {orderStatusTab.toLowerCase()} con estos filtros.</p>
-              ) : (
-                filteredOrders.map(order => (
-                  <div key={order.id} className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3.5 space-y-2.5">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"}`}>
-                          {order.type}
-                        </span>
-                        <h3 className="text-xs font-black text-white mt-1">{order.client}</h3>
-                        <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
-                      </div>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-zinc-950 text-zinc-300">{order.status}</span>
-                    </div>
-
-                    <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
-                      <p className="text-zinc-300">{order.items}</p>
-                      <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900">
-                        <span>TOTAL</span>
-                        <span className="text-red-400">S/ {(Number(order.total) || 0).toFixed(2)}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      {order.status === "PENDIENTE" && (
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")} className="py-1.5 bg-emerald-600 text-white font-bold text-[10px] rounded-lg">✓ Entregar</button>
-                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "RECHAZADO")} className="py-1.5 bg-red-950 text-red-400 border border-red-900 font-bold text-[10px] rounded-lg">✕ Rechazar</button>
-                        </div>
-                      )}
-                      {order.status === "RECHAZADO" && <div className="py-1 bg-red-950/30 text-red-400 text-center font-bold text-[10px] rounded border border-red-900/30">Rechazado</div>}
-                      {order.status === "NO_RECOGIDO" && <div className="py-1 bg-purple-950/30 text-purple-400 text-center font-bold text-[10px] rounded border border-purple-900/30">No Recogido</div>}
-                      {order.status === "ENTREGADO" && <div className="py-1 bg-zinc-950 text-emerald-400 text-center font-bold text-[10px] rounded border border-emerald-900/30">Entregado ✓</div>}
-                      {order.status === "PENDIENTE" && order.type === "RECOJO" && (
-                        <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "NO_RECOGIDO")} className="w-full py-1 bg-zinc-950 text-zinc-400 border border-zinc-800 font-bold text-[9px] rounded">Marcar No Recogido</button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 3: GESTIÓN DE CATEGORÍAS */}
-        {activeTab === "categorias" && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
-              <div>
-                <h2 className="text-xs font-black text-white">🏷️ Gestión y Modificación de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda con total libertad.</p>
-              </div>
-              <button
-                onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(false); }}
-                className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
-              >
-                ← Volver al Inventario
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
-                <h3 className="text-xs font-black text-white">✨ Crear Nueva Categoría</h3>
-                <form onSubmit={handleAddCategory} className="space-y-3">
-                  <div>
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
-                    <input
-                      type="text"
-                      value={newCatName}
-                      onChange={e => setNewCatName(e.target.value)}
-                      placeholder="Ej. Bebidas Energizantes, Lácteos Premium"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                      required
-                    />
-                  </div>
-                  <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
-                </form>
-              </div>
-
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <h3 className="text-xs font-black text-white">Listado General ({categoriesList.length})</h3>
-                <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                  {categoriesList.map((catObj) => (
-                    <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
-                      <span className="font-bold text-white text-xs">{catObj.name}</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
-                          className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
-                        >
-                          ✏️ Modificar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
-                          className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
-                        >
-                          🗑️ Eliminar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 4: CAJA & REPORTES */}
-        {activeTab === "caja" && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase">Ingresos Hoy (Lima)</span>
-                <div className="text-lg font-black text-emerald-400">S/ {todaySalesTotal.toFixed(2)}</div>
-              </div>
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase">Tickets Emitidos</span>
-                <div className="text-lg font-black text-blue-400">{todaySalesOrders.length}</div>
-              </div>
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase">Ticket Promedio</span>
-                <div className="text-lg font-black text-amber-400">S/ {todayTicketAverage.toFixed(2)}</div>
-              </div>
-            </div>
-
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <h2 className="text-xs font-black text-white">📋 Detalle de Facturación ({todayDateStr})</h2>
-              <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                {todaySalesOrders.length === 0 ? (
-                  <p className="text-zinc-500 text-center py-8">No hay ventas registradas hoy.</p>
-                ) : (
-                  todaySalesOrders.map((o: any) => (
-                    <div key={o.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
-                      <div>
-                        <p className="font-bold text-white">{o.client} <span className="text-[9px] text-zinc-500">({o.phone})</span></p>
-                        <p className="text-[10px] text-zinc-400">{o.items}</p>
-                      </div>
-                      <span className="text-emerald-400 font-black">S/ {Number(o.total || 0).toFixed(2)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 5: CLIENTES CRM */}
-        {activeTab === "clientes" && (
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-            <h2 className="text-xs font-black text-white">👥 Clientes Frecuentes ({clientsList.length})</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {clientsList.map((c: any, i) => (
-                <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 space-y-1">
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-bold text-white">{c.name}</h3>
-                    <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">{c.totalOrders} compras</span>
-                  </div>
-                  <p className="text-zinc-400">📱 {c.phone}</p>
-                  <p className="text-zinc-400 truncate">🏠 {c.address}</p>
-                  <p className="text-emerald-400 font-black pt-1 border-t border-zinc-900 flex justify-between">
-                    <span>Total gastado:</span>
-                    <span>S/ {c.spent.toFixed(2)}</span>
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 7: MARKETING */}
+        {/* VISTA 6: MARKETING */}
         {activeTab === "marketing" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
