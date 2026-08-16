@@ -53,10 +53,15 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados para Proveedores / Compras
-  const [supName, setSupName] = useState("");
-  const [supProduct, setSupProduct] = useState("");
-  const [supCost, setSupCost] = useState("");
+  // 🧾 ESTADOS DE NIVEL SUPERIOR PARA FACTURAS Y REPOSICIONES MÚLTIPLES
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceProvider, setInvoiceProvider] = useState("");
+  const [invoiceRuc, setInvoiceRuc] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [invoicePaymentTerm, setInvoicePaymentTerm] = useState("CONTADO");
+  const [invoiceItems, setInvoiceItems] = useState([
+    { productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }
+  ]);
 
   // Estados para Marketing & Promos
   const [newPromoTitle, setNewPromoTitle] = useState("");
@@ -211,7 +216,7 @@ export default function AdminPage() {
       setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewExpiryDate(""); setNewBatchCode("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      alert("¡Producto publicado con control de lote y vencimiento exitoso!");
+      alert("¡Producto publicado con éxito!");
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
@@ -330,6 +335,62 @@ export default function AdminPage() {
     printWindow.document.close();
   };
 
+  // 🧾 GESTIÓN DE FACTURAS Y REPOSICIONES NIVEL SUPERIOR
+  const handleAddInvoiceItem = () => {
+    setInvoiceItems([...invoiceItems, { productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
+  };
+
+  const handleInvoiceItemChange = (index: number, field: string, value: any) => {
+    const updated = [...invoiceItems];
+    updated[index] = { ...updated[index], [field]: value };
+    
+    // Calcular costo total del ítem automáticamente
+    if (field === "quantity" || field === "unitCost") {
+      const qty = Number(field === "quantity" ? value : updated[index].quantity) || 0;
+      const cost = Number(field === "unitCost" ? value : updated[index].unitCost) || 0;
+      updated[index].totalCost = Number((qty * cost).toFixed(2));
+    }
+    
+    setInvoiceItems(updated);
+  };
+
+  const handleRemoveInvoiceItem = (index: number) => {
+    if (invoiceItems.length === 1) return;
+    setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
+  };
+
+  const totalInvoiceAmount = invoiceItems.reduce((sum, item) => sum + (Number(item.totalCost) || 0), 0);
+
+  const handleSaveInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoiceNumber || !invoiceProvider) {
+      alert("Por favor ingresa el N° de Factura y el Proveedor.");
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "suppliers"), {
+        invoiceNumber,
+        provider: invoiceProvider,
+        ruc: invoiceRuc || "S/N",
+        date: invoiceDate || todayDateStr,
+        paymentTerm: invoicePaymentTerm,
+        items: invoiceItems,
+        totalCost: totalInvoiceAmount,
+        registeredAt: todayDateStr
+      });
+
+      setInvoiceNumber("");
+      setInvoiceProvider("");
+      setInvoiceRuc("");
+      setInvoiceDate("");
+      setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
+      alert("¡Factura y reposición registrada con éxito en el sistema!");
+    } catch (error: any) {
+      alert(`Error al registrar factura: ${error.message}`);
+    }
+  };
+
   // 🏷️ GESTIÓN DE CATEGORÍAS
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -380,23 +441,6 @@ export default function AdminPage() {
       }
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
-    }
-  };
-
-  const handleAddSupplier = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!supName || !supProduct) return;
-    try {
-      await addDoc(collection(db, "suppliers"), {
-        name: supName,
-        product: supProduct,
-        cost: parseFloat(supCost) || 0,
-        date: todayDateStr
-      });
-      setSupName(""); setSupProduct(""); setSupCost("");
-      alert("¡Compra y proveedor registrados con éxito!");
-    } catch (error: any) {
-      alert(`Error al registrar: ${error.message}`);
     }
   };
 
@@ -470,7 +514,6 @@ export default function AdminPage() {
     return true;
   }) || [];
 
-  // 🚦 CÁLCULO DE SEMÁFORO DE VENCIMIENTOS (Lógica de 10 días para liquidar)
   const getExpiryStatus = (expiryDateStr: string) => {
     if (!expiryDateStr) return { color: "bg-zinc-800 text-zinc-400 border-zinc-700", label: "Sin Fecha" };
     const today = new Date();
@@ -570,6 +613,20 @@ export default function AdminPage() {
             </button>
 
             <button
+              onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
+              title="Facturas & Proveedores"
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                activeTab === "proveedores" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🧾</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Facturas & Compras</span>}
+              </span>
+              {suppliers.length > 0 && <span className="bg-emerald-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black shrink-0">{suppliers.length}</span>}
+            </button>
+
+            <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("pedidos"); setIsSidebarExpanded(false); }}
               title="Centro Logístico"
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
@@ -620,20 +677,6 @@ export default function AdminPage() {
                 {isSidebarExpanded && <span className="whitespace-nowrap">Clientes CRM</span>}
               </span>
               {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({clientsList.length})</span>}
-            </button>
-
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
-              title="Facturas Compras"
-              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
-                activeTab === "proveedores" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-sm shrink-0">🧾</span>
-                {isSidebarExpanded && <span className="whitespace-nowrap">Facturas Compras</span>}
-              </span>
-              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({suppliers.length})</span>}
             </button>
 
             <button
@@ -713,11 +756,11 @@ export default function AdminPage() {
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
           <button onClick={() => setActiveTab("vencimientos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
+          <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Facturas</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
           <button onClick={() => setActiveTab("categorias")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
           <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
-          <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Compras</button>
           <button onClick={() => setActiveTab("marketing")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
         </div>
 
@@ -1016,6 +1059,193 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* 🧾 VISTA SUPERIOR: FACTURAS Y REPOSICIONES CON MÚLTIPLES UNIDADES DE MEDIDA */}
+        {activeTab === "proveedores" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 h-fit space-y-4 lg:col-span-1">
+              <h2 className="text-xs font-black text-white flex items-center gap-2">🧾 Registrar Factura / Reposición</h2>
+              
+              <form onSubmit={handleSaveInvoice} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">N° de Factura / Recibo</label>
+                  <input
+                    type="text"
+                    value={invoiceNumber}
+                    onChange={e => setInvoiceNumber(e.target.value)}
+                    placeholder="Ej. F001-00482"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Proveedor / Distribuidora</label>
+                    <input
+                      type="text"
+                      value={invoiceProvider}
+                      onChange={e => setInvoiceProvider(e.target.value)}
+                      placeholder="Ej. Gloria S.A."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">RUC del Proveedor</label>
+                    <input
+                      type="text"
+                      value={invoiceRuc}
+                      onChange={e => setInvoiceRuc(e.target.value)}
+                      placeholder="20100100100"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Fecha de Emisión</label>
+                    <input
+                      type="date"
+                      value={invoiceDate}
+                      onChange={e => setInvoiceDate(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Condición de Pago</label>
+                    <select
+                      value={invoicePaymentTerm}
+                      onChange={e => setInvoicePaymentTerm(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    >
+                      <option value="CONTADO">Contado</option>
+                      <option value="CREDITO_15D">Crédito 15 días</option>
+                      <option value="CREDITO_30D">Crédito 30 días</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="border-t border-zinc-800 pt-3 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-zinc-300 uppercase text-[10px]">Detalle de Ítems / Unidades</span>
+                    <button type="button" onClick={handleAddInvoiceItem} className="text-red-400 font-bold hover:underline">+ Agregar Ítem</button>
+                  </div>
+
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {invoiceItems.map((item, index) => (
+                      <div key={index} className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-2 relative">
+                        <div className="flex justify-between items-center gap-2">
+                          <input
+                            type="text"
+                            value={item.productName}
+                            onChange={e => handleInvoiceItemChange(index, "productName", e.target.value)}
+                            placeholder="Nombre del producto"
+                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white"
+                            required
+                          />
+                          <select
+                            value={item.unitType}
+                            onChange={e => handleInvoiceItemChange(index, "unitType", e.target.value)}
+                            className="bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-[10px]"
+                          >
+                            <option value="UNIDAD">Unidades</option>
+                            <option value="KG">Kilogramos (kg)</option>
+                            <option value="PAQUETE">Paquetes</option>
+                            <option value="LITRO">Litros (L)</option>
+                            <option value="CAJA">Cajas</option>
+                          </select>
+                          {invoiceItems.length > 1 && (
+                            <button type="button" onClick={() => handleRemoveInvoiceItem(index)} className="text-red-400 font-bold px-1.5">✕</button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <div>
+                            <span className="text-[8px] text-zinc-400 uppercase">Cantidad</span>
+                            <input
+                              type="number"
+                              step="any"
+                              value={item.quantity}
+                              onChange={e => handleInvoiceItemChange(index, "quantity", e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-white text-center"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[8px] text-zinc-400 uppercase">Costo Unit. (S/)</span>
+                            <input
+                              type="number"
+                              step="0.05"
+                              value={item.unitCost}
+                              onChange={e => handleInvoiceItemChange(index, "unitCost", e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-white text-center"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[8px] text-zinc-400 uppercase">Total (S/)</span>
+                            <div className="bg-zinc-900/50 border border-zinc-800/80 rounded p-1 text-emerald-400 text-center font-black">
+                              S/ {item.totalCost.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg font-black text-sm">
+                  <span>TOTAL FACTURA:</span>
+                  <span className="text-emerald-400">S/ {totalInvoiceAmount.toFixed(2)}</span>
+                </div>
+
+                <button type="submit" className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-lg transition cursor-pointer shadow-lg">
+                  Guardar Factura en Sistema
+                </button>
+              </form>
+            </div>
+
+            <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
+              <h2 className="text-sm font-black text-white">Historial de Facturas y Proveedores ({suppliers.length})</h2>
+              <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
+                {suppliers.length === 0 ? (
+                  <p className="text-zinc-500 text-center py-16">No hay facturas registradas en el sistema.</p>
+                ) : (
+                  suppliers.map(sup => (
+                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2.5">
+                      <div className="flex justify-between items-start border-b border-zinc-800 pb-2">
+                        <div>
+                          <span className="text-[9px] bg-red-950 text-red-400 border border-red-900 px-2 py-0.5 rounded font-bold uppercase">Factura: {sup.invoiceNumber}</span>
+                          <h3 className="font-black text-white text-sm mt-1">{sup.provider} <span className="text-[10px] text-zinc-400 font-normal">(RUC: {sup.ruc})</span></h3>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-emerald-400 font-black text-sm">S/ {(Number(sup.totalCost) || 0).toFixed(2)}</span>
+                          <p className="text-[9px] text-zinc-500">Emisión: {sup.date} • Pago: {sup.paymentTerm}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems comprados:</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {sup.items?.map((it: any, i: number) => (
+                            <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
+                              <span>{it.quantity} {it.unitType}(s) de <strong>{it.productName}</strong></span>
+                              <span className="text-zinc-400">S/ {(Number(it.totalCost) || 0).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+          </div>
+        )}
+
         {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD */}
         {activeTab === "pedidos" && (
           <div className="space-y-4">
@@ -1258,72 +1488,6 @@ export default function AdminPage() {
                   </p>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 6: PROVEEDORES & COMPRAS */}
-        {activeTab === "proveedores" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-              <h2 className="text-xs font-black text-white">🧾 Registrar Reposición / Compra</h2>
-              <form onSubmit={handleAddSupplier} className="space-y-3">
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del Proveedor</label>
-                  <input
-                    type="text"
-                    value={supName}
-                    onChange={e => setSupName(e.target.value)}
-                    placeholder="Ej. Distribuidora Lácteos Gloria"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Productos Suministrados</label>
-                  <input
-                    type="text"
-                    value={supProduct}
-                    onChange={e => setSupProduct(e.target.value)}
-                    placeholder="Ej. 50x Leche Azul 400g"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Costo Total Factura (S/)</label>
-                  <input
-                    type="number"
-                    step="0.05"
-                    value={supCost}
-                    onChange={e => setSupCost(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                    required
-                  />
-                </div>
-                <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Guardar Compra</button>
-              </form>
-            </div>
-
-            <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <h2 className="text-xs font-black text-white">Historial de Compras ({suppliers.length})</h2>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {suppliers.length === 0 ? (
-                  <p className="text-zinc-500 text-center py-8">No hay compras registradas.</p>
-                ) : (
-                  suppliers.map(sup => (
-                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex justify-between items-center">
-                      <div>
-                        <h3 className="font-bold text-white">{sup.name}</h3>
-                        <p className="text-zinc-400">{sup.product}</p>
-                        <p className="text-[9px] text-zinc-500">Fecha: {sup.date}</p>
-                      </div>
-                      <span className="text-red-400 font-black">S/ {(Number(sup.cost) || 0).toFixed(2)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
             </div>
           </div>
         )}
