@@ -313,7 +313,7 @@ export default function AdminPage() {
 
       setEditingCategory(null);
       setEditCatName("");
-      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos con éxito!`);
+      alert(`⚠️ Al modificar esta categoría, se actualizarán automáticamente todos los productos asociados.`);
     } catch (error: any) {
       alert(`Error al actualizar categoría: ${error.message}`);
     }
@@ -442,7 +442,6 @@ export default function AdminPage() {
 
   const allCategoryNames = categoriesList?.map((c: any) => String(c.name || "").trim().toLowerCase()) || [];
 
-  // 🔍 LÓGICA BLINDADA: Compara ignorando mayúsculas y espacios. Si hay categorías cargadas, valida correctamente.
   const orphanProducts = categoriesList.length > 0 ? products.filter(p => {
     const cat = String(p.category || "").trim().toLowerCase();
     return cat !== "" && !allCategoryNames.includes(cat);
@@ -588,11 +587,28 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ALARMA ROJA PARPADEANTE */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
-          <div>
-            <h1 className="text-sm sm:text-lg font-black tracking-tight text-white leading-tight">Minimarket Pamela</h1>
-            <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-sm sm:text-lg font-black tracking-tight text-white leading-tight">Minimarket Pamela</h1>
+              <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
+            </div>
+
+            {/* 🚨 ALARMA ROJA PARPADEANTE CON MENSAJE AL PASAR EL MOUSE O DEDO */}
+            {orphanProducts.length > 0 && (
+              <div className="relative group flex items-center cursor-pointer ml-2">
+                <span className="relative flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 justify-center items-center text-[9px] font-black text-white">!</span>
+                </span>
+
+                {/* Tooltip con el mensaje exacto solicitado */}
+                <div className="absolute left-0 sm:left-6 top-6 sm:top-auto z-50 hidden group-hover:block bg-zinc-950 text-amber-300 border border-amber-500/50 p-2.5 rounded-xl shadow-2xl w-64 text-[10px] font-bold leading-tight">
+                  Hay {orphanProducts.length} producto(s) cuya categoría fue eliminada. Edítalos en el inventario para asignarles una categoría activa.
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 bg-zinc-950 border border-zinc-800 px-3 py-2 rounded-xl shadow-inner">
@@ -609,22 +625,6 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
-
-        {/* ⚠️ ALERTA INTELIGENTE DE PRODUCTOS HUÉRFANOS */}
-        {orphanProducts.length > 0 && (
-          <div className="bg-amber-950/40 border border-amber-900/80 p-3 rounded-xl flex items-center justify-between gap-3 text-amber-300 text-xs shadow-md">
-            <div className="flex items-center gap-2">
-              <span className="text-base">⚠️</span>
-              <span>Hay <strong>{orphanProducts.length} producto(s)</strong> cuya categoría fue eliminada. Edítalos en el inventario para asignarles una categoría activa.</span>
-            </div>
-            <button 
-              onClick={() => setActiveTab("inventario")} 
-              className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-lg font-bold shrink-0 transition cursor-pointer"
-            >
-              Revisar Inventario
-            </button>
-          </div>
-        )}
 
         {/* PESTAÑAS MÓVILES (Celulares) */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
