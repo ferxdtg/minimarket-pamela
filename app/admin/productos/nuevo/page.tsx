@@ -102,34 +102,35 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // Generador de SKU aleatorio de 6 dígitos único (Inmutable / Como un DNI)
-  const generateRandom6DigitSku = (currentProducts: any[]) => {
+  // Generador estricto de SKU único de 6 dígitos que evalúa sobre la lista real actual
+  const generateUniqueSku = (existingList: any[]) => {
     let randomSku = "";
-    let isUnique = false;
-    const existingSkus = currentProducts.map(p => String(p.sku || ""));
+    let exists = true;
+    const currentSkus = existingList.map(p => String(p.sku || ""));
 
-    while (!isUnique) {
+    while (exists) {
       randomSku = Math.floor(100000 + Math.random() * 900000).toString();
-      if (!existingSkus.includes(randomSku)) {
-        isUnique = true;
+      if (!currentSkus.includes(randomSku)) {
+        exists = false;
       }
     }
     return randomSku;
   };
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (SKU FIJO E INMUTABLE)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (SKU PERMANENTE E INMUTABLE)
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+      // Solo si el producto no tiene SKU en Firebase, se genera una sola vez y se graba de forma permanente
       for (let prod of prodList) {
         if (!prod.sku || String(prod.sku).length !== 6) {
-          const autoSku = generateRandom6DigitSku(prodList);
-          prod.sku = autoSku;
+          const permanentSku = generateUniqueSku(prodList);
+          prod.sku = permanentSku;
           try {
-            await updateDoc(doc(db, "products", prod.id), { sku: autoSku });
+            await updateDoc(doc(db, "products", prod.id), { sku: permanentSku });
           } catch (err) {
-            console.error("Error asignando SKU único:", err);
+            console.error("Error guardando SKU estático:", err);
           }
         }
       }
@@ -231,7 +232,7 @@ export default function AdminPage() {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const uniqueSku = generateRandom6DigitSku(products);
+      const uniqueSku = generateUniqueSku(products);
       await addDoc(collection(db, "products"), {
         name: newName,
         sku: uniqueSku,
@@ -248,7 +249,7 @@ export default function AdminPage() {
       setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewExpiryDate(""); setNewBatchCode("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      alert(`¡Producto publicado con éxito! Código SKU (DNI): ${uniqueSku}`);
+      alert(`¡Producto publicado con éxito! SKU estático asignado: ${uniqueSku}`);
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
@@ -299,7 +300,7 @@ export default function AdminPage() {
       category: product.category || defaultCat,
       expiryDate: product.expiryDate || "",
       batchCode: product.batchCode || "",
-      sku: product.sku || generateRandom6DigitSku(products),
+      sku: product.sku || generateUniqueSku(products),
       isOnSale: product.isOnSale || false,
       isFeatured: product.isFeatured || false,
       image: product.image || ""
@@ -317,10 +318,10 @@ export default function AdminPage() {
       category: editForm.category,
       expiryDate: editForm.expiryDate,
       batchCode: editForm.batchCode,
-      sku: editingProduct.sku,
+      sku: editingProduct.sku, // Mantiene el SKU estático original inalterable
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
-      isNewRestock: false, // Al editar se desactiva la alerta de nuevo producto
+      isNewRestock: false, // Quita la alerta verde al editar
       image: editForm.image || editingProduct.image || ""
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
@@ -328,7 +329,7 @@ export default function AdminPage() {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, finalData);
       setEditingProduct(null);
-      alert("¡Producto actualizado correctamente manteniendo su SKU único!");
+      alert("¡Producto actualizado manteniendo su SKU intacto!");
     } catch (error: any) {
       alert(`Error al editar: ${error.message}`);
     }
@@ -432,7 +433,7 @@ export default function AdminPage() {
           await updateDoc(doc(db, "products", existingProd.id), { stock: newStockVal });
           existingProd.stock = newStockVal;
         } else {
-          const uniqueSku = generateRandom6DigitSku(currentProductsList);
+          const uniqueSku = generateUniqueSku(currentProductsList);
           const newDocRef = await addDoc(collection(db, "products"), {
             name: cleanName,
             sku: uniqueSku,
@@ -443,7 +444,7 @@ export default function AdminPage() {
             batchCode: `L-${invoiceNumber}`,
             isOnSale: false,
             isFeatured: false,
-            isNewRestock: true, // 🟢 Bandera explícita para mostrar la alerta verde de atención
+            isNewRestock: true, // 🟢 Alerta verde visible en inventario
             image: ""
           });
           currentProductsList.push({
@@ -463,7 +464,7 @@ export default function AdminPage() {
       setInvoiceDate("");
       setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
       
-      alert("¡Factura registrada con éxito! Los productos nuevos ya aparecen en el inventario con su alerta verde.");
+      alert("¡Factura registrada! Los productos nuevos ya aparecen en el inventario con su alerta verde.");
       setActiveTab("inventario");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
@@ -637,6 +638,19 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
+  // 🔔 FILTROS GLOBALES PARA VENCIMIENTOS (PRODUCTOS POR VENCER Y VENCIDOS)
+  const expiredProductsList = products.filter(p => {
+    if (!p.expiryDate) return false;
+    const diffDays = Math.ceil((new Date(p.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays < 0;
+  });
+
+  const expiringSoonProductsList = products.filter(p => {
+    if (!p.expiryDate) return false;
+    const diffDays = Math.ceil((new Date(p.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 10;
+  });
+
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
       window.location.href = "/";
@@ -689,6 +703,11 @@ export default function AdminPage() {
                 <span className="text-sm shrink-0">⏳</span>
                 {isSidebarExpanded && <span className="whitespace-nowrap">Vencimientos (Merma 0)</span>}
               </span>
+              {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
+                <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[9px] font-black shrink-0">
+                  {expiredProductsList.length + expiringSoonProductsList.length}
+                </span>
+              )}
             </button>
 
             <button
@@ -790,14 +809,15 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ALARMA ROJA PARPADEANTE CLICKEABLE */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ALARMAS (ORPHAN + VENCIMIENTOS) */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <div>
               <h1 className="text-sm sm:text-lg font-black tracking-tight text-white leading-tight">Minimarket Pamela</h1>
               <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
             </div>
 
+            {/* 🚨 ALARMA 1: PRODUCTOS HUÉRFANOS */}
             {orphanProducts.length > 0 && (
               <div 
                 onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(true); }}
@@ -808,10 +828,20 @@ export default function AdminPage() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 justify-center items-center text-[9px] font-black text-white">!</span>
                 </span>
-
                 <div className="absolute left-0 sm:left-6 top-6 sm:top-auto z-50 hidden group-hover:block bg-zinc-950 text-amber-300 border border-amber-500/50 p-2.5 rounded-xl shadow-2xl w-64 text-[10px] font-bold leading-tight pointer-events-none">
-                  Hay {orphanProducts.length} producto(s) cuya categoría fue eliminada. Edítalos en el inventario para asignarles una categoría activa.
+                  Hay {orphanProducts.length} producto(s) cuya categoría fue eliminada. Edítalos en el inventario.
                 </div>
+              </div>
+            )}
+
+            {/* 🚨 ALARMA 2: PRODUCTOS POR VENCER O VENCIDOS (EXIGIDO POR EL USUARIO) */}
+            {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
+              <div 
+                onClick={() => setActiveTab("vencimientos")}
+                title="Haz clic para ver productos por vencer o vencidos"
+                className="relative group flex items-center cursor-pointer ml-2 bg-amber-950/60 border border-amber-500/50 px-2 py-1 rounded-lg text-amber-300 text-[10px] font-black animate-pulse"
+              >
+                ⚠️ Alerta Vencimientos: {expiredProductsList.length} vencidos, {expiringSoonProductsList.length} por vencer
               </div>
             )}
           </div>
@@ -1088,13 +1118,13 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA NUEVA: CONTROL DE VENCIMIENTOS (MERMA 0) */}
+        {/* VISTA NUEVA: CONTROL DE VENCIMIENTOS (MERMA 0) CON ALERTAS DEDICADAS */}
         {activeTab === "vencimientos" && (
           <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
             <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
               <div>
-                <h2 className="text-sm font-black text-white">⏳ Semáforo de Vencimientos en Tiempo Real (Merma 0)</h2>
-                <p className="text-[10px] text-zinc-400">Monitoreo de lotes con advertencia a 10 días para liquidar rápido con descuentos y evitar pérdidas.</p>
+                <h2 className="text-sm font-black text-white">⏳ Semáforo de Vencimientos y Alertas (Merma 0)</h2>
+                <p className="text-[10px] text-zinc-400">Listado completo de productos por vencer (hasta 10 días) y productos ya vencidos.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
@@ -1104,43 +1134,39 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="space-y-2.5 max-h-[500px] overflow-y-auto">
-              {products.length === 0 ? (
-                <p className="text-zinc-500 text-center py-12">No hay productos registrados.</p>
+            {/* Sub-sección 1: Vencidos */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-black text-red-400 uppercase">🔴 Productos Vencidos ({expiredProductsList.length})</h3>
+              {expiredProductsList.length === 0 ? (
+                <p className="text-zinc-500 text-[11px] pb-2">No hay productos vencidos.</p>
               ) : (
-                products.map(product => {
-                  const expiryInfo = getExpiryStatus(product.expiryDate);
-                  return (
-                    <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex justify-between items-center gap-3">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-white text-xs">{product.name}</h3>
-                          <span className={`text-[9px] px-2 py-0.5 rounded border font-black ${expiryInfo.color}`}>
-                            {expiryInfo.label}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-zinc-400">
-                          SKU: <strong className="text-zinc-200">{product.sku || 'N/A'}</strong> • Lote: <strong className="text-zinc-200">{product.batchCode || "N/A"}</strong> • Vencimiento: <strong className="text-zinc-200">{product.expiryDate || "No registrada"}</strong> • Stock: {product.stock} un.
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handlePrintBarcode(product)}
-                          className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-xs font-bold text-zinc-300 transition"
-                        >
-                          🏷️ Imprimir Etiqueta PDF
-                        </button>
-                        <button
-                          onClick={() => openEditModal(product)}
-                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition"
-                        >
-                          Actualizar Lote / Liquidar 🔥
-                        </button>
-                      </div>
+                expiredProductsList.map(product => (
+                  <div key={product.id} className="bg-red-950/30 border border-red-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                    <div>
+                      <h4 className="font-bold text-white text-xs">{product.name}</h4>
+                      <p className="text-[10px] text-red-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
                     </div>
-                  );
-                })
+                    <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-red-600 text-white font-bold rounded text-xs">Retirar / Liquidar</button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Sub-sección 2: Por Vencer */}
+            <div className="space-y-2 pt-2 border-t border-zinc-800">
+              <h3 className="text-xs font-black text-yellow-400 uppercase">⚡ Productos por Vencer en 10 días o menos ({expiringSoonProductsList.length})</h3>
+              {expiringSoonProductsList.length === 0 ? (
+                <p className="text-zinc-500 text-[11px]">No hay productos próximos a vencer.</p>
+              ) : (
+                expiringSoonProductsList.map(product => (
+                  <div key={product.id} className="bg-yellow-950/30 border border-yellow-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                    <div>
+                      <h4 className="font-bold text-white text-xs">{product.name}</h4>
+                      <p className="text-[10px] text-yellow-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
+                    </div>
+                    <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-yellow-600 text-black font-black rounded text-xs">Crear Oferta Flash 🔥</button>
+                  </div>
+                ))
               )}
             </div>
           </div>
