@@ -107,18 +107,14 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // Generador estricto de SKU único de 6 dígitos
+  // 🔒 GENERADOR ESTRICTO DE SKU ÚNICO (USA SET PARA EVITAR CUALQUIER ERROR DE indexOf)
   const generateUniqueSku = (existingList: any[]) => {
+    const list = Array.isArray(existingList) ? existingList : [];
+    const existingSkusSet = new Set(list.map(p => String(p?.sku || "")));
     let randomSku = "";
-    let exists = true;
-    const currentSkus = existingList.map(p => String(p.sku || ""));
-
-    while (exists) {
+    do {
       randomSku = Math.floor(100000 + Math.random() * 900000).toString();
-      if (!currentSkus.includes(randomSku)) {
-        exists = false;
-      }
-    }
+    } while (existingSkusSet.has(randomSku));
     return randomSku;
   };
 
@@ -401,7 +397,7 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 FUNCIÓN SUPER BLINDADA PARA CONVERTIR CUALQUIER TIPO DE DATO A ARRAY SEGURO
+  // 🚀 FUNCIÓN UNIVERSAL SEGURA PARA CONVERTIR CUALQUIER FORMATO A ARRAY
   const normalizeItemsToArray = (rawItems: any) => {
     if (!rawItems) return [];
     if (Array.isArray(rawItems)) return rawItems;
@@ -414,7 +410,7 @@ export default function AdminPage() {
     return [];
   };
 
-  // 🚀 FUNCIÓN PARA PROCESAR ÍTEMS DE FACTURA E IMPACTAR STOCK
+  // 🚀 PROCESAR ÍTEMS DE FACTURA E IMPACTAR STOCK
   const processInvoiceItemsToStock = async (rawItems: any, invoiceNum: string, supplierDocId?: string) => {
     const itemsArray = normalizeItemsToArray(rawItems);
 
@@ -423,14 +419,13 @@ export default function AdminPage() {
     }
 
     const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
-    let refreshedProducts = [...products];
+    let refreshedProducts = Array.isArray(products) ? [...products] : [];
 
     for (const item of itemsArray as any[]) {
       const cleanName = String(item?.productName || item || "").trim();
       const quantityToAdd = Number(item?.quantity || 1) || 1;
       if (!cleanName || quantityToAdd <= 0) continue;
 
-      // Búsqueda insensible a mayúsculas/minúsculas
       const existingProd = refreshedProducts.find(p => String(p?.name || "").trim().toLowerCase() === cleanName.toLowerCase());
 
       if (existingProd) {
@@ -454,7 +449,7 @@ export default function AdminPage() {
           batchCode: `L-${invoiceNum || 'GEN'}`,
           isOnSale: false,
           isFeatured: false,
-          isNewRestock: true, // Alerta verde de producto nuevo
+          isNewRestock: true,
           image: ""
         });
         refreshedProducts.push({
@@ -512,7 +507,7 @@ export default function AdminPage() {
     }
   };
 
-  // ⚙️ PROCESAR MANUALMENTE FACTURA HISTÓRICA (CON ARRAY NORMALIZADO)
+  // ⚙️ PROCESAR MANUALMENTE FACTURA HISTÓRICA
   const handleProcessExistingInvoice = async (sup: any) => {
     if (sup.processed) return;
     if (!window.confirm(`¿Deseas procesar y sumar el stock de los ítems de la factura N° ${sup.invoiceNumber} al inventario?`)) return;
@@ -1533,7 +1528,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 5: FACTURAS Y REPOSICIÓN (CON BOTÓN PROCESAR STOCK INACTIVO DESPUÉS DE USAR Y OPCIÓN DE ELIMINAR) */}
+        {/* VISTA 5: FACTURAS Y REPOSICIÓN */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
