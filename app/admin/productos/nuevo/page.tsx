@@ -107,7 +107,7 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // Generador estricto de SKU único de 6 dígitos
+  // Generador estricto de SKU único de 6 dígitos estático e inmutable
   const generateUniqueSku = (existingList: any[]) => {
     let randomSku = "";
     let exists = true;
@@ -122,11 +122,12 @@ export default function AdminPage() {
     return randomSku;
   };
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (SKU PERMANENTE E INMUTABLE)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+      // Garantizar que cada producto tenga su SKU permanente de 6 dígitos sin cambiarlo después
       for (let prod of prodList) {
         if (!prod.sku || String(prod.sku).length !== 6) {
           const permanentSku = generateUniqueSku(prodList);
@@ -322,7 +323,7 @@ export default function AdminPage() {
       category: editForm.category,
       expiryDate: editForm.expiryDate,
       batchCode: editForm.batchCode,
-      sku: editingProduct.sku,
+      sku: editingProduct.sku, // SKU inalterable
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
       isNewRestock: false,
@@ -401,7 +402,7 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 FUNCIÓN SUPER BLINDADA PARA PROCESAR ÍTEMS DE FACTURA (EVITA ERROR DE INDICES / FORMATOS)
+  // 🚀 FUNCIÓN SUPER BLINDADA PARA PROCESAR ÍTEMS DE FACTURA (CONVIERTE CUALQUIER FORMATO ANTIGUO A ARRAY SEGURO)
   const processInvoiceItemsToStock = async (rawItems: any, invoiceNum: string, supplierDocId?: string) => {
     let itemsArray: any[] = [];
     
@@ -410,7 +411,6 @@ export default function AdminPage() {
     } else if (typeof rawItems === "string") {
       itemsArray = [{ productName: rawItems, quantity: 1, unitCost: 0, unitType: "UNIDAD" }];
     } else if (rawItems && typeof rawItems === "object") {
-      // Si Firebase lo trajo como un objeto/mapa anidado
       itemsArray = Object.values(rawItems);
     }
 
