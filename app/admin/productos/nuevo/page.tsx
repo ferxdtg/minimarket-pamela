@@ -320,7 +320,7 @@ export default function AdminPage() {
       sku: editingProduct.sku,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
-      isNewRestock: false, // Al editar se desactiva la alerta verde de nuevo producto
+      isNewRestock: false, // Al editar se desactiva la alerta de nuevo producto
       image: editForm.image || editingProduct.image || ""
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
@@ -501,7 +501,7 @@ export default function AdminPage() {
 
       setEditingCategory(null);
       setEditCatName("");
-      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos con éxito!`);
+      alert(`⚠️ Al modificar esta categoría, se actualizarán automáticamente todos los productos asociados.`);
     } catch (error: any) {
       alert(`Error al actualizar categoría: ${error.message}`);
     }
