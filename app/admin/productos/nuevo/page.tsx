@@ -401,32 +401,33 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 FUNCIÓN BLINDADA PARA PROCESAR ÍTEMS DE FACTURA E IMPACTAR STOCK (CORREGIDA CONTRA r.indexOf)
+  // 🚀 FUNCIÓN SUPER BLINDADA PARA PROCESAR ÍTEMS DE FACTURA (EVITA ERROR DE INDICES / FORMATOS)
   const processInvoiceItemsToStock = async (rawItems: any, invoiceNum: string, supplierDocId?: string) => {
-    // Normalizar rawItems para asegurar que siempre sea un array válido independientemente del formato en Firestore
     let itemsArray: any[] = [];
+    
     if (Array.isArray(rawItems)) {
       itemsArray = rawItems;
     } else if (typeof rawItems === "string") {
       itemsArray = [{ productName: rawItems, quantity: 1, unitCost: 0, unitType: "UNIDAD" }];
     } else if (rawItems && typeof rawItems === "object") {
+      // Si Firebase lo trajo como un objeto/mapa anidado
       itemsArray = Object.values(rawItems);
     }
 
     if (itemsArray.length === 0) {
-      throw new Error("La factura no contiene ítems válidos para procesar.");
+      throw new Error("No hay ítems válidos para procesar en esta factura.");
     }
 
     const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
     let refreshedProducts = [...products];
 
     for (const item of itemsArray) {
-      const cleanName = String(item.productName || item || "").trim();
-      const quantityToAdd = Number(item.quantity || 1) || 1;
+      const cleanName = String(item?.productName || item || "").trim();
+      const quantityToAdd = Number(item?.quantity || 1) || 1;
       if (!cleanName || quantityToAdd <= 0) continue;
 
-      // Búsqueda robusta insensible a mayúsculas/minúsculas
-      const existingProd = refreshedProducts.find(p => String(p.name || "").trim().toLowerCase() === cleanName.toLowerCase());
+      // Búsqueda insensible a mayúsculas/minúsculas
+      const existingProd = refreshedProducts.find(p => String(p?.name || "").trim().toLowerCase() === cleanName.toLowerCase());
 
       if (existingProd) {
         const newStockVal = Number(existingProd.stock || 0) + quantityToAdd;
@@ -442,7 +443,7 @@ export default function AdminPage() {
         const newDocRef = await addDoc(collection(db, "products"), {
           name: cleanName,
           sku: uniqueSku,
-          price: Number(((item.unitCost || 0) * 1.3).toFixed(2)),
+          price: Number(((item?.unitCost || 0) * 1.3).toFixed(2)),
           stock: quantityToAdd,
           category: defaultCategory,
           expiryDate: "",
@@ -463,7 +464,6 @@ export default function AdminPage() {
       }
     }
 
-    // Si viene el ID del documento en suppliers, marcamos processed: true para inhabilitar el botón
     if (supplierDocId) {
       await updateDoc(doc(db, "suppliers", supplierDocId), { processed: true });
     }
@@ -478,8 +478,7 @@ export default function AdminPage() {
     }
 
     try {
-      // 1. Guardar factura con processed: true
-      const supplierDocRef = await addDoc(collection(db, "suppliers"), {
+      await addDoc(collection(db, "suppliers"), {
         invoiceNumber,
         provider: invoiceProvider,
         ruc: invoiceRuc || "S/N",
@@ -493,7 +492,6 @@ export default function AdminPage() {
         registeredAt: todayDateStr
       });
 
-      // 2. Procesar stock inmediatamente
       await processInvoiceItemsToStock(invoiceItems, invoiceNumber);
 
       setInvoiceNumber("");
@@ -510,7 +508,7 @@ export default function AdminPage() {
     }
   };
 
-  // ⚙️ PROCESAR MANUALMENTE FACTURA HISTÓRICA (INACTIVA EL BOTÓN AL TERMINAR)
+  // ⚙️ PROCESAR MANUALMENTE FACTURA HISTÓRICA
   const handleProcessExistingInvoice = async (sup: any) => {
     if (sup.processed) return;
     if (!window.confirm(`¿Deseas procesar y sumar el stock de los ítems de la factura N° ${sup.invoiceNumber} al inventario?`)) return;
@@ -1749,12 +1747,20 @@ export default function AdminPage() {
                       <div className="space-y-1">
                         <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems ingresados al stock:</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {Array.isArray(sup.items) && sup.items.map((it: any, i: number) => (
-                            <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
-                              <span>{it.quantity} {it.unitType}(s) de <strong>{it.productName}</strong></span>
-                              <span className="text-zinc-400">S/ {(Number(it.totalCost) || 0).toFixed(2)}</span>
-                            </div>
-                          ))}
+                          {(() => {
+                            let itemsList = sup.items;
+                            if (typeof itemsList === "string") {
+                              itemsList = [{ productName: itemsList, quantity: 1, totalCost: sup.totalCost }];
+                            } else if (itemsList && typeof itemsList === "object" && !Array.isArray(itemsList)) {
+                              itemsList = Object.values(itemsList);
+                            }
+                            return Array.isArray(itemsList) && itemsList.map((it: any, i: number) => (
+                              <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
+                                <span>{it?.quantity || 1} {it?.unitType || 'UNIDAD'}(s) de <strong>{it?.productName || it || 'Ítem'}</strong></span>
+                                <span className="text-zinc-400">S/ {(Number(it?.totalCost || sup?.totalCost || 0)).toFixed(2)}</span>
+                              </div>
+                            ));
+                          })()}
                         </div>
                       </div>
                     </div>
