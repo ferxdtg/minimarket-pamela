@@ -54,7 +54,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // 🧾 ESTADOS DE FACTURACIÓN Y REPOSICIÓN PROFESIONAL CON SKU AUTOMÁTICO
+  // 🧾 ESTADOS DE FACTURACIÓN Y REPOSICIÓN PROFESIONAL
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceProvider, setInvoiceProvider] = useState("");
   const [invoiceRuc, setInvoiceRuc] = useState("");
@@ -200,13 +200,28 @@ export default function AdminPage() {
     }
   };
 
+  // Generador de SKU aleatorio de 6 dígitos único
+  const generateRandom6DigitSku = (existingProducts: any[]) => {
+    let randomSku = "";
+    let isUnique = false;
+    const existingSkus = existingProducts.map(p => String(p.sku || ""));
+
+    while (!isUnique) {
+      randomSku = Math.floor(100000 + Math.random() * 900000).toString();
+      if (!existingSkus.includes(randomSku)) {
+        isUnique = true;
+      }
+    }
+    return randomSku;
+  };
+
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const generatedSku = `SKU-${Math.floor(100000 + Math.random() * 900000)}`;
+      const uniqueSku = generateRandom6DigitSku(products);
       await addDoc(collection(db, "products"), {
         name: newName,
-        sku: generatedSku,
+        sku: uniqueSku,
         price: parseFloat(newPrice) || 0,
         stock: parseInt(newStock) || 0,
         category: newCategory,
@@ -219,7 +234,7 @@ export default function AdminPage() {
       setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewExpiryDate(""); setNewBatchCode("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      alert(`¡Producto publicado con éxito! Código SKU asignado: ${generatedSku}`);
+      alert(`¡Producto publicado con éxito! Código SKU asignado: ${uniqueSku}`);
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
@@ -270,7 +285,7 @@ export default function AdminPage() {
       category: product.category || defaultCat,
       expiryDate: product.expiryDate || "",
       batchCode: product.batchCode || "",
-      sku: product.sku || `SKU-${Math.floor(100000 + Math.random() * 900000)}`,
+      sku: product.sku || generateRandom6DigitSku(products),
       isOnSale: product.isOnSale || false,
       isFeatured: product.isFeatured || false,
       image: product.image || ""
@@ -291,7 +306,7 @@ export default function AdminPage() {
       sku: editForm.sku,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
-      isNewRestock: false,
+      isNewRestock: false, // Al editar se quita la alerta de nuevo ingreso
       image: editForm.image || editingProduct.image || ""
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
@@ -342,7 +357,7 @@ export default function AdminPage() {
     printWindow.document.close();
   };
 
-  // 🧾 GESTIÓN DE ÍTEMS EN FACTURA CON AUTOCOMPLETADO
+  // 🧾 GESTIÓN DE ÍTEMS EN FACTURA
   const handleAddInvoiceItem = () => {
     setInvoiceItems([...invoiceItems, { productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
   };
@@ -367,7 +382,7 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO (EVITANDO REDUNDANCIAS CON AUTO-SKU)
+  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO CON SKU DE 6 DÍGITOS Y ALERTA VERDE
   const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceNumber || !invoiceProvider) {
@@ -390,21 +405,25 @@ export default function AdminPage() {
       });
 
       const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
+      let currentProductsList = [...products];
 
       for (const item of invoiceItems) {
         const cleanName = String(item.productName || "").trim();
         if (!cleanName) continue;
 
-        const existingProd = products.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
+        // Búsqueda insensible a mayúsculas/minúsculas para evitar redundancias
+        const existingProd = currentProductsList.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
 
         if (existingProd) {
           const newStockVal = Number(existingProd.stock || 0) + Number(item.quantity || 0);
           await updateDoc(doc(db, "products", existingProd.id), { stock: newStockVal });
+          // Actualizamos la copia local para el bucle si hubiera duplicados en la misma factura
+          existingProd.stock = newStockVal;
         } else {
-          const generatedSku = `SKU-${Math.floor(100000 + Math.random() * 900000)}`;
-          await addDoc(collection(db, "products"), {
+          const uniqueSku = generateRandom6DigitSku(currentProductsList);
+          const newDocRef = await addDoc(collection(db, "products"), {
             name: cleanName,
-            sku: generatedSku,
+            sku: uniqueSku,
             price: Number((item.unitCost * 1.3).toFixed(2)),
             stock: Number(item.quantity || 1),
             category: defaultCategory,
@@ -412,8 +431,17 @@ export default function AdminPage() {
             batchCode: `L-${invoiceNumber}`,
             isOnSale: false,
             isFeatured: false,
-            isNewRestock: true,
+            isNewRestock: true, // 🟢 Alerta verde visible en inventario
             image: ""
+          });
+          // Añadimos a la lista local
+          currentProductsList.push({
+            id: newDocRef.id,
+            name: cleanName,
+            sku: uniqueSku,
+            stock: Number(item.quantity || 1),
+            category: defaultCategory,
+            isNewRestock: true
           });
         }
       }
@@ -424,7 +452,7 @@ export default function AdminPage() {
       setInvoiceDate("");
       setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
       
-      alert("¡Factura registrada y stock sincronizado sin duplicados!");
+      alert("¡Factura registrada! Los productos nuevos ya aparecen en el inventario con su alerta verde y SKU asignado.");
       setActiveTab("inventario");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
@@ -809,7 +837,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (Auto-SKU)</h2>
+              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (Auto-SKU 6D)</h2>
               
               <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
                 <div>
@@ -914,7 +942,7 @@ export default function AdminPage() {
                   type="submit"
                   className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
                 >
-                  Publicar Producto (Auto SKU)
+                  Publicar Producto (Auto SKU 6D)
                 </button>
               </form>
             </div>
@@ -970,6 +998,7 @@ export default function AdminPage() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
+                                {/* 🟢 ALERTA VERDE DE PRODUCTO NUEVO INGRESADO POR FACTURA */}
                                 {product.isNewRestock && (
                                   <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-1.5 py-0.2 rounded text-[8px] font-black animate-pulse">
                                     ✨ ¡Nuevo (Asignar Categoría y Foto)!
@@ -978,7 +1007,7 @@ export default function AdminPage() {
                               </div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                                <span className="text-[9px] text-zinc-400 font-mono bg-zinc-900 px-1 rounded">[{product.sku || 'SKU-GEN'}]</span>
+                                <span className="text-[9px] text-zinc-400 font-mono bg-zinc-900 px-1 rounded">[{product.sku || 'N/A'}]</span>
                                 {hasValidCategory ? (
                                   <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
                                 ) : (
@@ -1060,7 +1089,7 @@ export default function AdminPage() {
                 onClick={() => setActiveTab("inventario")}
                 className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
               >
-                ← Volver a Inventario
+                ← Volver al Inventario
               </button>
             </div>
 
@@ -1106,7 +1135,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🧾 VISTA SUPERIOR: FACTURAS CON AUTOCOMPLETADO ANTIRREDUNDANCIA Y SKU */}
+        {/* 🧾 VISTA SUPERIOR: FACTURAS CON AUTOCOMPLETADO ANTIRREDUNDANCIA Y SKU DE 6 DÍGITOS */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -1446,7 +1475,7 @@ export default function AdminPage() {
                 onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(false); }}
                 className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
               >
-                ← Volver a Inventario & Stock
+                ← Volver al Inventario
               </button>
             </div>
 
