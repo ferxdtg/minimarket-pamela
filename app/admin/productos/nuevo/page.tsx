@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -437,8 +437,11 @@ export default function AdminPage() {
 
   const allCategoryNames = categoriesList?.map((c: any) => c.name) || [];
 
-  // Detectar productos huérfanos (cuya categoría ya no existe en la base de datos)
-  const orphanProducts = products.filter(p => p.category && !allCategoryNames.includes(p.category));
+  // 🔍 LÓGICA CORREGIDA Y PRECISA: Solo cuenta productos que SÍ tienen un nombre de categoría escrito, pero este ya no existe en la lista oficial
+  const orphanProducts = products.filter(p => {
+    const cat = String(p.category || "").trim();
+    return cat !== "" && !allCategoryNames.includes(cat);
+  });
 
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
@@ -761,7 +764,7 @@ export default function AdminPage() {
                               {hasValidCategory ? (
                                 <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
                               ) : (
-                                <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría Válida</span>
+                                <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
                               )}
                             </div>
                           </div>
