@@ -313,7 +313,7 @@ export default function AdminPage() {
 
       setEditingCategory(null);
       setEditCatName("");
-      alert(`⚠️ Al modificar esta categoría, se actualizarán automáticamente todos los productos asociados.`);
+      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos con éxito!`);
     } catch (error: any) {
       alert(`Error al actualizar categoría: ${error.message}`);
     }
@@ -587,7 +587,7 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ALARMA ROJA PARPADEANTE */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ALARMA ROJA PARPADEANTE CLICKEABLE */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div className="flex items-center gap-3">
             <div>
@@ -595,16 +595,20 @@ export default function AdminPage() {
               <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
             </div>
 
-            {/* 🚨 ALARMA ROJA PARPADEANTE CON MENSAJE AL PASAR EL MOUSE O DEDO */}
+            {/* 🚨 ALARMA ROJA PARPADEANTE CLICKEABLE QUE LLEVA AL INVENTARIO */}
             {orphanProducts.length > 0 && (
-              <div className="relative group flex items-center cursor-pointer ml-2">
+              <div 
+                onClick={() => setActiveTab("inventario")}
+                title="Haz clic para ver los productos en el inventario"
+                className="relative group flex items-center cursor-pointer ml-2"
+              >
                 <span className="relative flex h-4 w-4">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 justify-center items-center text-[9px] font-black text-white">!</span>
                 </span>
 
                 {/* Tooltip con el mensaje exacto solicitado */}
-                <div className="absolute left-0 sm:left-6 top-6 sm:top-auto z-50 hidden group-hover:block bg-zinc-950 text-amber-300 border border-amber-500/50 p-2.5 rounded-xl shadow-2xl w-64 text-[10px] font-bold leading-tight">
+                <div className="absolute left-0 sm:left-6 top-6 sm:top-auto z-50 hidden group-hover:block bg-zinc-950 text-amber-300 border border-amber-500/50 p-2.5 rounded-xl shadow-2xl w-64 text-[10px] font-bold leading-tight pointer-events-none">
                   Hay {orphanProducts.length} producto(s) cuya categoría fue eliminada. Edítalos en el inventario para asignarles una categoría activa.
                 </div>
               </div>
@@ -1231,7 +1235,7 @@ export default function AdminPage() {
                     required
                   />
                 </div>
-                <p className="text-[10px] text-amber-400">⚠️ Al modificar esta categoría, se actualizarán automáticamente todos los productos asociados.</p>
+                <p className="text-[10px] text-amber-400">⚠️ Al renombrar esta categoría, se actualizarán automáticamente todos los productos que la tengan asignada.</p>
                 <div className="flex gap-2 pt-2 border-t border-zinc-800">
                   <button type="button" onClick={() => setEditingCategory(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
                   <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white cursor-pointer shadow-lg">Actualizar</button>
