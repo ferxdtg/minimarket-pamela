@@ -102,7 +102,7 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // Generador de SKU aleatorio de 6 dígitos único
+  // Generador de SKU aleatorio de 6 dígitos único (Inmutable / Como un DNI)
   const generateRandom6DigitSku = (currentProducts: any[]) => {
     let randomSku = "";
     let isUnique = false;
@@ -117,15 +117,12 @@ export default function AdminPage() {
     return randomSku;
   };
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL CON AUTO-SKU PARA PRODUCTOS ANTIGUOS
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (SKU FIJO E INMUTABLE)
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
-      let prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // Si algún producto antiguo no tiene SKU de 6 dígitos, se lo asignamos automáticamente en segundo plano
-const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+      // Si el producto no tiene SKU, se le asigna uno por única vez y se guarda en Firebase de forma permanente
       for (let prod of prodList) {
         if (!prod.sku || String(prod.sku).length !== 6) {
           const autoSku = generateRandom6DigitSku(prodList);
@@ -133,17 +130,10 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
           try {
             await updateDoc(doc(db, "products", prod.id), { sku: autoSku });
           } catch (err) {
-            console.error("Error asignando SKU automático:", err);
+            console.error("Error asignando SKU único:", err);
           }
         }
       }
-
-      setProducts(prodList);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error al escuchar productos:", error);
-      setLoading(false);
-    });
 
       setProducts(prodList);
       setLoading(false);
@@ -253,12 +243,13 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
         batchCode: newBatchCode || "L-001",
         isOnSale: newIsOnSale,
         isFeatured: newIsFeatured,
+        isNewRestock: false,
         image: newImage || ""
       });
       setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewExpiryDate(""); setNewBatchCode("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      alert(`¡Producto publicado con éxito! Código SKU asignado: ${uniqueSku}`);
+      alert(`¡Producto publicado con éxito! Código SKU (DNI): ${uniqueSku}`);
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
@@ -327,10 +318,11 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
       category: editForm.category,
       expiryDate: editForm.expiryDate,
       batchCode: editForm.batchCode,
-      sku: editForm.sku,
+      // El SKU NO se modifica al editar; se mantiene el original inalterable (DNI del producto)
+      sku: editingProduct.sku,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
-      isNewRestock: false, // Al editar se quita la alerta de nuevo ingreso
+      isNewRestock: false, // Al editar se desactiva la alerta de nuevo producto
       image: editForm.image || editingProduct.image || ""
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
@@ -338,7 +330,7 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, finalData);
       setEditingProduct(null);
-      alert("¡Producto actualizado correctamente!");
+      alert("¡Producto actualizado correctamente manteniendo su SKU único!");
     } catch (error: any) {
       alert(`Error al editar: ${error.message}`);
     }
@@ -406,7 +398,7 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO CON SKU DE 6 DÍGITOS Y ALERTA VERDE
+  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO (CON ALERTA VERDE ACTIVA PARA PRODUCTOS NUEVOS)
   const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceNumber || !invoiceProvider) {
@@ -453,7 +445,7 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
             batchCode: `L-${invoiceNumber}`,
             isOnSale: false,
             isFeatured: false,
-            isNewRestock: true, // 🟢 Alerta verde visible en inventario
+            isNewRestock: true, // 🟢 Alerta verde de producto nuevo que requiere atención
             image: ""
           });
           currentProductsList.push({
@@ -473,7 +465,7 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
       setInvoiceDate("");
       setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
       
-      alert("¡Factura registrada! Los productos nuevos ya aparecen en el inventario con su alerta verde y SKU asignado.");
+      alert("¡Factura registrada! Revisa el inventario: los productos nuevos muestran su alerta verde de atención.");
       setActiveTab("inventario");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
@@ -858,7 +850,7 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (Auto-SKU 6D)</h2>
+              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (SKU 6D)</h2>
               
               <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
                 <div>
@@ -1028,7 +1020,7 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
                               </div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                                <span className="text-[9px] text-zinc-400 font-mono bg-zinc-900 px-1 rounded">[{product.sku || 'N/A'}]</span>
+                                <span className="text-[9px] text-zinc-300 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">SKU: {product.sku || 'N/A'}</span>
                                 {hasValidCategory ? (
                                   <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
                                 ) : (
@@ -1752,12 +1744,12 @@ const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapsh
 
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-1">
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">SKU 6D</label>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">SKU 6D (Inmutable)</label>
                     <input
                       type="text"
                       value={editForm.sku}
-                      onChange={e => setEditForm({ ...editForm, sku: e.target.value })}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                      disabled
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-zinc-400 cursor-not-allowed text-[10px]"
                     />
                   </div>
                   <div>
