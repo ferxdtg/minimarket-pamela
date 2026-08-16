@@ -122,7 +122,7 @@ export default function AdminPage() {
     return randomSku;
   };
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (SKU PERMANENTE E INMUTABLE)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -401,17 +401,23 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 FUNCIÓN COMPARTIDA PARA PROCESAR ÍTEMS DE FACTURA E IMPACTAR EL INVENTARIO
-  const processInvoiceItemsToStock = async (itemsToProcess: any[], invoiceNum: string) => {
+  // 🚀 LÓGICA BLINDADA Y SEGURA PARA PROCESAR ÍTEMS DE FACTURA (VALIDA ARREGLOS)
+  const processInvoiceItemsToStock = async (rawItems: any, invoiceNum: string, supplierDocId?: string) => {
+    // Asegurar que rawItems sea un arreglo válido sin importar cómo venga de Firestore
+    const itemsArray = Array.isArray(rawItems) ? rawItems : Object.values(rawItems || {});
+    if (itemsArray.length === 0) {
+      throw new Error("La factura no contiene ítems válidos para procesar.");
+    }
+
     const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
     let refreshedProducts = [...products];
 
-    for (const item of itemsToProcess) {
+    for (const item of itemsArray as any[]) {
       const cleanName = String(item.productName || "").trim();
       const quantityToAdd = Number(item.quantity) || 0;
       if (!cleanName || quantityToAdd <= 0) continue;
 
-      // Búsqueda insensible a mayúsculas/minúsculas y espacios
+      // Búsqueda robusta insensible a mayúsculas/minúsculas
       const existingProd = refreshedProducts.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
 
       if (existingProd) {
@@ -435,7 +441,7 @@ export default function AdminPage() {
           batchCode: `L-${invoiceNum || 'GEN'}`,
           isOnSale: false,
           isFeatured: false,
-          isNewRestock: true, // Alerta verde de producto nuevo
+          isNewRestock: true,
           image: ""
         });
         refreshedProducts.push({
@@ -448,6 +454,11 @@ export default function AdminPage() {
         });
       }
     }
+
+    // Si se pasó el ID del documento de la factura, marcamos como procesado para inactivar el botón
+    if (supplierDocId) {
+      await updateDoc(doc(db, "suppliers", supplierDocId), { processed: true });
+    }
   };
 
   // 🚀 GUARDAR FACTURA E IMPACTAR AUTOMÁTICAMENTE EL INVENTARIO
@@ -459,8 +470,8 @@ export default function AdminPage() {
     }
 
     try {
-      // 1. Guardar en la colección de proveedores/facturas
-      await addDoc(collection(db, "suppliers"), {
+      // 1. Guardar en Firestore con la bandera "processed: true" ya que se procesará en el momento
+      const supplierDocRef = await addDoc(collection(db, "suppliers"), {
         invoiceNumber,
         provider: invoiceProvider,
         ruc: invoiceRuc || "S/N",
@@ -470,10 +481,11 @@ export default function AdminPage() {
         subTotal: subTotalInvoice,
         igv: igvInvoice,
         totalCost: totalInvoiceAmount,
+        processed: true,
         registeredAt: todayDateStr
       });
 
-      // 2. Ejecutar procesamiento del stock
+      // 2. Procesar stock inmediatamente
       await processInvoiceItemsToStock(invoiceItems, invoiceNumber);
 
       setInvoiceNumber("");
@@ -490,16 +502,28 @@ export default function AdminPage() {
     }
   };
 
-  // ⚙️ BOTÓN DE ACCIÓN RÁPIDA: PROCESAR FACTURA HISTÓRICA MANUALMENTE
+  // ⚙️ PROCESAR MANUALMENTE FACTURAS DEL HISTORIAL (INACTIVA EL BOTÓN AL TERMINAR)
   const handleProcessExistingInvoice = async (sup: any) => {
-    if (!window.confirm(`¿Deseas procesar y sumar el stock de los ítems de la factura N° ${sup.invoiceNumber} al inventario?`)) return;
+    if (sup.processed) return;
+    if (!window.confirm(`¿Deseas procesar y sumar el stock de la factura N° ${sup.invoiceNumber} al inventario?`)) return;
     try {
-      await processInvoiceItemsToStock(sup.items || [], sup.invoiceNumber);
-      alert(`¡Factura N° ${sup.invoiceNumber} procesada! El stock ha sido sumado al inventario.`);
+      await processInvoiceItemsToStock(sup.items, sup.invoiceNumber, sup.id);
+      alert(`¡Factura N° ${sup.invoiceNumber} procesada con éxito!`);
       setActiveTab("inventario");
       setInventorySubTab("productos");
     } catch (error: any) {
       alert(`Error al procesar factura: ${error.message}`);
+    }
+  };
+
+  // 🗑️ ELIMINAR FACTURA DEL HISTORIAL
+  const handleDeleteInvoice = async (supId: string, invoiceNum: string) => {
+    if (!window.confirm(`¿Estás seguro de eliminar el registro de la factura ${invoiceNum} del historial? (El stock ingresado previamente se mantendrá en el inventario).`)) return;
+    try {
+      await deleteDoc(doc(db, "suppliers", supId));
+      alert("Factura eliminada del historial con éxito.");
+    } catch (error: any) {
+      alert(`Error al eliminar factura: ${error.message}`);
     }
   };
 
@@ -1499,7 +1523,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 5: FACTURAS Y REPOSICIÓN (CON BOTÓN PROCESAR STOCK) */}
+        {/* VISTA 5: FACTURAS Y REPOSICIÓN (CON BOTÓN PROCESAR STOCK INACTIVO DESPUÉS DE USAR Y OPCIÓN DE ELIMINAR) */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -1684,22 +1708,40 @@ export default function AdminPage() {
                             <span className="text-emerald-400 font-black text-sm">S/ {(Number(sup.totalCost) || 0).toFixed(2)}</span>
                             <p className="text-[9px] text-zinc-500">Emisión: {sup.date} • Pago: {sup.paymentTerm}</p>
                           </div>
-                          {/* 🔘 BOTÓN PROCESAR / SUMAR STOCK DIRECTAMENTE DESDE LA FACTURA */}
-                          <button
-                            type="button"
-                            onClick={() => handleProcessExistingInvoice(sup)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-2.5 py-1 rounded text-[10px] transition cursor-pointer shadow"
-                            title="Procesar y sumar al stock del inventario"
-                          >
-                            ⚡ Procesar Stock
-                          </button>
+                          
+                          <div className="flex items-center gap-2">
+                            {/* 🔘 BOTÓN PROCESAR STOCK (SE INACTIVA SI YA FUE PROCESADO) */}
+                            {sup.processed ? (
+                              <span className="bg-zinc-800 text-emerald-400 font-black px-2.5 py-1 rounded text-[10px] border border-emerald-900/50">
+                                ✓ Procesado
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleProcessExistingInvoice(sup)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-2.5 py-1 rounded text-[10px] transition cursor-pointer shadow"
+                              >
+                                ⚡ Procesar Stock
+                              </button>
+                            )}
+
+                            {/* 🗑️ BOTÓN ELIMINAR FACTURA DEL HISTORIAL */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteInvoice(sup.id, sup.invoiceNumber)}
+                              className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900/60 px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer"
+                              title="Eliminar factura del historial"
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems de la factura:</span>
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems ingresados al stock:</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {sup.items?.map((it: any, i: number) => (
+                          {Array.isArray(sup.items) && sup.items.map((it: any, i: number) => (
                             <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
                               <span>{it.quantity} {it.unitType}(s) de <strong>{it.productName}</strong></span>
                               <span className="text-zinc-400">S/ {(Number(it.totalCost) || 0).toFixed(2)}</span>
