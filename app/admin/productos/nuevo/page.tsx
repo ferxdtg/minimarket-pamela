@@ -245,12 +245,13 @@ export default function AdminPage() {
   };
 
   const openEditModal = (product: any) => {
+    const defaultCat = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
     setEditingProduct(product);
     setEditForm({
       name: product.name || "",
       price: Number(product.price || 0),
       stock: Number(product.stock || 0),
-      category: product.category || categoriesList[0]?.name || "",
+      category: product.category || defaultCat,
       isOnSale: product.isOnSale || false,
       isFeatured: product.isFeatured || false,
       image: product.image || ""
@@ -319,6 +320,10 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (catId: string, catName: string) => {
+    if (categoriesList.length <= 1) {
+      alert("Debes mantener al menos una categoría en el sistema.");
+      return;
+    }
     if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos con esta categoría quedarán sin categoría asignada.`)) return;
     try {
       if (catId) {
@@ -435,13 +440,13 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  const allCategoryNames = categoriesList?.map((c: any) => c.name) || [];
+  const allCategoryNames = categoriesList?.map((c: any) => String(c.name || "").trim().toLowerCase()) || [];
 
-  // 🔍 LÓGICA CORREGIDA Y PRECISA: Solo cuenta productos que SÍ tienen un nombre de categoría escrito, pero este ya no existe en la lista oficial
-  const orphanProducts = products.filter(p => {
-    const cat = String(p.category || "").trim();
+  // 🔍 LÓGICA BLINDADA: Compara ignorando mayúsculas y espacios. Si hay categorías cargadas, valida correctamente.
+  const orphanProducts = categoriesList.length > 0 ? products.filter(p => {
+    const cat = String(p.category || "").trim().toLowerCase();
     return cat !== "" && !allCategoryNames.includes(cat);
-  });
+  }) : [];
 
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
@@ -688,8 +693,8 @@ export default function AdminPage() {
                     onChange={e => setNewCategory(e.target.value)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                   >
-                    {allCategoryNames.map((cat, idx) => (
-                      <option key={idx} value={cat}>{cat}</option>
+                    {categoriesList.map((cat, idx) => (
+                      <option key={idx} value={cat.name}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
@@ -745,7 +750,8 @@ export default function AdminPage() {
                     const currentStock = Number(product.stock ?? 0);
                     const isOut = currentStock === 0;
                     const isLow = currentStock > 0 && currentStock <= 5;
-                    const hasValidCategory = allCategoryNames.includes(product.category);
+                    const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
+                    const hasValidCategory = allCategoryNames.includes(prodCatTrimmed);
 
                     return (
                       <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
@@ -1287,8 +1293,8 @@ export default function AdminPage() {
                     onChange={e => setEditForm({ ...editForm, category: e.target.value })}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                   >
-                    {allCategoryNames.map((cat, idx) => (
-                      <option key={idx} value={cat}>{cat}</option>
+                    {categoriesList.map((cat, idx) => (
+                      <option key={idx} value={cat.name}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
