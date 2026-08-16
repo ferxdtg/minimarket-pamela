@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -91,7 +91,7 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // 🚀 ESCUCHA EN TIEMPO REAL (SIN RECREAR AUTOMÁTICAMENTE CATEGORÍAS BORRADAS)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
       const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -250,7 +250,7 @@ export default function AdminPage() {
       name: product.name || "",
       price: Number(product.price || 0),
       stock: Number(product.stock || 0),
-      category: product.category || categoriesList[0]?.name || "Abarrotes y Despensa",
+      category: product.category || categoriesList[0]?.name || "",
       isOnSale: product.isOnSale || false,
       isFeatured: product.isFeatured || false,
       image: product.image || ""
@@ -319,11 +319,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (catId: string, catName: string) => {
-    if (categoriesList.length <= 1) {
-      alert("Debes mantener al menos una categoría en el sistema.");
-      return;
-    }
-    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos con esta categoría quedarán sin categoría asignada.`)) return;
     try {
       if (catId) {
         await deleteDoc(doc(db, "categories", catId));
@@ -439,7 +435,10 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  const allCategoryNames = categoriesList?.map((c: any) => c.name) || ["Abarrotes y Despensa"];
+  const allCategoryNames = categoriesList?.map((c: any) => c.name) || [];
+
+  // Detectar productos huérfanos (cuya categoría ya no existe en la base de datos)
+  const orphanProducts = products.filter(p => p.category && !allCategoryNames.includes(p.category));
 
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
@@ -603,6 +602,22 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* ⚠️ ALERTA INTELIGENTE DE PRODUCTOS HUÉRFANOS */}
+        {orphanProducts.length > 0 && (
+          <div className="bg-amber-950/40 border border-amber-900/80 p-3 rounded-xl flex items-center justify-between gap-3 text-amber-300 text-xs shadow-md">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <span>Hay <strong>{orphanProducts.length} producto(s)</strong> cuya categoría fue eliminada. Edítalos en el inventario para asignarles una categoría activa.</span>
+            </div>
+            <button 
+              onClick={() => setActiveTab("inventario")} 
+              className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-lg font-bold shrink-0 transition cursor-pointer"
+            >
+              Revisar Inventario
+            </button>
+          </div>
+        )}
+
         {/* PESTAÑAS MÓVILES (Celulares) */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => setActiveTab("inventario")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
@@ -727,6 +742,7 @@ export default function AdminPage() {
                     const currentStock = Number(product.stock ?? 0);
                     const isOut = currentStock === 0;
                     const isLow = currentStock > 0 && currentStock <= 5;
+                    const hasValidCategory = allCategoryNames.includes(product.category);
 
                     return (
                       <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
@@ -742,7 +758,11 @@ export default function AdminPage() {
                             <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
                             <div className="flex items-center gap-2">
                               <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                              <span className="text-[9px] text-zinc-500 truncate">({product.category || "Abarrotes"})</span>
+                              {hasValidCategory ? (
+                                <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
+                              ) : (
+                                <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría Válida</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -931,7 +951,7 @@ export default function AdminPage() {
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
                 <h2 className="text-xs font-black text-white">🏷️ Gestión y Modificación de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda.</p>
+                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda con total libertad.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
