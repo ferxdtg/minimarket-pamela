@@ -28,7 +28,7 @@ export default function AdminPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterOrphanOnly, setFilterOrphanOnly] = useState(false);
 
-  // Estados para Agregar Nuevo Producto (Con Fecha de Vencimiento y Lote - Nivel Mundial)
+  // Estados para Agregar Nuevo Producto
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newStock, setNewStock] = useState("");
@@ -470,7 +470,7 @@ export default function AdminPage() {
     return true;
   }) || [];
 
-  // 🚦 CÁLCULO DE SEMÁFORO DE VENCIMIENTOS (Punto 3 del objetivo)
+  // 🚦 CÁLCULO DE SEMÁFORO DE VENCIMIENTOS (Lógica de 10 días para liquidar)
   const getExpiryStatus = (expiryDateStr: string) => {
     if (!expiryDateStr) return { color: "bg-zinc-800 text-zinc-400 border-zinc-700", label: "Sin Fecha" };
     const today = new Date();
@@ -478,8 +478,9 @@ export default function AdminPage() {
     const diffTime = expiry.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) return { color: "bg-red-950/80 text-red-400 border-red-900", label: "🔴 VENCIDO" };
-    if (diffDays <= 5) return { color: "bg-amber-950/80 text-amber-400 border-amber-900 animate-pulse", label: `⚠️ Vence en ${diffDays}d` };
+    if (diffDays < 0) return { color: "bg-red-950/85 text-red-400 border-red-900", label: "🔴 VENCIDO" };
+    if (diffDays <= 3) return { color: "bg-red-900/60 text-red-300 border-red-700 animate-pulse", label: `🔥 ¡Urgente! (${diffDays}d)` };
+    if (diffDays <= 10) return { color: "bg-yellow-950/85 text-yellow-400 border-yellow-800 animate-pulse", label: `⚡ ¡A liquidar! (${diffDays}d)` };
     return { color: "bg-emerald-950/60 text-emerald-400 border-emerald-900/60", label: `🟢 Fresco (${diffDays}d)` };
   };
 
@@ -900,7 +901,7 @@ export default function AdminPage() {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {/* 🏷️ BOTÓN GENERAR ETIQUETA CÓDIGO DE BARRAS (Punto 4 del objetivo) */}
+                            {/* 🏷️ BOTÓN GENERAR ETIQUETA CÓDIGO DE BARRAS */}
                             <button
                               type="button"
                               onClick={() => handlePrintBarcode(product)}
@@ -963,7 +964,7 @@ export default function AdminPage() {
             <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
               <div>
                 <h2 className="text-sm font-black text-white">⏳ Semáforo de Vencimientos en Tiempo Real (Merma 0)</h2>
-                <p className="text-[10px] text-zinc-400">Monitoreo IoT y lotes de productos sensibles para liquidación automática antes de caducar.</p>
+                <p className="text-[10px] text-zinc-400">Monitoreo de lotes con advertencia a 10 días para liquidar rápido con descuentos y evitar pérdidas.</p>
               </div>
               <button
                 onClick={() => setActiveTab("inventario")}
