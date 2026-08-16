@@ -107,7 +107,7 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // Generador estricto de SKU único de 6 dígitos basado en la lista actual de productos
+  // Generador estricto de SKU único de 6 dígitos que nunca cambia si ya existe
   const generateUniqueSku = (existingList: any[]) => {
     let randomSku = "";
     let exists = true;
@@ -122,12 +122,11 @@ export default function AdminPage() {
     return randomSku;
   };
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (SKU FIJO E INMUTABLE GUARDADO EN FIREBASE SI NO EXISTE)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (GARANTIZA SKU ESTÁTICO PERMANENTE)
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Validamos y asignamos SKU permanente solo una vez si carece de él
       for (let prod of prodList) {
         if (!prod.sku || String(prod.sku).length !== 6) {
           const permanentSku = generateUniqueSku(prodList);
@@ -323,7 +322,7 @@ export default function AdminPage() {
       category: editForm.category,
       expiryDate: editForm.expiryDate,
       batchCode: editForm.batchCode,
-      sku: editingProduct.sku, // Mantiene el SKU estático original inalterable
+      sku: editingProduct.sku, // SKU inalterable garantizado
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
       isNewRestock: false,
@@ -402,7 +401,7 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 GUARDAR FACTURA E IMPACTAR EL INVENTARIO DE PRODUCTOS REALMENTE EN FIREBASE
+  // 🚀 GUARDAR FACTURA E IMPACTAR DIRECTAMENTE EL INVENTARIO EN FIREBASE (CORREGIDO Y VALIDADO)
   const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceNumber || !invoiceProvider) {
@@ -411,7 +410,7 @@ export default function AdminPage() {
     }
 
     try {
-      // 1. Guardar registro en la colección de proveedores/facturas
+      // 1. Registrar la factura en la colección "suppliers"
       await addDoc(collection(db, "suppliers"), {
         invoiceNumber,
         provider: invoiceProvider,
@@ -427,36 +426,37 @@ export default function AdminPage() {
 
       const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
 
-      // 2. Iterar cada ítem de la factura e impactar la colección "products" de Firebase en tiempo real
+      // 2. Procesar cada ítem de la factura y actualizar/crear en la colección "products"
       for (const item of invoiceItems) {
         const cleanName = String(item.productName || "").trim();
-        if (!cleanName || item.quantity <= 0) continue;
+        const quantityToAdd = Number(item.quantity) || 0;
+        if (!cleanName || quantityToAdd <= 0) continue;
 
-        // Búsqueda case-insensitive exacta sobre la lista de productos actual
+        // Búsqueda insensible a mayúsculas/minúsculas para evitar duplicados redundantes
         const existingProd = products.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
 
         if (existingProd) {
-          // Si el producto ya existe, actualizamos su stock sumando la cantidad y activamos la alerta verde de nuevo ingreso
-          const newStockVal = Number(existingProd.stock || 0) + Number(item.quantity || 0);
-          const productRef = doc(db, "products", existingProd.id);
-          await updateDoc(productRef, {
+          // Si el producto ya existe, actualizamos su stock sumando la cantidad y activando la alerta verde
+          const newStockVal = Number(existingProd.stock || 0) + quantityToAdd;
+          const productDocRef = doc(db, "products", existingProd.id);
+          await updateDoc(productDocRef, {
             stock: newStockVal,
             isNewRestock: true
           });
         } else {
-          // Si es un producto totalmente nuevo, generamos su SKU único estricto de 6 dígitos y lo guardamos
+          // Si es un producto nuevo, generamos su SKU único de 6 dígitos y lo añadimos a Firebase
           const uniqueSku = generateUniqueSku(products);
           await addDoc(collection(db, "products"), {
             name: cleanName,
             sku: uniqueSku,
-            price: Number((item.unitCost * 1.3).toFixed(2)), // Margen sugerido 30%
-            stock: Number(item.quantity || 1),
+            price: Number((item.unitCost * 1.3).toFixed(2)),
+            stock: quantityToAdd,
             category: defaultCategory,
             expiryDate: "",
             batchCode: `L-${invoiceNumber}`,
             isOnSale: false,
             isFeatured: false,
-            isNewRestock: true, // Alerta verde visible
+            isNewRestock: true, // Alerta verde de producto nuevo
             image: ""
           });
         }
@@ -468,7 +468,7 @@ export default function AdminPage() {
       setInvoiceDate("");
       setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
       
-      alert("¡Factura registrada y stock de productos actualizado correctamente en el inventario!");
+      alert("¡Factura registrada y stock de productos actualizado con éxito en el inventario!");
       setActiveTab("inventario");
       setInventorySubTab("productos");
     } catch (error: any) {
@@ -1839,7 +1839,7 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-zIndex-400 font-bold mb-0.5 uppercase text-[9px]">Lote 🏷️</label>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Lote 🏷️</label>
                     <input
                       type="text"
                       value={editForm.batchCode}
