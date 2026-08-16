@@ -107,7 +107,7 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // Generador estricto de SKU único de 6 dígitos estático e inmutable
+  // Generador estricto de SKU único de 6 dígitos
   const generateUniqueSku = (existingList: any[]) => {
     let randomSku = "";
     let exists = true;
@@ -127,7 +127,6 @@ export default function AdminPage() {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Garantizar que cada producto tenga su SKU permanente de 6 dígitos sin cambiarlo después
       for (let prod of prodList) {
         if (!prod.sku || String(prod.sku).length !== 6) {
           const permanentSku = generateUniqueSku(prodList);
@@ -323,7 +322,7 @@ export default function AdminPage() {
       category: editForm.category,
       expiryDate: editForm.expiryDate,
       batchCode: editForm.batchCode,
-      sku: editingProduct.sku, // SKU inalterable
+      sku: editingProduct.sku,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
       isNewRestock: false,
@@ -402,17 +401,22 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 FUNCIÓN SUPER BLINDADA PARA PROCESAR ÍTEMS DE FACTURA (CONVIERTE CUALQUIER FORMATO ANTIGUO A ARRAY SEGURO)
-  const processInvoiceItemsToStock = async (rawItems: any, invoiceNum: string, supplierDocId?: string) => {
-    let itemsArray: any[] = [];
-    
-    if (Array.isArray(rawItems)) {
-      itemsArray = rawItems;
-    } else if (typeof rawItems === "string") {
-      itemsArray = [{ productName: rawItems, quantity: 1, unitCost: 0, unitType: "UNIDAD" }];
-    } else if (rawItems && typeof rawItems === "object") {
-      itemsArray = Object.values(rawItems);
+  // 🚀 FUNCIÓN SUPER BLINDADA PARA CONVERTIR CUALQUIER TIPO DE DATO A ARRAY SEGURO
+  const normalizeItemsToArray = (rawItems: any) => {
+    if (!rawItems) return [];
+    if (Array.isArray(rawItems)) return rawItems;
+    if (typeof rawItems === "string") {
+      return [{ productName: rawItems, quantity: 1, totalCost: 0, unitType: "UNIDAD" }];
     }
+    if (typeof rawItems === "object") {
+      return Object.values(rawItems);
+    }
+    return [];
+  };
+
+  // 🚀 FUNCIÓN PARA PROCESAR ÍTEMS DE FACTURA E IMPACTAR STOCK
+  const processInvoiceItemsToStock = async (rawItems: any, invoiceNum: string, supplierDocId?: string) => {
+    const itemsArray = normalizeItemsToArray(rawItems);
 
     if (itemsArray.length === 0) {
       throw new Error("No hay ítems válidos para procesar en esta factura.");
@@ -421,7 +425,7 @@ export default function AdminPage() {
     const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
     let refreshedProducts = [...products];
 
-    for (const item of itemsArray) {
+    for (const item of itemsArray as any[]) {
       const cleanName = String(item?.productName || item || "").trim();
       const quantityToAdd = Number(item?.quantity || 1) || 1;
       if (!cleanName || quantityToAdd <= 0) continue;
@@ -508,7 +512,7 @@ export default function AdminPage() {
     }
   };
 
-  // ⚙️ PROCESAR MANUALMENTE FACTURA HISTÓRICA
+  // ⚙️ PROCESAR MANUALMENTE FACTURA HISTÓRICA (CON ARRAY NORMALIZADO)
   const handleProcessExistingInvoice = async (sup: any) => {
     if (sup.processed) return;
     if (!window.confirm(`¿Deseas procesar y sumar el stock de los ítems de la factura N° ${sup.invoiceNumber} al inventario?`)) return;
@@ -1747,20 +1751,12 @@ export default function AdminPage() {
                       <div className="space-y-1">
                         <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems ingresados al stock:</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {(() => {
-                            let itemsList = sup.items;
-                            if (typeof itemsList === "string") {
-                              itemsList = [{ productName: itemsList, quantity: 1, totalCost: sup.totalCost }];
-                            } else if (itemsList && typeof itemsList === "object" && !Array.isArray(itemsList)) {
-                              itemsList = Object.values(itemsList);
-                            }
-                            return Array.isArray(itemsList) && itemsList.map((it: any, i: number) => (
-                              <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
-                                <span>{it?.quantity || 1} {it?.unitType || 'UNIDAD'}(s) de <strong>{it?.productName || it || 'Ítem'}</strong></span>
-                                <span className="text-zinc-400">S/ {(Number(it?.totalCost || sup?.totalCost || 0)).toFixed(2)}</span>
-                              </div>
-                            ));
-                          })()}
+                          {normalizeItemsToArray(sup.items).map((it: any, i: number) => (
+                            <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
+                              <span>{it?.quantity || 1} {it?.unitType || 'UNIDAD'}(s) de <strong>{it?.productName || it || 'Ítem'}</strong></span>
+                              <span className="text-zinc-400">S/ {(Number(it?.totalCost || sup?.totalCost || 0)).toFixed(2)}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
