@@ -122,7 +122,7 @@ export default function AdminPage() {
     return randomSku;
   };
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (SKU PERMANENTE E INMUTABLE)
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -401,10 +401,18 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 LÓGICA BLINDADA Y SEGURA PARA PROCESAR ÍTEMS DE FACTURA (VALIDA ARREGLOS)
+  // 🚀 FUNCIÓN BLINDADA PARA PROCESAR ÍTEMS DE FACTURA E IMPACTAR STOCK (CORREGIDA CONTRA r.indexOf)
   const processInvoiceItemsToStock = async (rawItems: any, invoiceNum: string, supplierDocId?: string) => {
-    // Asegurar que rawItems sea un arreglo válido sin importar cómo venga de Firestore
-    const itemsArray = Array.isArray(rawItems) ? rawItems : Object.values(rawItems || {});
+    // Normalizar rawItems para asegurar que siempre sea un array válido independientemente del formato en Firestore
+    let itemsArray: any[] = [];
+    if (Array.isArray(rawItems)) {
+      itemsArray = rawItems;
+    } else if (typeof rawItems === "string") {
+      itemsArray = [{ productName: rawItems, quantity: 1, unitCost: 0, unitType: "UNIDAD" }];
+    } else if (rawItems && typeof rawItems === "object") {
+      itemsArray = Object.values(rawItems);
+    }
+
     if (itemsArray.length === 0) {
       throw new Error("La factura no contiene ítems válidos para procesar.");
     }
@@ -412,13 +420,13 @@ export default function AdminPage() {
     const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
     let refreshedProducts = [...products];
 
-    for (const item of itemsArray as any[]) {
-      const cleanName = String(item.productName || "").trim();
-      const quantityToAdd = Number(item.quantity) || 0;
+    for (const item of itemsArray) {
+      const cleanName = String(item.productName || item || "").trim();
+      const quantityToAdd = Number(item.quantity || 1) || 1;
       if (!cleanName || quantityToAdd <= 0) continue;
 
       // Búsqueda robusta insensible a mayúsculas/minúsculas
-      const existingProd = refreshedProducts.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
+      const existingProd = refreshedProducts.find(p => String(p.name || "").trim().toLowerCase() === cleanName.toLowerCase());
 
       if (existingProd) {
         const newStockVal = Number(existingProd.stock || 0) + quantityToAdd;
@@ -441,7 +449,7 @@ export default function AdminPage() {
           batchCode: `L-${invoiceNum || 'GEN'}`,
           isOnSale: false,
           isFeatured: false,
-          isNewRestock: true,
+          isNewRestock: true, // Alerta verde de producto nuevo
           image: ""
         });
         refreshedProducts.push({
@@ -455,7 +463,7 @@ export default function AdminPage() {
       }
     }
 
-    // Si se pasó el ID del documento de la factura, marcamos como procesado para inactivar el botón
+    // Si viene el ID del documento en suppliers, marcamos processed: true para inhabilitar el botón
     if (supplierDocId) {
       await updateDoc(doc(db, "suppliers", supplierDocId), { processed: true });
     }
@@ -470,7 +478,7 @@ export default function AdminPage() {
     }
 
     try {
-      // 1. Guardar en Firestore con la bandera "processed: true" ya que se procesará en el momento
+      // 1. Guardar factura con processed: true
       const supplierDocRef = await addDoc(collection(db, "suppliers"), {
         invoiceNumber,
         provider: invoiceProvider,
@@ -502,13 +510,13 @@ export default function AdminPage() {
     }
   };
 
-  // ⚙️ PROCESAR MANUALMENTE FACTURAS DEL HISTORIAL (INACTIVA EL BOTÓN AL TERMINAR)
+  // ⚙️ PROCESAR MANUALMENTE FACTURA HISTÓRICA (INACTIVA EL BOTÓN AL TERMINAR)
   const handleProcessExistingInvoice = async (sup: any) => {
     if (sup.processed) return;
-    if (!window.confirm(`¿Deseas procesar y sumar el stock de la factura N° ${sup.invoiceNumber} al inventario?`)) return;
+    if (!window.confirm(`¿Deseas procesar y sumar el stock de los ítems de la factura N° ${sup.invoiceNumber} al inventario?`)) return;
     try {
       await processInvoiceItemsToStock(sup.items, sup.invoiceNumber, sup.id);
-      alert(`¡Factura N° ${sup.invoiceNumber} procesada con éxito!`);
+      alert(`¡Factura N° ${sup.invoiceNumber} procesada con éxito! El stock ha sido sumado al inventario.`);
       setActiveTab("inventario");
       setInventorySubTab("productos");
     } catch (error: any) {
@@ -518,7 +526,7 @@ export default function AdminPage() {
 
   // 🗑️ ELIMINAR FACTURA DEL HISTORIAL
   const handleDeleteInvoice = async (supId: string, invoiceNum: string) => {
-    if (!window.confirm(`¿Estás seguro de eliminar el registro de la factura ${invoiceNum} del historial? (El stock ingresado previamente se mantendrá en el inventario).`)) return;
+    if (!window.confirm(`¿Estás seguro de eliminar el registro de la factura ${invoiceNum} del historial? (El stock asociado se mantendrá intacto en el inventario).`)) return;
     try {
       await deleteDoc(doc(db, "suppliers", supId));
       alert("Factura eliminada del historial con éxito.");
@@ -1710,7 +1718,7 @@ export default function AdminPage() {
                           </div>
                           
                           <div className="flex items-center gap-2">
-                            {/* 🔘 BOTÓN PROCESAR STOCK (SE INACTIVA SI YA FUE PROCESADO) */}
+                            {/* 🔘 BOTÓN PROCESAR STOCK (SE INACTIVA A "PROCESADO" SI YA SE USÓ) */}
                             {sup.processed ? (
                               <span className="bg-zinc-800 text-emerald-400 font-black px-2.5 py-1 rounded text-[10px] border border-emerald-900/50">
                                 ✓ Procesado
