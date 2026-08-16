@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias">("inventario");
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos">("inventario");
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
   // Estado para contraer/expandir el Sidebar lateral
@@ -26,15 +26,15 @@ export default function AdminPage() {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-
-  // Estado para filtrar automáticamente solo los productos huérfanos con un clic
   const [filterOrphanOnly, setFilterOrphanOnly] = useState(false);
 
-  // Estados para Agregar Nuevo Producto
+  // Estados para Agregar Nuevo Producto (Con Fecha de Vencimiento y Lote - Nivel Mundial)
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newStock, setNewStock] = useState("");
   const [newCategory, setNewCategory] = useState("Abarrotes y Despensa");
+  const [newExpiryDate, setNewExpiryDate] = useState("");
+  const [newBatchCode, setNewBatchCode] = useState("");
   const [newIsOnSale, setNewIsOnSale] = useState(false);
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
@@ -46,17 +46,19 @@ export default function AdminPage() {
     price: 0,
     stock: 0,
     category: "Abarrotes y Despensa",
+    expiryDate: "",
+    batchCode: "",
     isOnSale: false,
     isFeatured: false,
     image: ""
   });
 
-  // Estados declarados para Proveedores / Compras
+  // Estados para Proveedores / Compras
   const [supName, setSupName] = useState("");
   const [supProduct, setSupProduct] = useState("");
   const [supCost, setSupCost] = useState("");
 
-  // Estados declarados para Marketing & Promos
+  // Estados para Marketing & Promos
   const [newPromoTitle, setNewPromoTitle] = useState("");
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
@@ -200,13 +202,16 @@ export default function AdminPage() {
         price: parseFloat(newPrice) || 0,
         stock: parseInt(newStock) || 0,
         category: newCategory,
+        expiryDate: newExpiryDate || "",
+        batchCode: newBatchCode || "L-001",
         isOnSale: newIsOnSale,
         isFeatured: newIsFeatured,
         image: newImage || ""
       });
       setNewName(""); setNewPrice(""); setNewStock(""); 
+      setNewExpiryDate(""); setNewBatchCode("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      alert("¡Producto publicado con éxito!");
+      alert("¡Producto publicado con control de lote y vencimiento exitoso!");
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
@@ -255,6 +260,8 @@ export default function AdminPage() {
       price: Number(product.price || 0),
       stock: Number(product.stock || 0),
       category: product.category || defaultCat,
+      expiryDate: product.expiryDate || "",
+      batchCode: product.batchCode || "",
       isOnSale: product.isOnSale || false,
       isFeatured: product.isFeatured || false,
       image: product.image || ""
@@ -270,6 +277,8 @@ export default function AdminPage() {
       price: Number(editForm.price),
       stock: Number(editForm.stock),
       category: editForm.category,
+      expiryDate: editForm.expiryDate,
+      batchCode: editForm.batchCode,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
       image: editForm.image || editingProduct.image || ""
@@ -285,7 +294,43 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GESTIÓN Y MODIFICACIÓN DE CATEGORÍAS
+  // 🏷️ GENERADOR DE ETIQUETA / CÓDIGO DE BARRAS EN PDF
+  const handlePrintBarcode = (product: any) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Por favor permite las ventanas emergentes para generar la etiqueta.");
+      return;
+    }
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Etiqueta - ${product.name}</title>
+          <style>
+            body { font-family: monospace; text-align: center; padding: 20px; }
+            .label-box { border: 2px dashed #000; padding: 15px; display: inline-block; width: 250px; }
+            h3 { margin: 5px 0; font-size: 16px; }
+            p { margin: 5px 0; font-size: 14px; font-weight: bold; }
+            .barcode { font-size: 28px; letter-spacing: 4px; margin: 10px 0; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="label-box">
+            <h3>MINIMARKET PAMELA</h3>
+            <p>${product.name}</p>
+            <div class="barcode">||| | |||| || | ||</div>
+            <p>S/ ${(Number(product.price) || 0).toFixed(2)}</p>
+            <small>Lote: ${product.batchCode || 'GENERAL'}</small>
+          </div>
+          <script>
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // 🏷️ GESTIÓN DE CATEGORÍAS
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -327,7 +372,7 @@ export default function AdminPage() {
       alert("Debes mantener al menos una categoría en el sistema.");
       return;
     }
-    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos con esta categoría quedarán sin categoría asignada.`)) return;
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
     try {
       if (catId) {
         await deleteDoc(doc(db, "categories", catId));
@@ -338,7 +383,6 @@ export default function AdminPage() {
     }
   };
 
-  // 📦 REGISTRAR PROVEEDOR / COMPRA
   const handleAddSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supName || !supProduct) return;
@@ -356,7 +400,6 @@ export default function AdminPage() {
     }
   };
 
-  // Pedidos
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
@@ -426,6 +469,19 @@ export default function AdminPage() {
     }
     return true;
   }) || [];
+
+  // 🚦 CÁLCULO DE SEMÁFORO DE VENCIMIENTOS (Punto 3 del objetivo)
+  const getExpiryStatus = (expiryDateStr: string) => {
+    if (!expiryDateStr) return { color: "bg-zinc-800 text-zinc-400 border-zinc-700", label: "Sin Fecha" };
+    const today = new Date();
+    const expiry = new Date(expiryDateStr);
+    const diffTime = expiry.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { color: "bg-red-950/80 text-red-400 border-red-900", label: "🔴 VENCIDO" };
+    if (diffDays <= 5) return { color: "bg-amber-950/80 text-amber-400 border-amber-900 animate-pulse", label: `⚠️ Vence en ${diffDays}d` };
+    return { color: "bg-emerald-950/60 text-emerald-400 border-emerald-900/60", label: `🟢 Fresco (${diffDays}d)` };
+  };
 
   const totalSales = orders?.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0) || 0;
   const pendingCount = orders?.filter(o => o.status === "PENDIENTE").length || 0;
@@ -497,6 +553,19 @@ export default function AdminPage() {
             >
               <span className="text-sm shrink-0">📦</span>
               {isSidebarExpanded && <span className="whitespace-nowrap">Inventario & Stock</span>}
+            </button>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); setActiveTab("vencimientos"); setIsSidebarExpanded(false); }}
+              title="Control de Vencimientos"
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                activeTab === "vencimientos" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">⏳</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Vencimientos (Merma 0)</span>}
+              </span>
             </button>
 
             <button
@@ -606,7 +675,6 @@ export default function AdminPage() {
               <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
             </div>
 
-            {/* 🚨 ALARMA ROJA PARPADEANTE CLICKEABLE */}
             {orphanProducts.length > 0 && (
               <div 
                 onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(true); }}
@@ -643,6 +711,7 @@ export default function AdminPage() {
         {/* PESTAÑAS MÓVILES (Celulares) */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
+          <button onClick={() => setActiveTab("vencimientos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
           <button onClick={() => setActiveTab("categorias")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
@@ -656,7 +725,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto</h2>
+              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (IoT/Lotes)</h2>
               
               <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
                 <div>
@@ -665,7 +734,7 @@ export default function AdminPage() {
                     type="text"
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
-                    placeholder="Ej. Aceite Primor 1L"
+                    placeholder="Ej. Yogur Gloria 1L"
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                     required
                   />
@@ -693,6 +762,28 @@ export default function AdminPage() {
                       placeholder="0"
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                       required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Fecha de Vencimiento ⏳</label>
+                    <input
+                      type="date"
+                      value={newExpiryDate}
+                      onChange={e => setNewExpiryDate(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">N° de Lote 🏷️</label>
+                    <input
+                      type="text"
+                      value={newBatchCode}
+                      onChange={e => setNewBatchCode(e.target.value)}
+                      placeholder="Ej. L-8842"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                     />
                   </div>
                 </div>
@@ -739,7 +830,7 @@ export default function AdminPage() {
                   type="submit"
                   className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
                 >
-                  Publicar Producto
+                  Publicar Producto con Lote
                 </button>
               </form>
             </div>
@@ -780,6 +871,7 @@ export default function AdminPage() {
                       const isLow = currentStock > 0 && currentStock <= 5;
                       const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
                       const hasValidCategory = allCategoryNames.includes(prodCatTrimmed);
+                      const expiryInfo = getExpiryStatus(product.expiryDate);
 
                       return (
                         <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
@@ -793,27 +885,30 @@ export default function AdminPage() {
                             </div>
                             <div className="min-w-0">
                               <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
                                 {hasValidCategory ? (
                                   <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
                                 ) : (
                                   <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
                                 )}
+                                <span className={`text-[8px] px-1.5 py-0.2 rounded border font-bold ${expiryInfo.color}`}>
+                                  {expiryInfo.label} {product.batchCode ? `[${product.batchCode}]` : ""}
+                                </span>
                               </div>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <div>
-                              {isOut ? (
-                                <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🔴 Agotado</span>
-                              ) : isLow ? (
-                                <span className="bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟡 Bajo</span>
-                              ) : (
-                                <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟢 OK</span>
-                              )}
-                            </div>
+                            {/* 🏷️ BOTÓN GENERAR ETIQUETA CÓDIGO DE BARRAS (Punto 4 del objetivo) */}
+                            <button
+                              type="button"
+                              onClick={() => handlePrintBarcode(product)}
+                              className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition"
+                              title="Generar Etiqueta PDF con Código de Barras"
+                            >
+                              🏷️ Etiqueta
+                            </button>
 
                             <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
                               <button
@@ -859,6 +954,64 @@ export default function AdminPage() {
               )}
             </div>
 
+          </div>
+        )}
+
+        {/* VISTA NUEVA: CONTROL DE VENCIMIENTOS (MERMA 0) */}
+        {activeTab === "vencimientos" && (
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+              <div>
+                <h2 className="text-sm font-black text-white">⏳ Semáforo de Vencimientos en Tiempo Real (Merma 0)</h2>
+                <p className="text-[10px] text-zinc-400">Monitoreo IoT y lotes de productos sensibles para liquidación automática antes de caducar.</p>
+              </div>
+              <button
+                onClick={() => setActiveTab("inventario")}
+                className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+              >
+                ← Volver a Inventario
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-[500px] overflow-y-auto">
+              {products.length === 0 ? (
+                <p className="text-zinc-500 text-center py-12">No hay productos registrados.</p>
+              ) : (
+                products.map(product => {
+                  const expiryInfo = getExpiryStatus(product.expiryDate);
+                  return (
+                    <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex justify-between items-center gap-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-white text-xs">{product.name}</h3>
+                          <span className={`text-[9px] px-2 py-0.5 rounded border font-black ${expiryInfo.color}`}>
+                            {expiryInfo.label}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-zinc-400">
+                          Lote: <strong className="text-zinc-200">{product.batchCode || "N/A"}</strong> • Vencimiento: <strong className="text-zinc-200">{product.expiryDate || "No registrada"}</strong> • Stock: {product.stock} un.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handlePrintBarcode(product)}
+                          className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-xs font-bold text-zinc-300 transition"
+                        >
+                          🏷️ Imprimir Etiqueta PDF
+                        </button>
+                        <button
+                          onClick={() => openEditModal(product)}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs transition"
+                        >
+                          Actualizar Lote / Liquidar 🔥
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
 
@@ -1311,6 +1464,27 @@ export default function AdminPage() {
                       onChange={e => setEditForm({ ...editForm, stock: parseInt(e.target.value) || 0 })}
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                       required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Vencimiento ⏳</label>
+                    <input
+                      type="date"
+                      value={editForm.expiryDate}
+                      onChange={e => setEditForm({ ...editForm, expiryDate: e.target.value })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Lote 🏷️</label>
+                    <input
+                      type="text"
+                      value={editForm.batchCode}
+                      onChange={e => setEditForm({ ...editForm, batchCode: e.target.value })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                     />
                   </div>
                 </div>

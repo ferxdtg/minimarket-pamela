@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -27,6 +27,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Estado para filtrar automáticamente solo los productos huérfanos con un clic
+  const [filterOrphanOnly, setFilterOrphanOnly] = useState(false);
+
   // Estados para Agregar Nuevo Producto
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
@@ -48,17 +51,17 @@ export default function AdminPage() {
     image: ""
   });
 
-  // Estados para Módulo de Proveedores / Compras
+  // Estados declarados para Proveedores / Compras
   const [supName, setSupName] = useState("");
   const [supProduct, setSupProduct] = useState("");
   const [supCost, setSupCost] = useState("");
 
-  // Estados para Módulo de Marketing & Promos
+  // Estados declarados para Marketing & Promos
   const [newPromoTitle, setNewPromoTitle] = useState("");
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
 
-  // Estados para Gestión y Edición de Categorías
+  // Estados para Gestión, Edición y Eliminación de Categorías
   const [newCatName, setNewCatName] = useState("");
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [editCatName, setEditCatName] = useState("");
@@ -93,21 +96,6 @@ export default function AdminPage() {
 
   // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
-    const initDefaultCategories = async () => {
-      try {
-        const catSnap = await getDocs(collection(db, "categories"));
-        if (catSnap.empty) {
-          const defaults = ["Abarrotes y Despensa", "Snacks", "Bebidas y Lácteos", "Limpieza y Hogar", "Ofertas"];
-          for (const d of defaults) {
-            await addDoc(collection(db, "categories"), { name: d });
-          }
-        }
-      } catch (err) {
-        console.error("Error inicializando categorías:", err);
-      }
-    };
-    initDefaultCategories();
-
     const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
       const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prodList);
@@ -139,6 +127,9 @@ export default function AdminPage() {
     const unsubscribeCategories = onSnapshot(collection(db, "categories"), (snapshot) => {
       const catList = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
       setCategoriesList(catList);
+      if (catList.length > 0 && !catList.some((c: any) => c.name === newCategory)) {
+        setNewCategory(catList[0].name);
+      }
     }, (error) => {
       console.error("Error al escuchar categorías:", error);
     });
@@ -257,12 +248,13 @@ export default function AdminPage() {
   };
 
   const openEditModal = (product: any) => {
+    const defaultCat = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
     setEditingProduct(product);
     setEditForm({
       name: product.name || "",
       price: Number(product.price || 0),
       stock: Number(product.stock || 0),
-      category: product.category || "Abarrotes y Despensa",
+      category: product.category || defaultCat,
       isOnSale: product.isOnSale || false,
       isFeatured: product.isFeatured || false,
       image: product.image || ""
@@ -289,11 +281,11 @@ export default function AdminPage() {
       setEditingProduct(null);
       alert("¡Producto actualizado correctamente!");
     } catch (error: any) {
-      alert(`Error al editar producto: ${error.message}`);
+      alert(`Error al editar: ${error.message}`);
     }
   };
 
-  // 🏷️ GESTIÓN DE CATEGORÍAS (CREAR, EDITAR, ELIMINAR CUALQUIERA)
+  // 🏷️ GESTIÓN Y MODIFICACIÓN DE CATEGORÍAS
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -324,14 +316,18 @@ export default function AdminPage() {
 
       setEditingCategory(null);
       setEditCatName("");
-      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos!`);
+      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos con éxito!`);
     } catch (error: any) {
       alert(`Error al actualizar categoría: ${error.message}`);
     }
   };
 
   const handleDeleteCategory = async (catId: string, catName: string) => {
-    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
+    if (categoriesList.length <= 1) {
+      alert("Debes mantener al menos una categoría en el sistema.");
+      return;
+    }
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos con esta categoría quedarán sin categoría asignada.`)) return;
     try {
       if (catId) {
         await deleteDoc(doc(db, "categories", catId));
@@ -360,7 +356,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 FUNCIÓN BLINDADA PARA PEDIDOS
+  // Pedidos
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
@@ -414,7 +410,22 @@ export default function AdminPage() {
     return true;
   }) || [];
 
-  const filteredProducts = products?.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase())) || [];
+  const allCategoryNames = categoriesList?.map((c: any) => String(c.name || "").trim().toLowerCase()) || [];
+
+  const orphanProducts = categoriesList.length > 0 ? products.filter(p => {
+    const cat = String(p.category || "").trim().toLowerCase();
+    return cat !== "" && !allCategoryNames.includes(cat);
+  }) : [];
+
+  const filteredProducts = products?.filter(p => {
+    const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+    if (filterOrphanOnly) {
+      const cat = String(p.category || "").trim().toLowerCase();
+      return cat !== "" && !allCategoryNames.includes(cat);
+    }
+    return true;
+  }) || [];
 
   const totalSales = orders?.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0) || 0;
   const pendingCount = orders?.filter(o => o.status === "PENDIENTE").length || 0;
@@ -447,8 +458,6 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
-  const allCategories = categoriesList?.map(c => c.name) || ["Abarrotes y Despensa"];
-
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
       window.location.href = "/";
@@ -480,7 +489,7 @@ export default function AdminPage() {
 
           <nav className="space-y-1">
             <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setIsSidebarExpanded(false); }}
+              onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setFilterOrphanOnly(false); setIsSidebarExpanded(false); }}
               title="Inventario & Stock"
               className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
                 activeTab === "inventario" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
@@ -589,11 +598,31 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ALARMA ROJA PARPADEANTE CLICKEABLE */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
-          <div>
-            <h1 className="text-sm sm:text-lg font-black tracking-tight text-white leading-tight">Minimarket Pamela</h1>
-            <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-sm sm:text-lg font-black tracking-tight text-white leading-tight">Minimarket Pamela</h1>
+              <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
+            </div>
+
+            {/* 🚨 ALARMA ROJA PARPADEANTE CLICKEABLE */}
+            {orphanProducts.length > 0 && (
+              <div 
+                onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(true); }}
+                title="Haz clic para ubicar los productos huérfanos en el inventario"
+                className="relative group flex items-center cursor-pointer ml-2"
+              >
+                <span className="relative flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 justify-center items-center text-[9px] font-black text-white">!</span>
+                </span>
+
+                <div className="absolute left-0 sm:left-6 top-6 sm:top-auto z-50 hidden group-hover:block bg-zinc-950 text-amber-300 border border-amber-500/50 p-2.5 rounded-xl shadow-2xl w-64 text-[10px] font-bold leading-tight pointer-events-none">
+                  Hay {orphanProducts.length} producto(s) cuya categoría fue eliminada. Edítalos en el inventario para asignarles una categoría activa.
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 bg-zinc-950 border border-zinc-800 px-3 py-2 rounded-xl shadow-inner">
@@ -613,7 +642,7 @@ export default function AdminPage() {
 
         {/* PESTAÑAS MÓVILES (Celulares) */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
-          <button onClick={() => setActiveTab("inventario")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
+          <button onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
           <button onClick={() => setActiveTab("categorias")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
@@ -678,8 +707,8 @@ export default function AdminPage() {
                     onChange={e => setNewCategory(e.target.value)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                   >
-                    {allCategories.map((cat, idx) => (
-                      <option key={idx} value={cat}>{cat}</option>
+                    {categoriesList.map((cat, idx) => (
+                      <option key={idx} value={cat.name}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
@@ -716,12 +745,23 @@ export default function AdminPage() {
             </div>
 
             <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                <h2 className="text-xs font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-zinc-800 pb-2">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xs font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
+                  {filterOrphanOnly && (
+                    <button 
+                      onClick={() => setFilterOrphanOnly(false)} 
+                      className="bg-red-950/80 border border-red-900 text-red-400 px-2 py-0.5 rounded text-[9px] font-bold transition cursor-pointer"
+                    >
+                      ✕ Quitar filtro de atención
+                    </button>
+                  )}
+                </div>
+
                 <input
                   type="text"
                   value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
+                  onChange={e => { setSearchTerm(e.target.value); setFilterOrphanOnly(false); }}
                   placeholder="Buscar..."
                   className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-48"
                 />
@@ -731,80 +771,90 @@ export default function AdminPage() {
                 <p className="text-zinc-500 text-center py-8">Sincronizando inventario...</p>
               ) : (
                 <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                  {filteredProducts.map(product => {
-                    const currentStock = Number(product.stock ?? 0);
-                    const isOut = currentStock === 0;
-                    const isLow = currentStock > 0 && currentStock <= 5;
+                  {filteredProducts.length === 0 ? (
+                    <p className="text-zinc-500 text-center py-12 text-xs">No hay productos que coincidan con la vista.</p>
+                  ) : (
+                    filteredProducts.map(product => {
+                      const currentStock = Number(product.stock ?? 0);
+                      const isOut = currentStock === 0;
+                      const isLow = currentStock > 0 && currentStock <= 5;
+                      const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
+                      const hasValidCategory = allCategoryNames.includes(prodCatTrimmed);
 
-                    return (
-                      <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
-                            {product.image ? (
-                              <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" />
-                            ) : (
-                              <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                            <div className="flex items-center gap-2">
-                              <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                              <span className="text-[9px] text-zinc-500 truncate">({product.category || "Abarrotes"})</span>
+                      return (
+                        <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                              {product.image ? (
+                                <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" />
+                              ) : (
+                                <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                                {hasValidCategory ? (
+                                  <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
+                                ) : (
+                                  <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-2">
-                          <div>
-                            {isOut ? (
-                              <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🔴 Agotado</span>
-                            ) : isLow ? (
-                              <span className="bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟡 Bajo</span>
-                            ) : (
-                              <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟢 OK</span>
-                            )}
-                          </div>
+                          <div className="flex items-center gap-2">
+                            <div>
+                              {isOut ? (
+                                <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🔴 Agotado</span>
+                              ) : isLow ? (
+                                <span className="bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟡 Bajo</span>
+                              ) : (
+                                <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟢 OK</span>
+                              )}
+                            </div>
 
-                          <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                            <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                              <button
+                                type="button"
+                                onClick={() => handleStockUpdate(product.id, currentStock, -1)}
+                                className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                              >
+                                -
+                              </button>
+                              <span className="w-5 text-center font-black">{currentStock}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStockUpdate(product.id, currentStock, 1)}
+                                className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                              >
+                                +
+                              </button>
+                            </div>
+
                             <button
                               type="button"
-                              onClick={() => handleStockUpdate(product.id, currentStock, -1)}
-                              className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                              onClick={() => openEditModal(product)}
+                              className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
+                              title="Editar"
                             >
-                              -
+                              ✏️
                             </button>
-                            <span className="w-5 text-center font-black">{currentStock}</span>
+
                             <button
                               type="button"
-                              onClick={() => handleStockUpdate(product.id, currentStock, 1)}
-                              className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                              onClick={() => handleDeleteProduct(product.id, product.name)}
+                              className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
+                              title="Eliminar"
                             >
-                              +
+                              🗑️
                             </button>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(product)}
-                            className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
-                            title="Editar"
-                          >
-                            ✏️
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteProduct(product.id, product.name)}
-                            className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
-                            title="Eliminar"
-                          >
-                            🗑️
-                          </button>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               )}
             </div>
@@ -938,11 +988,11 @@ export default function AdminPage() {
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
               <div>
-                <h2 className="text-xs font-black text-white">🏷️ Gestión de Categorías</h2>
+                <h2 className="text-xs font-black text-white">🏷️ Gestión y Modificación de Categorías</h2>
                 <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda con total libertad.</p>
               </div>
               <button
-                onClick={() => setActiveTab("inventario")}
+                onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(false); }}
                 className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
               >
                 ← Volver a Inventario & Stock
@@ -969,7 +1019,7 @@ export default function AdminPage() {
               </div>
 
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <h3 className="text-xs font-black text-white">Listado de Categorías ({categoriesList.length})</h3>
+                <h3 className="text-xs font-black text-white">Listado General ({categoriesList.length})</h3>
                 <div className="space-y-2 max-h-[350px] overflow-y-auto">
                   {categoriesList.map((catObj) => (
                     <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
@@ -979,7 +1029,7 @@ export default function AdminPage() {
                           onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
                           className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
                         >
-                          ✏️ Editar
+                          ✏️ Modificar
                         </button>
                         <button
                           onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
@@ -1195,7 +1245,7 @@ export default function AdminPage() {
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
               <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                <h3 className="text-xs font-black">Editar Categoría: "{editingCategory.name}"</h3>
+                <h3 className="text-xs font-black">Modificar Categoría: "{editingCategory.name}"</h3>
                 <button type="button" onClick={() => setEditingCategory(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
               </div>
 
@@ -1272,8 +1322,8 @@ export default function AdminPage() {
                     onChange={e => setEditForm({ ...editForm, category: e.target.value })}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                   >
-                    {allCategories.map((cat, idx) => (
-                      <option key={idx} value={cat}>{cat}</option>
+                    {categoriesList.map((cat, idx) => (
+                      <option key={idx} value={cat.name}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
