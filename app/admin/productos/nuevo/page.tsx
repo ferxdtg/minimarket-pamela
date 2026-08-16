@@ -102,10 +102,49 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
+  // Generador de SKU aleatorio de 6 dígitos único
+  const generateRandom6DigitSku = (currentProducts: any[]) => {
+    let randomSku = "";
+    let isUnique = false;
+    const existingSkus = currentProducts.map(p => String(p.sku || ""));
+
+    while (!isUnique) {
+      randomSku = Math.floor(100000 + Math.random() * 900000).toString();
+      if (!existingSkus.includes(randomSku)) {
+        isUnique = true;
+      }
+    }
+    return randomSku;
+  };
+
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL CON AUTO-SKU PARA PRODUCTOS ANTIGUOS
   useEffect(() => {
-    const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
-      const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
+      let prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Si algún producto antiguo no tiene SKU de 6 dígitos, se lo asignamos automáticamente en segundo plano
+const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
+      let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      for (let prod of prodList) {
+        if (!prod.sku || String(prod.sku).length !== 6) {
+          const autoSku = generateRandom6DigitSku(prodList);
+          prod.sku = autoSku;
+          try {
+            await updateDoc(doc(db, "products", prod.id), { sku: autoSku });
+          } catch (err) {
+            console.error("Error asignando SKU automático:", err);
+          }
+        }
+      }
+
+      setProducts(prodList);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error al escuchar productos:", error);
+      setLoading(false);
+    });
+
       setProducts(prodList);
       setLoading(false);
     }, (error) => {
@@ -198,21 +237,6 @@ export default function AdminPage() {
         setEditForm(prev => ({ ...prev, image: base64 }));
       });
     }
-  };
-
-  // Generador de SKU aleatorio de 6 dígitos único
-  const generateRandom6DigitSku = (existingProducts: any[]) => {
-    let randomSku = "";
-    let isUnique = false;
-    const existingSkus = existingProducts.map(p => String(p.sku || ""));
-
-    while (!isUnique) {
-      randomSku = Math.floor(100000 + Math.random() * 900000).toString();
-      if (!existingSkus.includes(randomSku)) {
-        isUnique = true;
-      }
-    }
-    return randomSku;
   };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
@@ -411,13 +435,11 @@ export default function AdminPage() {
         const cleanName = String(item.productName || "").trim();
         if (!cleanName) continue;
 
-        // Búsqueda insensible a mayúsculas/minúsculas para evitar redundancias
         const existingProd = currentProductsList.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
 
         if (existingProd) {
           const newStockVal = Number(existingProd.stock || 0) + Number(item.quantity || 0);
           await updateDoc(doc(db, "products", existingProd.id), { stock: newStockVal });
-          // Actualizamos la copia local para el bucle si hubiera duplicados en la misma factura
           existingProd.stock = newStockVal;
         } else {
           const uniqueSku = generateRandom6DigitSku(currentProductsList);
@@ -434,7 +456,6 @@ export default function AdminPage() {
             isNewRestock: true, // 🟢 Alerta verde visible en inventario
             image: ""
           });
-          // Añadimos a la lista local
           currentProductsList.push({
             id: newDocRef.id,
             name: cleanName,
@@ -1731,7 +1752,7 @@ export default function AdminPage() {
 
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-1">
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">SKU / Código</label>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">SKU 6D</label>
                     <input
                       type="text"
                       value={editForm.sku}
