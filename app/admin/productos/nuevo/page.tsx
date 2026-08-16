@@ -6,7 +6,6 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  // Pestañas principales o sub-vistas del inventario
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos">("inventario");
   const [inventorySubTab, setInventorySubTab] = useState<"productos" | "vencimientos" | "categorias">("productos");
   
@@ -688,7 +687,7 @@ export default function AdminPage() {
           </div>
 
           <nav className="space-y-1">
-            {/* 📦 INVENTARIO & STOCK CON SUBMENÚS (Vencimientos y Categorías) */}
+            {/* 📦 INVENTARIO & STOCK CON SUBMENÚS */}
             <div className="space-y-1">
               <button
                 onClick={(e) => { 
@@ -727,7 +726,7 @@ export default function AdminPage() {
                       activeTab === "inventario" && inventorySubTab === "vencimientos" ? "text-white bg-red-950/60" : "text-zinc-400 hover:text-white"
                     }`}
                   >
-                    <span>• Vencimientos (Merma 0)</span>
+                    <span>• Vencimientos</span>
                     {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
                       <span className="bg-red-500 text-white px-1.5 py-0.1 rounded-full text-[8px] font-black">
                         {expiredProductsList.length + expiringSoonProductsList.length}
@@ -832,7 +831,7 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ICONO DE ALARTA INTERACTIVO (HOVER / CLIC) */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ICONO CORTO DE ALERTA (HOVER/CLIC) */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div className="flex items-center gap-3 flex-wrap">
             <div>
@@ -857,21 +856,21 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* ⏳ ICONO DE ALERTA DE VENCIMIENTOS (TOOLTIP + TRASLADO AUTOMÁTICO AL HACER CLIC) */}
+            {/* ⏳ ICONO CORTO DE ALERTA DE VENCIMIENTO CON TOOLTIP INFORMATIVO Y CLIC TRASLADADOR */}
             {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
               <div 
                 onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }}
-                title="Haz clic para ir directamente a la sección de vencimientos"
-                className="relative group flex items-center cursor-pointer ml-2 bg-amber-950/80 border border-amber-500/80 px-2.5 py-1 rounded-lg text-amber-300 text-[10px] font-black animate-pulse hover:bg-amber-900 transition"
+                title="Ver detalles de vencimientos"
+                className="relative group flex items-center justify-center cursor-pointer ml-2 w-7 h-7 bg-amber-500/20 border border-amber-500/60 rounded-full text-amber-400 hover:bg-amber-500 hover:text-black transition shadow-lg animate-bounce"
               >
-                ⏳ Alerta Vencimiento: {expiredProductsList.length} vencidos | {expiringSoonProductsList.length} por vencer
+                <span className="text-xs font-black">⏳</span>
 
-                {/* Tooltip con información puntual al pasar el cursor */}
-                <div className="absolute left-0 top-7 z-50 hidden group-hover:block bg-zinc-950 text-white border border-amber-500/60 p-3 rounded-xl shadow-2xl w-64 text-[10px] leading-tight pointer-events-none space-y-1">
-                  <p className="font-black text-amber-400">Estado de Vencimientos:</p>
-                  <p>• Vencidos: {expiredProductsList.length} artículos</p>
-                  <p>• Por vencer (&le; 10 días): {expiringSoonProductsList.length} artículos</p>
-                  <p className="text-[9px] text-zinc-400 pt-1 italic">Haz clic para revisar y liquidar stock.</p>
+                {/* Tooltip con información puntual desplegada al pasar el cursor */}
+                <div className="absolute left-0 top-9 z-50 hidden group-hover:block bg-zinc-950 text-white border border-amber-500/60 p-3 rounded-xl shadow-2xl w-56 text-[10px] leading-tight pointer-events-none space-y-1">
+                  <p className="font-black text-amber-400 uppercase">Resumen de Vencimientos:</p>
+                  <p className="text-red-400">• Vencidos: {expiredProductsList.length}</p>
+                  <p className="text-yellow-400">• Por vencer (&le; 10d): {expiringSoonProductsList.length}</p>
+                  <p className="text-[9px] text-zinc-400 pt-1 italic">Haz clic para ir a revisión.</p>
                 </div>
               </div>
             )}
