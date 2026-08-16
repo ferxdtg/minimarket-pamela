@@ -6,7 +6,12 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias">("inventario");
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos">("inventario");
+  const [inventorySubTab, setInventorySubTab] = useState<"productos" | "vencimientos" | "categorias">("productos");
+  
+  // Estado para expandir el menú desplegable de Inventario & Stock en el Sidebar
+  const [isInventoryDropdownOpen, setIsInventoryDropdownOpen] = useState(false);
+
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
   // Estado para contraer/expandir el Sidebar lateral
@@ -26,8 +31,6 @@ export default function AdminPage() {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-
-  // Estado para filtrar automáticamente solo los productos huérfanos con un clic
   const [filterOrphanOnly, setFilterOrphanOnly] = useState(false);
 
   // Estados para Agregar Nuevo Producto
@@ -35,6 +38,8 @@ export default function AdminPage() {
   const [newPrice, setNewPrice] = useState("");
   const [newStock, setNewStock] = useState("");
   const [newCategory, setNewCategory] = useState("Abarrotes y Despensa");
+  const [newExpiryDate, setNewExpiryDate] = useState("");
+  const [newBatchCode, setNewBatchCode] = useState("");
   const [newIsOnSale, setNewIsOnSale] = useState(false);
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
@@ -46,17 +51,25 @@ export default function AdminPage() {
     price: 0,
     stock: 0,
     category: "Abarrotes y Despensa",
+    expiryDate: "",
+    batchCode: "",
+    sku: "",
     isOnSale: false,
     isFeatured: false,
     image: ""
   });
 
-  // Estados declarados para Proveedores / Compras
-  const [supName, setSupName] = useState("");
-  const [supProduct, setSupProduct] = useState("");
-  const [supCost, setSupCost] = useState("");
+  // 🧾 ESTADOS DE FACTURACIÓN Y REPOSICIÓN PROFESIONAL
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceProvider, setInvoiceProvider] = useState("");
+  const [invoiceRuc, setInvoiceRuc] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [invoicePaymentTerm, setInvoicePaymentTerm] = useState("CONTADO");
+  const [invoiceItems, setInvoiceItems] = useState([
+    { productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }
+  ]);
 
-  // Estados declarados para Marketing & Promos
+  // Estados para Marketing & Promos
   const [newPromoTitle, setNewPromoTitle] = useState("");
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
@@ -94,10 +107,38 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
+  // Generador de SKU aleatorio de 6 dígitos único (Inmutable / Como un DNI)
+  const generateUniqueSku = (existingList: any[]) => {
+    let randomSku = "";
+    let exists = true;
+    const currentSkus = existingList.map(p => String(p.sku || ""));
+
+    while (exists) {
+      randomSku = Math.floor(100000 + Math.random() * 900000).toString();
+      if (!currentSkus.includes(randomSku)) {
+        exists = false;
+      }
+    }
+    return randomSku;
+  };
+
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (SKU PERMANENTE E INMUTABLE)
   useEffect(() => {
-    const unsubscribeProducts = onSnapshot(collection(db, "products"), (snapshot) => {
-      const prodList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
+      let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      for (let prod of prodList) {
+        if (!prod.sku || String(prod.sku).length !== 6) {
+          const permanentSku = generateUniqueSku(prodList);
+          prod.sku = permanentSku;
+          try {
+            await updateDoc(doc(db, "products", prod.id), { sku: permanentSku });
+          } catch (err) {
+            console.error("Error guardando SKU estático:", err);
+          }
+        }
+      }
+
       setProducts(prodList);
       setLoading(false);
     }, (error) => {
@@ -195,18 +236,24 @@ export default function AdminPage() {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const uniqueSku = generateUniqueSku(products);
       await addDoc(collection(db, "products"), {
         name: newName,
+        sku: uniqueSku,
         price: parseFloat(newPrice) || 0,
         stock: parseInt(newStock) || 0,
         category: newCategory,
+        expiryDate: newExpiryDate || "",
+        batchCode: newBatchCode || "L-001",
         isOnSale: newIsOnSale,
         isFeatured: newIsFeatured,
+        isNewRestock: false,
         image: newImage || ""
       });
       setNewName(""); setNewPrice(""); setNewStock(""); 
+      setNewExpiryDate(""); setNewBatchCode("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      alert("¡Producto publicado con éxito!");
+      alert(`¡Producto publicado con éxito! Código SKU (DNI): ${uniqueSku}`);
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
@@ -255,6 +302,9 @@ export default function AdminPage() {
       price: Number(product.price || 0),
       stock: Number(product.stock || 0),
       category: product.category || defaultCat,
+      expiryDate: product.expiryDate || "",
+      batchCode: product.batchCode || "",
+      sku: product.sku || generateUniqueSku(products),
       isOnSale: product.isOnSale || false,
       isFeatured: product.isFeatured || false,
       image: product.image || ""
@@ -270,8 +320,12 @@ export default function AdminPage() {
       price: Number(editForm.price),
       stock: Number(editForm.stock),
       category: editForm.category,
+      expiryDate: editForm.expiryDate,
+      batchCode: editForm.batchCode,
+      sku: editingProduct.sku,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
+      isNewRestock: false,
       image: editForm.image || editingProduct.image || ""
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
@@ -279,13 +333,151 @@ export default function AdminPage() {
       const productRef = doc(db, "products", stringId);
       await updateDoc(productRef, finalData);
       setEditingProduct(null);
-      alert("¡Producto actualizado correctamente!");
+      alert("¡Producto actualizado correctamente manteniendo su SKU único!");
     } catch (error: any) {
       alert(`Error al editar: ${error.message}`);
     }
   };
 
-  // 🏷️ GESTIÓN Y MODIFICACIÓN DE CATEGORÍAS
+  // 🏷️ GENERADOR DE ETIQUETA / CÓDIGO DE BARRAS EN PDF
+  const handlePrintBarcode = (product: any) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Por favor permite las ventanas emergentes para generar la etiqueta.");
+      return;
+    }
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Etiqueta - ${product.name}</title>
+          <style>
+            body { font-family: monospace; text-align: center; padding: 20px; }
+            .label-box { border: 2px dashed #000; padding: 15px; display: inline-block; width: 250px; }
+            h3 { margin: 5px 0; font-size: 16px; }
+            p { margin: 5px 0; font-size: 14px; font-weight: bold; }
+            .barcode { font-size: 28px; letter-spacing: 4px; margin: 10px 0; font-weight: bold; }
+            .sku { font-size: 11px; color: #333; }
+          </style>
+        </head>
+        <body>
+          <div class="label-box">
+            <h3>MINIMARKET PAMELA</h3>
+            <p>${product.name}</p>
+            <div class="barcode">||| | |||| || | ||</div>
+            <p>S/ ${(Number(product.price) || 0).toFixed(2)}</p>
+            <div class="sku">SKU: ${product.sku || 'N/A'} | Lote: ${product.batchCode || 'GEN'}</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // 🧾 GESTIÓN DE ÍTEMS EN FACTURA
+  const handleAddInvoiceItem = () => {
+    setInvoiceItems([...invoiceItems, { productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
+  };
+
+  const handleInvoiceItemChange = (index: number, field: string, value: any) => {
+    const updated = [...invoiceItems];
+    updated[index] = { ...updated[index], [field]: value };
+    if (field === "quantity" || field === "unitCost") {
+      const qty = Number(field === "quantity" ? value : updated[index].quantity) || 0;
+      const cost = Number(field === "unitCost" ? value : updated[index].unitCost) || 0;
+      updated[index].totalCost = Number((qty * cost).toFixed(2));
+    }
+    setInvoiceItems(updated);
+  };
+
+  const handleRemoveInvoiceItem = (index: number) => {
+    if (invoiceItems.length === 1) return;
+    setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
+  };
+
+  const subTotalInvoice = invoiceItems.reduce((sum, item) => sum + (Number(item.totalCost) || 0), 0);
+  const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
+  const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
+
+  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO
+  const handleSaveInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoiceNumber || !invoiceProvider) {
+      alert("Por favor ingresa el N° de Factura y el Proveedor.");
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "suppliers"), {
+        invoiceNumber,
+        provider: invoiceProvider,
+        ruc: invoiceRuc || "S/N",
+        date: invoiceDate || todayDateStr,
+        paymentTerm: invoicePaymentTerm,
+        items: invoiceItems,
+        subTotal: subTotalInvoice,
+        igv: igvInvoice,
+        totalCost: totalInvoiceAmount,
+        registeredAt: todayDateStr
+      });
+
+      const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
+      let currentProductsList = [...products];
+
+      for (const item of invoiceItems) {
+        const cleanName = String(item.productName || "").trim();
+        if (!cleanName) continue;
+
+        const existingProd = currentProductsList.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
+
+        if (existingProd) {
+          const newStockVal = Number(existingProd.stock || 0) + Number(item.quantity || 0);
+          await updateDoc(doc(db, "products", existingProd.id), { stock: newStockVal, isNewRestock: true });
+          existingProd.stock = newStockVal;
+          existingProd.isNewRestock = true;
+        } else {
+          const uniqueSku = generateUniqueSku(currentProductsList);
+          const newDocRef = await addDoc(collection(db, "products"), {
+            name: cleanName,
+            sku: uniqueSku,
+            price: Number((item.unitCost * 1.3).toFixed(2)),
+            stock: Number(item.quantity || 1),
+            category: defaultCategory,
+            expiryDate: "",
+            batchCode: `L-${invoiceNumber}`,
+            isOnSale: false,
+            isFeatured: false,
+            isNewRestock: true, // 🟢 Alerta verde visible en inventario
+            image: ""
+          });
+          currentProductsList.push({
+            id: newDocRef.id,
+            name: cleanName,
+            sku: uniqueSku,
+            stock: Number(item.quantity || 1),
+            category: defaultCategory,
+            isNewRestock: true
+          });
+        }
+      }
+
+      setInvoiceNumber("");
+      setInvoiceProvider("");
+      setInvoiceRuc("");
+      setInvoiceDate("");
+      setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
+      
+      alert("¡Factura registrada! Los productos ingresados ya aparecen en el inventario con su alerta verde.");
+      setActiveTab("inventario");
+      setInventorySubTab("productos");
+    } catch (error: any) {
+      alert(`Error al registrar factura: ${error.message}`);
+    }
+  };
+
+  // 🏷️ GESTIÓN DE CATEGORÍAS
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -316,7 +508,7 @@ export default function AdminPage() {
 
       setEditingCategory(null);
       setEditCatName("");
-      alert(`¡Categoría "${oldName}" renombrada a "${newNameCat}" en todos los productos con éxito!`);
+      alert(`⚠️ Al modificar esta categoría, se actualizarán automáticamente todos los productos asociados.`);
     } catch (error: any) {
       alert(`Error al actualizar categoría: ${error.message}`);
     }
@@ -327,7 +519,7 @@ export default function AdminPage() {
       alert("Debes mantener al menos una categoría en el sistema.");
       return;
     }
-    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"? Los productos con esta categoría quedarán sin categoría asignada.`)) return;
+    if (!window.confirm(`¿Estás seguro de eliminar la categoría "${catName}"?`)) return;
     try {
       if (catId) {
         await deleteDoc(doc(db, "categories", catId));
@@ -338,25 +530,6 @@ export default function AdminPage() {
     }
   };
 
-  // 📦 REGISTRAR PROVEEDOR / COMPRA
-  const handleAddSupplier = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!supName || !supProduct) return;
-    try {
-      await addDoc(collection(db, "suppliers"), {
-        name: supName,
-        product: supProduct,
-        cost: parseFloat(supCost) || 0,
-        date: todayDateStr
-      });
-      setSupName(""); setSupProduct(""); setSupCost("");
-      alert("¡Compra y proveedor registrados con éxito!");
-    } catch (error: any) {
-      alert(`Error al registrar: ${error.message}`);
-    }
-  };
-
-  // Pedidos
   const handleUpdateOrderStatus = async (orderId: any, newStatus: string) => {
     const stringOrderId = String(orderId).trim();
     setOrders(prev => prev.map(o => String(o.id).trim() === stringOrderId ? { ...o, status: newStatus } : o));
@@ -418,7 +591,7 @@ export default function AdminPage() {
   }) : [];
 
   const filteredProducts = products?.filter(p => {
-    const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
     if (!matchesSearch) return false;
     if (filterOrphanOnly) {
       const cat = String(p.category || "").trim().toLowerCase();
@@ -426,6 +599,19 @@ export default function AdminPage() {
     }
     return true;
   }) || [];
+
+  const getExpiryStatus = (expiryDateStr: string) => {
+    if (!expiryDateStr) return { color: "bg-zinc-800 text-zinc-400 border-zinc-700", label: "Sin Fecha" };
+    const today = new Date();
+    const expiry = new Date(expiryDateStr);
+    const diffTime = expiry.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { color: "bg-red-950/85 text-red-400 border-red-900", label: "🔴 VENCIDO" };
+    if (diffDays <= 3) return { color: "bg-red-900/60 text-red-300 border-red-700 animate-pulse", label: `🔥 ¡Urgente! (${diffDays}d)` };
+    if (diffDays <= 10) return { color: "bg-yellow-950/85 text-yellow-400 border-yellow-800 animate-pulse", label: `⚡ ¡A liquidar! (${diffDays}d)` };
+    return { color: "bg-emerald-950/60 text-emerald-400 border-emerald-900/60", label: `🟢 Fresco (${diffDays}d)` };
+  };
 
   const totalSales = orders?.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0) || 0;
   const pendingCount = orders?.filter(o => o.status === "PENDIENTE").length || 0;
@@ -458,6 +644,19 @@ export default function AdminPage() {
   });
   const clientsList = Array.from(clientsMap.values());
 
+  // 🔔 FILTROS GLOBALES PARA VENCIMIENTOS
+  const expiredProductsList = products.filter(p => {
+    if (!p.expiryDate) return false;
+    const diffDays = Math.ceil((new Date(p.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays < 0;
+  });
+
+  const expiringSoonProductsList = products.filter(p => {
+    if (!p.expiryDate) return false;
+    const diffDays = Math.ceil((new Date(p.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 10;
+  });
+
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de cerrar sesión del panel de administración?")) {
       window.location.href = "/";
@@ -488,15 +687,77 @@ export default function AdminPage() {
           </div>
 
           <nav className="space-y-1">
+            {/* 📦 INVENTARIO & STOCK CON SUBMENÚS */}
+            <div className="space-y-1">
+              <button
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  setActiveTab("inventario"); 
+                  setInventorySubTab("productos");
+                  setFilterOrphanOnly(false); 
+                  setIsInventoryDropdownOpen(!isInventoryDropdownOpen);
+                }}
+                title="Inventario & Stock"
+                className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                  activeTab === "inventario" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <span className="text-sm shrink-0">📦</span>
+                  {isSidebarExpanded && <span className="whitespace-nowrap">Inventario & Stock</span>}
+                </span>
+                {isSidebarExpanded && <span className="text-[10px]">{isInventoryDropdownOpen ? "▼" : "▶"}</span>}
+              </button>
+
+              {/* Submenús desplegables del Inventario */}
+              {isSidebarExpanded && isInventoryDropdownOpen && (
+                <div className="pl-6 space-y-1 pt-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }}
+                    className={`w-full text-left px-2 py-1.5 rounded font-semibold text-[11px] transition ${
+                      activeTab === "inventario" && inventorySubTab === "productos" ? "text-white bg-red-950/60" : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    • Productos & Stock
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setInventorySubTab("vencimientos"); }}
+                    className={`w-full text-left px-2 py-1.5 rounded font-semibold text-[11px] transition flex justify-between items-center ${
+                      activeTab === "inventario" && inventorySubTab === "vencimientos" ? "text-white bg-red-950/60" : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <span>• Vencimientos</span>
+                    {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
+                      <span className="bg-red-500 text-white px-1.5 py-0.1 rounded-full text-[8px] font-black">
+                        {expiredProductsList.length + expiringSoonProductsList.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setInventorySubTab("categorias"); }}
+                    className={`w-full text-left px-2 py-1.5 rounded font-semibold text-[11px] transition flex justify-between items-center ${
+                      activeTab === "inventario" && inventorySubTab === "categorias" ? "text-white bg-red-950/60" : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <span>• Categorías</span>
+                    <span className="text-[9px] text-zinc-500">({categoriesList.length})</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("inventario"); setFilterOrphanOnly(false); setIsSidebarExpanded(false); }}
-              title="Inventario & Stock"
-              className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
-                activeTab === "inventario" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
+              title="Facturas & Proveedores"
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                activeTab === "proveedores" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >
-              <span className="text-sm shrink-0">📦</span>
-              {isSidebarExpanded && <span className="whitespace-nowrap">Inventario & Stock</span>}
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🧾</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Facturas & Compras</span>}
+              </span>
+              {suppliers.length > 0 && <span className="bg-emerald-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black shrink-0">{suppliers.length}</span>}
             </button>
 
             <button
@@ -511,20 +772,6 @@ export default function AdminPage() {
                 {isSidebarExpanded && <span className="whitespace-nowrap">Centro Logístico</span>}
               </span>
               {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black shrink-0">{pendingCount}</span>}
-            </button>
-
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("categorias"); setIsSidebarExpanded(false); }}
-              title="Gestión de Categorías"
-              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
-                activeTab === "categorias" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-sm shrink-0">🏷️</span>
-                {isSidebarExpanded && <span className="whitespace-nowrap">Categorías</span>}
-              </span>
-              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({categoriesList.length})</span>}
             </button>
 
             <button
@@ -550,20 +797,6 @@ export default function AdminPage() {
                 {isSidebarExpanded && <span className="whitespace-nowrap">Clientes CRM</span>}
               </span>
               {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({clientsList.length})</span>}
-            </button>
-
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
-              title="Facturas Compras"
-              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
-                activeTab === "proveedores" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-sm shrink-0">🧾</span>
-                {isSidebarExpanded && <span className="whitespace-nowrap">Facturas Compras</span>}
-              </span>
-              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({suppliers.length})</span>}
             </button>
 
             <button
@@ -598,18 +831,18 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ALARMA ROJA PARPADEANTE CLICKEABLE */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ICONO CORTO DE ALERTA (HOVER/CLIC) */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <div>
               <h1 className="text-sm sm:text-lg font-black tracking-tight text-white leading-tight">Minimarket Pamela</h1>
               <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
             </div>
 
-            {/* 🚨 ALARMA ROJA PARPADEANTE CLICKEABLE */}
+            {/* ALARMA 1: PRODUCTOS HUÉRFANOS */}
             {orphanProducts.length > 0 && (
               <div 
-                onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(true); }}
+                onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(true); }}
                 title="Haz clic para ubicar los productos huérfanos en el inventario"
                 className="relative group flex items-center cursor-pointer ml-2"
               >
@@ -617,9 +850,27 @@ export default function AdminPage() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 justify-center items-center text-[9px] font-black text-white">!</span>
                 </span>
-
                 <div className="absolute left-0 sm:left-6 top-6 sm:top-auto z-50 hidden group-hover:block bg-zinc-950 text-amber-300 border border-amber-500/50 p-2.5 rounded-xl shadow-2xl w-64 text-[10px] font-bold leading-tight pointer-events-none">
-                  Hay {orphanProducts.length} producto(s) cuya categoría fue eliminada. Edítalos en el inventario para asignarles una categoría activa.
+                  Hay {orphanProducts.length} producto(s) cuya categoría fue eliminada. Edítalos en el inventario.
+                </div>
+              </div>
+            )}
+
+            {/* ⏳ ICONO CORTO DE ALERTA DE VENCIMIENTO CON TOOLTIP INFORMATIVO Y CLIC TRASLADADOR */}
+            {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
+              <div 
+                onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }}
+                title="Ver detalles de vencimientos"
+                className="relative group flex items-center justify-center cursor-pointer ml-2 w-7 h-7 bg-amber-500/20 border border-amber-500/60 rounded-full text-amber-400 hover:bg-amber-500 hover:text-black transition shadow-lg animate-bounce"
+              >
+                <span className="text-xs font-black">⏳</span>
+
+                {/* Tooltip con información puntual desplegada al pasar el cursor */}
+                <div className="absolute left-0 top-9 z-50 hidden group-hover:block bg-zinc-950 text-white border border-amber-500/60 p-3 rounded-xl shadow-2xl w-56 text-[10px] leading-tight pointer-events-none space-y-1">
+                  <p className="font-black text-amber-400 uppercase">Resumen de Vencimientos:</p>
+                  <p className="text-red-400">• Vencidos: {expiredProductsList.length}</p>
+                  <p className="text-yellow-400">• Por vencer (&le; 10d): {expiringSoonProductsList.length}</p>
+                  <p className="text-[9px] text-zinc-400 pt-1 italic">Haz clic para ir a revisión.</p>
                 </div>
               </div>
             )}
@@ -642,222 +893,401 @@ export default function AdminPage() {
 
         {/* PESTAÑAS MÓVILES (Celulares) */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
-          <button onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
+          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "productos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
+          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
+          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("categorias"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
+          <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Facturas</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
-          <button onClick={() => setActiveTab("categorias")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
           <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
-          <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Compras</button>
           <button onClick={() => setActiveTab("marketing")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
         </div>
 
-        {/* VISTA 1: INVENTARIO */}
+        {/* 📦 CONTENEDOR PRINCIPAL DE INVENTARIO Y SUS SUBMENÚS */}
         {activeTab === "inventario" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="space-y-4">
             
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-              <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto</h2>
-              
-              <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del artículo</label>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    placeholder="Ej. Aceite Primor 1L"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Precio (S/)</label>
-                    <input
-                      type="number"
-                      step="0.05"
-                      value={newPrice}
-                      onChange={e => setNewPrice(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Stock Inicial</label>
-                    <input
-                      type="number"
-                      value={newStock}
-                      onChange={e => setNewStock(e.target.value)}
-                      placeholder="0"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-0.5">
-                    <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría de Tienda</label>
-                    <button type="button" onClick={() => setActiveTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar Categorías</button>
-                  </div>
-                  <select
-                    value={newCategory}
-                    onChange={e => setNewCategory(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                  >
-                    {categoriesList.map((cat, idx) => (
-                      <option key={idx} value={cat.name}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex gap-4 pt-1 font-bold">
-                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                    <input type="checkbox" checked={newIsOnSale} onChange={e => setNewIsOnSale(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> En Oferta 🔥
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
-                    <input type="checkbox" checked={newIsFeatured} onChange={e => setNewIsFeatured(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
-                  </label>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-zinc-400 font-bold uppercase text-[9px]">Fotografía</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
-                      📁 Subir <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
-                    </label>
-                    <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
-                      📷 Cámara <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
-                    </label>
-                  </div>
-                  {newImage && <p className="text-[9px] text-emerald-400 font-bold">✓ Imagen lista</p>}
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
-                >
-                  Publicar Producto
-                </button>
-              </form>
+            {/* Pestañas internas de navegación para los submenús de inventario */}
+            <div className="flex gap-2 border-b border-zinc-800 pb-2">
+              <button
+                onClick={() => { setInventorySubTab("productos"); setFilterOrphanOnly(false); }}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  inventorySubTab === "productos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                }`}
+              >
+                📦 Productos & Stock
+              </button>
+              <button
+                onClick={() => setInventorySubTab("vencimientos")}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-2 ${
+                  inventorySubTab === "vencimientos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                }`}
+              >
+                <span>⏳ Control de Vencimientos</span>
+                {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
+                  <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[9px] font-black">
+                    {expiredProductsList.length + expiringSoonProductsList.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setInventorySubTab("categorias")}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  inventorySubTab === "categorias" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                }`}
+              >
+                🏷️ Gestión de Categorías ({categoriesList.length})
+              </button>
             </div>
 
-            <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-zinc-800 pb-2">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xs font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
-                  {filterOrphanOnly && (
-                    <button 
-                      onClick={() => setFilterOrphanOnly(false)} 
-                      className="bg-red-950/80 border border-red-900 text-red-400 px-2 py-0.5 rounded text-[9px] font-bold transition cursor-pointer"
+            {/* SUBMENÚ 1: PRODUCTOS & STOCK */}
+            {inventorySubTab === "productos" && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                
+                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
+                  <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (SKU 6D)</h2>
+                  
+                  <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del artículo</label>
+                      <input
+                        type="text"
+                        value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                        placeholder="Ej. Yogur Gloria 1L"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Precio (S/)</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={newPrice}
+                          onChange={e => setNewPrice(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Stock Inicial</label>
+                        <input
+                          type="number"
+                          value={newStock}
+                          onChange={e => setNewStock(e.target.value)}
+                          placeholder="0"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Fecha de Vencimiento ⏳</label>
+                        <input
+                          type="date"
+                          value={newExpiryDate}
+                          onChange={e => setNewExpiryDate(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">N° de Lote 🏷️</label>
+                        <input
+                          type="text"
+                          value={newBatchCode}
+                          onChange={e => setNewBatchCode(e.target.value)}
+                          placeholder="Ej. L-8842"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-0.5">
+                        <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría de Tienda</label>
+                        <button type="button" onClick={() => setInventorySubTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar Categorías</button>
+                      </div>
+                      <select
+                        value={newCategory}
+                        onChange={e => setNewCategory(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                      >
+                        {categoriesList.map((cat, idx) => (
+                          <option key={idx} value={cat.name}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex gap-4 pt-1 font-bold">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                        <input type="checkbox" checked={newIsOnSale} onChange={e => setNewIsOnSale(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> En Oferta 🔥
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                        <input type="checkbox" checked={newIsFeatured} onChange={e => setNewIsFeatured(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
+                      </label>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-zinc-400 font-bold uppercase text-[9px]">Fotografía</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
+                          📁 Subir <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
+                        </label>
+                        <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
+                          📷 Cámara <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
+                        </label>
+                      </div>
+                      {newImage && <p className="text-[9px] text-emerald-400 font-bold">✓ Imagen lista</p>}
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
                     >
-                      ✕ Quitar filtro de atención
+                      Publicar Producto (SKU 6D)
                     </button>
+                  </form>
+                </div>
+
+                <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-zinc-800 pb-2">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xs font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
+                      {filterOrphanOnly && (
+                        <button 
+                          onClick={() => setFilterOrphanOnly(false)} 
+                          className="bg-red-950/80 border border-red-900 text-red-400 px-2 py-0.5 rounded text-[9px] font-bold transition cursor-pointer"
+                        >
+                          ✕ Quitar filtro de atención
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={e => { setSearchTerm(e.target.value); setFilterOrphanOnly(false); }}
+                      placeholder="Buscar por nombre o SKU..."
+                      className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-56"
+                    />
+                  </div>
+
+                  {loading ? (
+                    <p className="text-zinc-500 text-center py-8">Sincronizando inventario...</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                      {filteredProducts.length === 0 ? (
+                        <p className="text-zinc-500 text-center py-12 text-xs">No hay productos que coincidan con la vista.</p>
+                      ) : (
+                        filteredProducts.map(product => {
+                          const currentStock = Number(product.stock ?? 0);
+                          const isOut = currentStock === 0;
+                          const isLow = currentStock > 0 && currentStock <= 5;
+                          const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
+                          const hasValidCategory = allCategoryNames.includes(prodCatTrimmed);
+                          const expiryInfo = getExpiryStatus(product.expiryDate);
+
+                          return (
+                            <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                                  {product.image ? (
+                                    <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" />
+                                  ) : (
+                                    <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
+                                    {/* 🟢 ALERTA VERDE CLARA Y VISIBLE DE PRODUCTO NUEVO */}
+                                    {product.isNewRestock && (
+                                      <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 px-2 py-0.5 rounded text-[9px] font-black animate-pulse">
+                                        ✨ ¡Nuevo Ingreso (Asignar Foto y Categoría)!
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                                    <span className="text-[9px] text-zinc-300 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">SKU: {product.sku || 'N/A'}</span>
+                                    {hasValidCategory ? (
+                                      <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
+                                    ) : (
+                                      <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
+                                    )}
+                                    <span className={`text-[8px] px-1.5 py-0.2 rounded border font-bold ${expiryInfo.color}`}>
+                                      {expiryInfo.label}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintBarcode(product)}
+                                  className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition"
+                                  title="Generar Etiqueta PDF con Código de Barras"
+                                >
+                                  🏷️ Etiqueta
+                                </button>
+
+                                <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStockUpdate(product.id, currentStock, -1)}
+                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="w-5 text-center font-black">{currentStock}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStockUpdate(product.id, currentStock, 1)}
+                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(product)}
+                                  className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
+                                  title="Editar"
+                                >
+                                  ✏️
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProduct(product.id, product.name)}
+                                  className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
+                                  title="Eliminar"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   )}
                 </div>
 
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={e => { setSearchTerm(e.target.value); setFilterOrphanOnly(false); }}
-                  placeholder="Buscar..."
-                  className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-48"
-                />
               </div>
+            )}
 
-              {loading ? (
-                <p className="text-zinc-500 text-center py-8">Sincronizando inventario...</p>
-              ) : (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                  {filteredProducts.length === 0 ? (
-                    <p className="text-zinc-500 text-center py-12 text-xs">No hay productos que coincidan con la vista.</p>
+            {/* SUBMENÚ 2: CONTROL DE VENCIMIENTOS (MERMA 0) */}
+            {inventorySubTab === "vencimientos" && (
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <div>
+                    <h2 className="text-sm font-black text-white">⏳ Semáforo de Vencimientos y Alertas (Merma 0)</h2>
+                    <p className="text-[10px] text-zinc-400">Listado completo de productos por vencer (hasta 10 días) y productos ya vencidos.</p>
+                  </div>
+                  <button
+                    onClick={() => setInventorySubTab("productos")}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                  >
+                    ← Volver a Productos
+                  </button>
+                </div>
+
+                {/* Sub-sección 1: Vencidos */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black text-red-400 uppercase">🔴 Productos Vencidos ({expiredProductsList.length})</h3>
+                  {expiredProductsList.length === 0 ? (
+                    <p className="text-zinc-500 text-[11px] pb-2">No hay productos vencidos.</p>
                   ) : (
-                    filteredProducts.map(product => {
-                      const currentStock = Number(product.stock ?? 0);
-                      const isOut = currentStock === 0;
-                      const isLow = currentStock > 0 && currentStock <= 5;
-                      const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
-                      const hasValidCategory = allCategoryNames.includes(prodCatTrimmed);
+                    expiredProductsList.map(product => (
+                      <div key={product.id} className="bg-red-950/30 border border-red-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                        <div>
+                          <h4 className="font-bold text-white text-xs">{product.name}</h4>
+                          <p className="text-[10px] text-red-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
+                        </div>
+                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-red-600 text-white font-bold rounded text-xs">Retirar / Liquidar</button>
+                      </div>
+                    ))
+                  )}
+                </div>
 
-                      return (
-                        <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
-                              {product.image ? (
-                                <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" />
-                              ) : (
-                                <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                              <div className="flex items-center gap-2">
-                                <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                                {hasValidCategory ? (
-                                  <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
-                                ) : (
-                                  <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                {/* Sub-sección 2: Por Vencer */}
+                <div className="space-y-2 pt-2 border-t border-zinc-800">
+                  <h3 className="text-xs font-black text-yellow-400 uppercase">⚡ Productos por Vencer en 10 días o menos ({expiringSoonProductsList.length})</h3>
+                  {expiringSoonProductsList.length === 0 ? (
+                    <p className="text-zinc-500 text-[11px]">No hay productos próximos a vencer.</p>
+                  ) : (
+                    expiringSoonProductsList.map(product => (
+                      <div key={product.id} className="bg-yellow-950/30 border border-yellow-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                        <div>
+                          <h4 className="font-bold text-white text-xs">{product.name}</h4>
+                          <p className="text-[10px] text-yellow-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
+                        </div>
+                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-yellow-600 text-black font-black rounded text-xs">Crear Oferta Flash 🔥</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
+            {/* SUBMENÚ 3: GESTIÓN DE CATEGORÍAS */}
+            {inventorySubTab === "categorias" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
+                    <h3 className="text-xs font-black text-white">✨ Crear Nueva Categoría</h3>
+                    <form onSubmit={handleAddCategory} className="space-y-3">
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
+                        <input
+                          type="text"
+                          value={newCatName}
+                          onChange={e => setNewCatName(e.target.value)}
+                          placeholder="Ej. Bebidas Energizantes, Lácteos Premium"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                          required
+                        />
+                      </div>
+                      <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
+                    </form>
+                  </div>
+
+                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+                    <h3 className="text-xs font-black text-white">Listado General ({categoriesList.length})</h3>
+                    <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                      {categoriesList.map((catObj) => (
+                        <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                          <span className="font-bold text-white text-xs">{catObj.name}</span>
                           <div className="flex items-center gap-2">
-                            <div>
-                              {isOut ? (
-                                <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🔴 Agotado</span>
-                              ) : isLow ? (
-                                <span className="bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟡 Bajo</span>
-                              ) : (
-                                <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded text-[9px] font-bold">🟢 OK</span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
-                              <button
-                                type="button"
-                                onClick={() => handleStockUpdate(product.id, currentStock, -1)}
-                                className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
-                              >
-                                -
-                              </button>
-                              <span className="w-5 text-center font-black">{currentStock}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleStockUpdate(product.id, currentStock, 1)}
-                                className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
-                              >
-                                +
-                              </button>
-                            </div>
-
                             <button
-                              type="button"
-                              onClick={() => openEditModal(product)}
-                              className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
-                              title="Editar"
+                              onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
+                              className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
                             >
-                              ✏️
+                              ✏️ Modificar
                             </button>
-
                             <button
-                              type="button"
-                              onClick={() => handleDeleteProduct(product.id, product.name)}
-                              className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
-                              title="Eliminar"
+                              onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
+                              className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
                             >
-                              🗑️
+                              🗑️ Eliminar
                             </button>
                           </div>
                         </div>
-                      );
-                    })
-                  )}
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
           </div>
         )}
@@ -983,70 +1413,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 3: GESTIÓN DE CATEGORÍAS */}
-        {activeTab === "categorias" && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl">
-              <div>
-                <h2 className="text-xs font-black text-white">🏷️ Gestión y Modificación de Categorías</h2>
-                <p className="text-[10px] text-zinc-400">Añade, edita o elimina cualquier categoría de la tienda con total libertad.</p>
-              </div>
-              <button
-                onClick={() => { setActiveTab("inventario"); setFilterOrphanOnly(false); }}
-                className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
-              >
-                ← Volver a Inventario & Stock
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
-                <h3 className="text-xs font-black text-white">✨ Crear Nueva Categoría</h3>
-                <form onSubmit={handleAddCategory} className="space-y-3">
-                  <div>
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
-                    <input
-                      type="text"
-                      value={newCatName}
-                      onChange={e => setNewCatName(e.target.value)}
-                      placeholder="Ej. Bebidas Energizantes, Lácteos Premium"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                      required
-                    />
-                  </div>
-                  <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
-                </form>
-              </div>
-
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-                <h3 className="text-xs font-black text-white">Listado General ({categoriesList.length})</h3>
-                <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                  {categoriesList.map((catObj) => (
-                    <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
-                      <span className="font-bold text-white text-xs">{catObj.name}</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
-                          className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
-                        >
-                          ✏️ Modificar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
-                          className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
-                        >
-                          🗑️ Eliminar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 4: CAJA & REPORTES */}
+        {/* VISTA 3: CAJA & REPORTES */}
         {activeTab === "caja" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1085,7 +1452,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 5: CLIENTES CRM */}
+        {/* VISTA 4: CLIENTES CRM */}
         {activeTab === "clientes" && (
           <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
             <h2 className="text-xs font-black text-white">👥 Clientes Frecuentes ({clientsList.length})</h2>
@@ -1108,73 +1475,213 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 6: PROVEEDORES & COMPRAS */}
+        {/* VISTA 5: FACTURAS Y REPOSICIÓN */}
         {activeTab === "proveedores" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-              <h2 className="text-xs font-black text-white">🧾 Registrar Reposición / Compra</h2>
-              <form onSubmit={handleAddSupplier} className="space-y-3">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 h-fit space-y-4 lg:col-span-1">
+              <h2 className="text-xs font-black text-white flex items-center gap-2">🧾 Registrar Factura y Actualizar Stock</h2>
+              
+              <form onSubmit={handleSaveInvoice} className="space-y-3 text-xs">
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del Proveedor</label>
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">N° de Factura / Recibo</label>
                   <input
                     type="text"
-                    value={supName}
-                    onChange={e => setSupName(e.target.value)}
-                    placeholder="Ej. Distribuidora Lácteos Gloria"
+                    value={invoiceNumber}
+                    onChange={e => setInvoiceNumber(e.target.value)}
+                    placeholder="Ej. F001-00482"
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Productos Suministrados</label>
-                  <input
-                    type="text"
-                    value={supProduct}
-                    onChange={e => setSupProduct(e.target.value)}
-                    placeholder="Ej. 50x Leche Azul 400g"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                    required
-                  />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Proveedor / Distribuidora</label>
+                    <input
+                      type="text"
+                      value={invoiceProvider}
+                      onChange={e => setInvoiceProvider(e.target.value)}
+                      placeholder="Ej. Gloria S.A."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">RUC del Proveedor</label>
+                    <input
+                      type="text"
+                      value={invoiceRuc}
+                      onChange={e => setInvoiceRuc(e.target.value)}
+                      placeholder="20100100100"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Costo Total Factura (S/)</label>
-                  <input
-                    type="number"
-                    step="0.05"
-                    value={supCost}
-                    onChange={e => setSupCost(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
-                    required
-                  />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Fecha de Emisión</label>
+                    <input
+                      type="date"
+                      value={invoiceDate}
+                      onChange={e => setInvoiceDate(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Condición de Pago</label>
+                    <select
+                      value={invoicePaymentTerm}
+                      onChange={e => setInvoicePaymentTerm(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    >
+                      <option value="CONTADO">Contado</option>
+                      <option value="CREDITO_15D">Crédito 15 días</option>
+                      <option value="CREDITO_30D">Crédito 30 días</option>
+                    </select>
+                  </div>
                 </div>
-                <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Guardar Compra</button>
+
+                <div className="border-t border-zinc-800 pt-3 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-zinc-300 uppercase text-[10px]">Detalle de Ítems / Autocompletado</span>
+                    <button type="button" onClick={handleAddInvoiceItem} className="text-red-400 font-bold hover:underline">+ Agregar Ítem</button>
+                  </div>
+
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {invoiceItems.map((item, index) => (
+                      <div key={index} className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-2 relative">
+                        <div className="flex justify-between items-center gap-2">
+                          <div className="flex-1 relative">
+                            <input
+                              type="text"
+                              list={`products-list-${index}`}
+                              value={item.productName}
+                              onChange={e => handleInvoiceItemChange(index, "productName", e.target.value)}
+                              placeholder="Escribe o busca producto..."
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-xs"
+                              required
+                            />
+                            <datalist id={`products-list-${index}`}>
+                              {products.map((p) => (
+                                <option key={p.id} value={p.name} />
+                              ))}
+                            </datalist>
+                          </div>
+
+                          <select
+                            value={item.unitType}
+                            onChange={e => handleInvoiceItemChange(index, "unitType", e.target.value)}
+                            className="bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-[10px]"
+                          >
+                            <option value="UNIDAD">Unidades</option>
+                            <option value="KG">Kilogramos (kg)</option>
+                            <option value="PAQUETE">Paquetes</option>
+                            <option value="LITRO">Litros (L)</option>
+                            <option value="CAJA">Cajas</option>
+                          </select>
+                          {invoiceItems.length > 1 && (
+                            <button type="button" onClick={() => handleRemoveInvoiceItem(index)} className="text-red-400 font-bold px-1.5">✕</button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <div>
+                            <span className="text-[8px] text-zinc-400 uppercase">Cantidad</span>
+                            <input
+                              type="number"
+                              step="any"
+                              value={item.quantity}
+                              onChange={e => handleInvoiceItemChange(index, "quantity", e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-white text-center"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[8px] text-zinc-400 uppercase">Costo Unit. (S/)</span>
+                            <input
+                              type="number"
+                              step="0.05"
+                              value={item.unitCost}
+                              onChange={e => handleInvoiceItemChange(index, "unitCost", e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-white text-center"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[8px] text-zinc-400 uppercase">Total (S/)</span>
+                            <div className="bg-zinc-900/50 border border-zinc-800/80 rounded p-1 text-emerald-400 text-center font-black">
+                              S/ {item.totalCost.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1 text-xs">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Subtotal:</span>
+                    <span>S/ {subTotalInvoice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>IGV (18%):</span>
+                    <span>S/ {igvInvoice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900 text-sm">
+                    <span>TOTAL FACTURA:</span>
+                    <span className="text-emerald-400">S/ {totalInvoiceAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-lg transition cursor-pointer shadow-lg">
+                  Guardar Factura e Impactar Stock 🚀
+                </button>
               </form>
             </div>
 
-            <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-              <h2 className="text-xs font-black text-white">Historial de Compras ({suppliers.length})</h2>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
+              <h2 className="text-sm font-black text-white">Historial de Facturas y Proveedores ({suppliers.length})</h2>
+              <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
                 {suppliers.length === 0 ? (
-                  <p className="text-zinc-500 text-center py-8">No hay compras registradas.</p>
+                  <p className="text-zinc-500 text-center py-16">No hay facturas registradas en el sistema.</p>
                 ) : (
                   suppliers.map(sup => (
-                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex justify-between items-center">
-                      <div>
-                        <h3 className="font-bold text-white">{sup.name}</h3>
-                        <p className="text-zinc-400">{sup.product}</p>
-                        <p className="text-[9px] text-zinc-500">Fecha: {sup.date}</p>
+                    <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2.5">
+                      <div className="flex justify-between items-start border-b border-zinc-800 pb-2">
+                        <div>
+                          <span className="text-[9px] bg-red-950 text-red-400 border border-red-900 px-2 py-0.5 rounded font-bold uppercase">Factura: {sup.invoiceNumber}</span>
+                          <h3 className="font-black text-white text-sm mt-1">{sup.provider} <span className="text-[10px] text-zinc-400 font-normal">(RUC: {sup.ruc})</span></h3>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-emerald-400 font-black text-sm">S/ {(Number(sup.totalCost) || 0).toFixed(2)}</span>
+                          <p className="text-[9px] text-zinc-500">Emisión: {sup.date} • Pago: {sup.paymentTerm}</p>
+                        </div>
                       </div>
-                      <span className="text-red-400 font-black">S/ {(Number(sup.cost) || 0).toFixed(2)}</span>
+
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems ingresados al stock:</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {sup.items?.map((it: any, i: number) => (
+                            <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
+                              <span>{it.quantity} {it.unitType}(s) de <strong>{it.productName}</strong></span>
+                              <span className="text-zinc-400">S/ {(Number(it.totalCost) || 0).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ))
                 )}
               </div>
             </div>
+
           </div>
         )}
 
-        {/* VISTA 7: MARKETING */}
+        {/* VISTA 6: MARKETING */}
         {activeTab === "marketing" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
@@ -1311,6 +1818,36 @@ export default function AdminPage() {
                       onChange={e => setEditForm({ ...editForm, stock: parseInt(e.target.value) || 0 })}
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600"
                       required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">SKU 6D (Inmutable)</label>
+                    <input
+                      type="text"
+                      value={editForm.sku}
+                      disabled
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-zinc-400 cursor-not-allowed text-[10px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Vencimiento ⏳</label>
+                    <input
+                      type="date"
+                      value={editForm.expiryDate}
+                      onChange={e => setEditForm({ ...editForm, expiryDate: e.target.value })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Lote 🏷️</label>
+                    <input
+                      type="text"
+                      value={editForm.batchCode}
+                      onChange={e => setEditForm({ ...editForm, batchCode: e.target.value })}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
                     />
                   </div>
                 </div>
