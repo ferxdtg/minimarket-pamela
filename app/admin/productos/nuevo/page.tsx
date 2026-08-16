@@ -53,7 +53,7 @@ export default function AdminPage() {
     image: ""
   });
 
-  // 🧾 ESTADOS DE NIVEL SUPERIOR PARA FACTURAS Y REPOSICIONES MÚLTIPLES
+  // 🧾 ESTADOS DE FACTURACIÓN Y REPOSICIÓN PROFESIONAL
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceProvider, setInvoiceProvider] = useState("");
   const [invoiceRuc, setInvoiceRuc] = useState("");
@@ -286,6 +286,7 @@ export default function AdminPage() {
       batchCode: editForm.batchCode,
       isOnSale: editForm.isOnSale,
       isFeatured: editForm.isFeatured,
+      isNewRestock: false, // Al editar se limpia la etiqueta de nuevo ingreso
       image: editForm.image || editingProduct.image || ""
     };
     setProducts(prev => prev.map(p => p.id === stringId ? { ...p, ...finalData } : p));
@@ -335,7 +336,7 @@ export default function AdminPage() {
     printWindow.document.close();
   };
 
-  // 🧾 GESTIÓN DE FACTURAS Y REPOSICIONES NIVEL SUPERIOR
+  // 🧾 GESTIÓN DE ÍTEMS EN FACTURA
   const handleAddInvoiceItem = () => {
     setInvoiceItems([...invoiceItems, { productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
   };
@@ -343,14 +344,11 @@ export default function AdminPage() {
   const handleInvoiceItemChange = (index: number, field: string, value: any) => {
     const updated = [...invoiceItems];
     updated[index] = { ...updated[index], [field]: value };
-    
-    // Calcular costo total del ítem automáticamente
     if (field === "quantity" || field === "unitCost") {
       const qty = Number(field === "quantity" ? value : updated[index].quantity) || 0;
       const cost = Number(field === "unitCost" ? value : updated[index].unitCost) || 0;
       updated[index].totalCost = Number((qty * cost).toFixed(2));
     }
-    
     setInvoiceItems(updated);
   };
 
@@ -359,8 +357,11 @@ export default function AdminPage() {
     setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
   };
 
-  const totalInvoiceAmount = invoiceItems.reduce((sum, item) => sum + (Number(item.totalCost) || 0), 0);
+  const subTotalInvoice = invoiceItems.reduce((sum, item) => sum + (Number(item.totalCost) || 0), 0);
+  const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
+  const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
+  // 🚀 GUARDAR FACTURA Y ACTUALIZAR / CREAR STOCK AUTOMÁTICAMENTE (NIVEL MUNDIAL)
   const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceNumber || !invoiceProvider) {
@@ -369,6 +370,7 @@ export default function AdminPage() {
     }
 
     try {
+      // 1. Guardar la factura en la colección suppliers
       await addDoc(collection(db, "suppliers"), {
         invoiceNumber,
         provider: invoiceProvider,
@@ -376,16 +378,51 @@ export default function AdminPage() {
         date: invoiceDate || todayDateStr,
         paymentTerm: invoicePaymentTerm,
         items: invoiceItems,
+        subTotal: subTotalInvoice,
+        igv: igvInvoice,
         totalCost: totalInvoiceAmount,
         registeredAt: todayDateStr
       });
+
+      // 2. Impactar automáticamente el inventario (Stock + Alerta verde de producto nuevo)
+      const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
+
+      for (const item of invoiceItems) {
+        const cleanName = String(item.productName || "").trim();
+        if (!cleanName) continue;
+
+        // Buscar si ya existe el producto en stock
+        const existingProd = products.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
+
+        if (existingProd) {
+          // Si ya existe, sumamos la cantidad al stock actual
+          const newStockVal = Number(existingProd.stock || 0) + Number(item.quantity || 0);
+          await updateDoc(doc(db, "products", existingProd.id), { stock: newStockVal });
+        } else {
+          // Si es un producto NUEVO, lo creamos con alerta verde y datos por defecto
+          await addDoc(collection(db, "products"), {
+            name: cleanName,
+            price: Number((item.unitCost * 1.3).toFixed(2)), // Margen sugerido 30%
+            stock: Number(item.quantity || 1),
+            category: defaultCategory,
+            expiryDate: "",
+            batchCode: `L-${invoiceNumber}`,
+            isOnSale: false,
+            isFeatured: false,
+            isNewRestock: true, // 🟢 Bandera de producto nuevo registrado por factura
+            image: ""
+          });
+        }
+      }
 
       setInvoiceNumber("");
       setInvoiceProvider("");
       setInvoiceRuc("");
       setInvoiceDate("");
       setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
-      alert("¡Factura y reposición registrada con éxito en el sistema!");
+      
+      alert("¡Factura registrada y stock actualizado con éxito en el inventario!");
+      setActiveTab("inventario");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
     }
@@ -928,7 +965,15 @@ export default function AdminPage() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
+                                {/* 🟢 ALERTA VERDE DE PRODUCTO NUEVO INGRESADO POR FACTURA */}
+                                {product.isNewRestock && (
+                                  <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-1.5 py-0.2 rounded text-[8px] font-black animate-pulse">
+                                    ✨ ¡Nuevo (Asignar Categoría y Foto)!
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
                                 {hasValidCategory ? (
@@ -1059,12 +1104,12 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🧾 VISTA SUPERIOR: FACTURAS Y REPOSICIONES CON MÚLTIPLES UNIDADES DE MEDIDA */}
+        {/* 🧾 VISTA SUPERIOR: FACTURAS Y REPOSICIONES AUTOMÁTICAS */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 h-fit space-y-4 lg:col-span-1">
-              <h2 className="text-xs font-black text-white flex items-center gap-2">🧾 Registrar Factura / Reposición</h2>
+              <h2 className="text-xs font-black text-white flex items-center gap-2">🧾 Registrar Factura y Actualizar Stock</h2>
               
               <form onSubmit={handleSaveInvoice} className="space-y-3 text-xs">
                 <div>
@@ -1141,7 +1186,7 @@ export default function AdminPage() {
                             type="text"
                             value={item.productName}
                             onChange={e => handleInvoiceItemChange(index, "productName", e.target.value)}
-                            placeholder="Nombre del producto"
+                            placeholder="Nombre del producto (ej. Leche Gloria)"
                             className="flex-1 bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white"
                             required
                           />
@@ -1196,13 +1241,23 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg font-black text-sm">
-                  <span>TOTAL FACTURA:</span>
-                  <span className="text-emerald-400">S/ {totalInvoiceAmount.toFixed(2)}</span>
+                <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1 text-xs">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Subtotal:</span>
+                    <span>S/ {subTotalInvoice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>IGV (18%):</span>
+                    <span>S/ {igvInvoice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900 text-sm">
+                    <span>TOTAL FACTURA:</span>
+                    <span className="text-emerald-400">S/ {totalInvoiceAmount.toFixed(2)}</span>
+                  </div>
                 </div>
 
                 <button type="submit" className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-lg transition cursor-pointer shadow-lg">
-                  Guardar Factura en Sistema
+                  Guardar Factura e Impactar Stock 🚀
                 </button>
               </form>
             </div>
@@ -1227,7 +1282,7 @@ export default function AdminPage() {
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems comprados:</span>
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems ingresados al stock:</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                           {sup.items?.map((it: any, i: number) => (
                             <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
