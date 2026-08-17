@@ -29,6 +29,10 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
+  
+  // 🚀 ESTADO PARA PROMOCIONES CONECTADO A FIREBASE
+  const [promos, setPromos] = useState<any[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterOrphanOnly, setFilterOrphanOnly] = useState(false);
@@ -102,11 +106,6 @@ export default function AdminPage() {
     { id: "fallback-2", client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr }
   ];
 
-  const [promos, setPromos] = useState([
-    { id: 1, title: "¡Super Despensa -15%!", description: "Válido en todos los aceites y abarrotes seleccionados.", discount: "15% OFF", active: true },
-    { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
-  ]);
-
   // Generador estricto de SKU único de 6 dígitos (Estático e inmutable)
   const generateUniqueSku = (existingList: any[]) => {
     const list = Array.isArray(existingList) ? existingList : [];
@@ -121,7 +120,8 @@ export default function AdminPage() {
   // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
-      let prodList: any[] = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
+      // ✅ AÑADIDO as any para que TypeScript no arroje error
+      let prodList: any[] = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
 
       for (let prod of prodList) {
         if (!prod.sku || String(prod.sku).length !== 6) {
@@ -143,7 +143,8 @@ export default function AdminPage() {
     });
 
     const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
-      const ordList = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
+      // ✅ AÑADIDO as any para que TypeScript no arroje error
+      const ordList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
       if (ordList.length > 0) {
         setOrders([...ordList]);
       } else {
@@ -155,14 +156,16 @@ export default function AdminPage() {
     });
 
     const unsubscribeSuppliers = onSnapshot(collection(db, "suppliers"), (snapshot) => {
-      const supList = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
+      // ✅ AÑADIDO as any para que TypeScript no arroje error
+      const supList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
       setSuppliers(supList);
     }, (error) => {
       console.error("Error al escuchar proveedores:", error);
     });
 
     const unsubscribeCategories = onSnapshot(collection(db, "categories"), (snapshot) => {
-      const catList = snapshot.docs.map(doc => ({ id: String(doc.id), ...(doc.data() as any) }));
+      // ✅ AÑADIDO as any para que TypeScript no arroje error
+      const catList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
       setCategoriesList(catList);
       if (catList.length > 0 && !catList.some((c: any) => c.name === newCategory)) {
         setNewCategory(catList[0].name);
@@ -171,11 +174,21 @@ export default function AdminPage() {
       console.error("Error al escuchar categorías:", error);
     });
 
+    // 🚀 LISTENER DE PROMOCIONES DE MARKETING
+    const unsubscribePromos = onSnapshot(collection(db, "promotions"), (snapshot) => {
+      // ✅ AÑADIDO as any para que TypeScript no arroje error (Esto soluciona el error createdAt y name)
+      const pList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
+      // Ordenamos para que salgan primero las más recientes
+      pList.sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      setPromos(pList);
+    });
+
     return () => {
       unsubscribeProducts();
       unsubscribeOrders();
       unsubscribeSuppliers();
       unsubscribeCategories();
+      unsubscribePromos();
     };
   }, []);
 
@@ -272,7 +285,7 @@ export default function AdminPage() {
     );
 
     try {
-      await updateDoc(doc(db, "products", String(stringId)), { stock: updatedStock });
+      await updateDoc(doc(db, "products", stringId), { stock: updatedStock });
     } catch (error: any) {
       console.error("Error al actualizar stock en Firebase:", error);
       alert(`Error al actualizar stock: ${error.message}`);
@@ -325,7 +338,7 @@ export default function AdminPage() {
     };
     setProducts(prev => prev.map(p => String(p.id) === stringId ? { ...p, ...finalData } : p));
     try {
-      await updateDoc(doc(db, "products", String(stringId)), finalData);
+      await updateDoc(doc(db, "products", stringId), finalData);
       setEditingProduct(null);
       alert("¡Producto actualizado correctamente manteniendo su SKU único!");
     } catch (error: any) {
@@ -413,7 +426,8 @@ export default function AdminPage() {
     try {
       const itemsList = extractItems(supItem?.items);
       if (itemsList.length === 0) {
-        throw new Error("Esta factura no tiene ítems válidos registrados.");
+        alert("Esta factura no tiene ítems válidos registrados.");
+        return;
       }
 
       const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
@@ -430,8 +444,7 @@ export default function AdminPage() {
           const prodId = String(found.id);
           const newStock = Number(found.stock || 0) + qty;
           
-          // 🔒 Se asegura explícitamente que prodId sea String para Firebase
-          await updateDoc(doc(db, "products", String(prodId)), { stock: newStock, isNewRestock: true });
+          await updateDoc(doc(db, "products", prodId), { stock: newStock, isNewRestock: true });
           found.stock = newStock;
           found.isNewRestock = true;
         } else {
@@ -454,7 +467,6 @@ export default function AdminPage() {
       }
 
       if (docId) {
-        // 🔒 Se asegura explícitamente que docId sea String
         await updateDoc(doc(db, "suppliers", String(docId)), { processed: true });
       }
 
@@ -462,7 +474,7 @@ export default function AdminPage() {
       setActiveTab("inventario");
       setInventorySubTab("productos");
     } catch (err: any) {
-      throw new Error(err.message);
+      alert(`Error crítico al procesar: ${err.message}`);
     }
   };
 
@@ -508,7 +520,7 @@ export default function AdminPage() {
       if (!sup.id) throw new Error("La factura no tiene un identificador válido.");
       await processInvoiceToStock(sup, String(sup.id));
     } catch (error: any) {
-      alert(`Error al procesar factura: ${error.message}`);
+      alert(`Error al procesar factura antigua: ${error.message}`);
     }
   };
 
@@ -530,7 +542,7 @@ export default function AdminPage() {
       setNewCatName("");
       alert("¡Categoría creada!");
     } catch (error: any) {
-      alert(`Error: ${error.message}`);
+      alert(`Error al crear categoría: ${error.message}`);
     }
   };
 
@@ -551,7 +563,7 @@ export default function AdminPage() {
       setEditCatName("");
       alert("¡Categoría actualizada!");
     } catch (error: any) {
-      alert(`Error: ${error.message}`);
+      alert(`Error al actualizar categoría: ${error.message}`);
     }
   };
 
@@ -575,9 +587,45 @@ export default function AdminPage() {
     
     if (stringOrderId.startsWith("fallback-")) return;
     try {
-      await updateDoc(doc(db, "orders", String(stringOrderId)), { status: newStatus });
+      await updateDoc(doc(db, "orders", stringOrderId), { status: newStatus });
     } catch (error: any) {
       console.error("Error pedido:", error);
+    }
+  };
+
+  // 🚀 LÓGICA CRUD PARA MARKETING Y PROMOS
+  const handleCreatePromo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPromoTitle) return;
+    try {
+      await addDoc(collection(db, "promotions"), {
+        title: newPromoTitle,
+        description: newPromoDesc || "",
+        discount: newPromoDiscount || "OFERTA",
+        active: true,
+        createdAt: new Date().toISOString()
+      });
+      setNewPromoTitle(""); setNewPromoDesc(""); setNewPromoDiscount("");
+      alert("¡Campaña publicada en la web!");
+    } catch (error: any) { 
+      alert(`Error: ${error.message}`); 
+    }
+  };
+
+  const handleTogglePromo = async (id: string, currentState: boolean) => {
+    try { 
+      await updateDoc(doc(db, "promotions", id), { active: !currentState }); 
+    } catch (error: any) { 
+      alert(`Error: ${error.message}`); 
+    }
+  };
+
+  const handleDeletePromo = async (id: string) => {
+    if (!window.confirm("¿Estás seguro de eliminar esta campaña?")) return;
+    try { 
+      await deleteDoc(doc(db, "promotions", id)); 
+    } catch (error: any) { 
+      alert(`Error: ${error.message}`); 
     }
   };
 
@@ -749,7 +797,7 @@ export default function AdminPage() {
               onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "proveedores" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
             >
-              <span className="flex items-center gap-3"><span className="text-sm">🧾</span>{isSidebarExpanded && <span>Facturas & Compras</span>}</span>
+              <span className="flex items-center gap-3"><span className="text-sm shrink-0">🧾</span>{isSidebarExpanded && <span className="whitespace-nowrap">Facturas & Compras</span>}</span>
               {suppliers.length > 0 && <span className="bg-emerald-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black">{suppliers.length}</span>}
             </button>
 
@@ -757,7 +805,7 @@ export default function AdminPage() {
               onClick={(e) => { e.stopPropagation(); setActiveTab("pedidos"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "pedidos" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
             >
-              <span className="flex items-center gap-3"><span className="text-sm">🛒</span>{isSidebarExpanded && <span>Centro Logístico</span>}</span>
+              <span className="flex items-center gap-3"><span className="text-sm shrink-0">🛒</span>{isSidebarExpanded && <span className="whitespace-nowrap">Centro Logístico</span>}</span>
               {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black">{pendingCount}</span>}
             </button>
 
@@ -765,22 +813,22 @@ export default function AdminPage() {
               onClick={(e) => { e.stopPropagation(); setActiveTab("caja"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "caja" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
             >
-              <span className="text-sm">📊</span>{isSidebarExpanded && <span>Caja & Reportes</span>}
+              <span className="text-sm shrink-0">📊</span>{isSidebarExpanded && <span className="whitespace-nowrap">Caja & Reportes</span>}
             </button>
 
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("clientes"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "clientes" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
             >
-              <span className="flex items-center gap-3"><span className="text-sm">👥</span>{isSidebarExpanded && <span>Clientes CRM</span>}</span>
-              {isSidebarExpanded && <span className="text-[9px] text-zinc-500">({clientsList.length})</span>}
+              <span className="flex items-center gap-3"><span className="text-sm shrink-0">👥</span>{isSidebarExpanded && <span className="whitespace-nowrap">Clientes CRM</span>}</span>
+              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({clientsList.length})</span>}
             </button>
 
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("marketing"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "marketing" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
             >
-              <span className="text-sm">🎯</span>{isSidebarExpanded && <span>Marketing & Promos</span>}
+              <span className="text-sm shrink-0">🎯</span>{isSidebarExpanded && <span className="whitespace-nowrap">Marketing & Promos</span>}
             </button>
           </nav>
         </div>
@@ -789,18 +837,22 @@ export default function AdminPage() {
           {isSidebarExpanded ? (
             <div className="space-y-1.5">
               <span className="text-[10px] text-zinc-400 truncate block">ferxdtg@gmail.com</span>
-              <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-1.5 rounded transition text-[10px]">Salir</button>
+              <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="w-full bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-900/50 font-bold py-1.5 rounded transition text-[10px] cursor-pointer">
+                Salir
+              </button>
             </div>
           ) : (
-            <div className="flex justify-center py-0.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span></div>
+            <div className="flex justify-center py-0.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" title="Sesión Activa"></span>
+            </div>
           )}
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
+      {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* HEADER */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ICONO CORTO DE ALERTA (TOOLTIP CORTITO) */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div className="flex items-center gap-3 flex-wrap">
             <div>
@@ -808,21 +860,32 @@ export default function AdminPage() {
               <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
             </div>
 
+            {/* ALARMA 1: PRODUCTOS HUÉRFANOS */}
             {orphanProducts.length > 0 && (
-              <div onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(true); }} className="relative group flex items-center cursor-pointer ml-2">
+              <div 
+                onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(true); }}
+                title="Haz clic para ubicar los productos huérfanos en el inventario"
+                className="relative group flex items-center cursor-pointer ml-2"
+              >
                 <span className="relative flex h-4 w-4">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 justify-center items-center text-[9px] font-black text-white">!</span>
                 </span>
                 <div className="absolute left-0 sm:left-6 top-6 sm:top-auto z-50 hidden group-hover:block bg-zinc-950 text-amber-300 border border-amber-500/50 p-2.5 rounded-xl shadow-2xl w-64 text-[10px] font-bold leading-tight pointer-events-none">
-                  Hay {orphanProducts.length} producto(s) con categoría eliminada. Edítalos en el inventario.
+                  Hay {orphanProducts.length} producto(s) cuya categoría fue eliminada. Edítalos en el inventario.
                 </div>
               </div>
             )}
 
+            {/* ⏳ ICONO CORTO DE ALERTA DE VENCIMIENTO CON TOOLTIP DESPLEGABLE AL PASAR EL CURSOR */}
             {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
-              <div onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }} className="relative group flex items-center justify-center cursor-pointer ml-2 w-7 h-7 bg-amber-500/20 border border-amber-500/60 rounded-full text-amber-400 hover:bg-amber-500 hover:text-black transition shadow-lg animate-bounce">
+              <div 
+                onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }}
+                className="relative group flex items-center justify-center cursor-pointer ml-2 w-7 h-7 bg-amber-500/20 border border-amber-500/60 rounded-full text-amber-400 hover:bg-amber-500 hover:text-black transition shadow-lg animate-bounce"
+              >
                 <span className="text-xs font-black">⏳</span>
+
+                {/* Tooltip corto y puntual desplegado al pasar sobre el icono */}
                 <div className="absolute left-0 top-8 z-50 hidden group-hover:block bg-zinc-950 text-white border border-amber-500/60 p-2.5 rounded-xl shadow-2xl w-48 text-[10px] leading-tight pointer-events-none space-y-0.5">
                   <p className="font-black text-amber-400 uppercase">Alertas de Stock:</p>
                   <p className="text-red-400">• Vencidos: {expiredProductsList.length}</p>
@@ -837,12 +900,18 @@ export default function AdminPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
               <span className="text-zinc-300 font-medium truncate max-w-[130px] sm:max-w-none">ferxdtg@gmail.com</span>
             </div>
-            <button onClick={handleLogout} className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900 px-2.5 py-1 rounded-lg text-[10px] font-bold transition">Salir</button>
+            <button
+              onClick={handleLogout}
+              className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900 px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer"
+              title="Cerrar Sesión"
+            >
+              Salir
+            </button>
           </div>
         </div>
 
-        {/* MOBILE TABS */}
-        <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1">
+        {/* PESTAÑAS MÓVILES (Celulares) */}
+        <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "productos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("categorias"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
@@ -853,69 +922,155 @@ export default function AdminPage() {
           <button onClick={() => setActiveTab("marketing")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
         </div>
 
-        {/* INVENTORY TAB */}
+        {/* 📦 CONTENEDOR PRINCIPAL DE INVENTARIO Y SUS SUBMENÚS */}
         {activeTab === "inventario" && (
           <div className="space-y-4">
+            
+            {/* Pestañas internas de navegación para los submenús de inventario */}
             <div className="flex gap-2 border-b border-zinc-800 pb-2">
-              <button onClick={() => { setInventorySubTab("productos"); setFilterOrphanOnly(false); }} className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${inventorySubTab === "productos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"}`}>📦 Productos & Stock</button>
-              <button onClick={() => setInventorySubTab("vencimientos")} className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-2 ${inventorySubTab === "vencimientos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"}`}>
-                <span>⏳ Vencimientos</span>
-                {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[9px] font-black">{expiredProductsList.length + expiringSoonProductsList.length}</span>}
+              <button
+                onClick={() => { setInventorySubTab("productos"); setFilterOrphanOnly(false); }}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  inventorySubTab === "productos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                }`}
+              >
+                📦 Productos & Stock
               </button>
-              <button onClick={() => setInventorySubTab("categorias")} className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${inventorySubTab === "categorias" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"}`}>🏷️ Categorías ({categoriesList.length})</button>
+              <button
+                onClick={() => setInventorySubTab("vencimientos")}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-2 ${
+                  inventorySubTab === "vencimientos" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                }`}
+              >
+                <span>⏳ Control de Vencimientos</span>
+                {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
+                  <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[9px] font-black">
+                    {expiredProductsList.length + expiringSoonProductsList.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setInventorySubTab("categorias")}
+                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  inventorySubTab === "categorias" ? "bg-red-600 text-white shadow-lg" : "bg-zinc-900 text-zinc-400 hover:text-white"
+                }`}
+              >
+                🏷️ Gestión de Categorías ({categoriesList.length})
+              </button>
             </div>
 
+            {/* SUBMENÚ 1: PRODUCTOS & STOCK */}
             {inventorySubTab === "productos" && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                
                 <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
-                  <h2 className="text-xs font-black text-white">✨ Registrar Nuevo Producto (SKU 6D)</h2>
+                  <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (SKU 6D)</h2>
+                  
                   <form onSubmit={handleCreateProduct} className="space-y-2.5 text-xs">
                     <div>
                       <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre del artículo</label>
-                      <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ej. Yogur Gloria 1L" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" required />
+                      <input
+                        type="text"
+                        value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                        placeholder="Ej. Yogur Gloria 1L"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                        required
+                      />
                     </div>
+
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Precio (S/)</label>
-                        <input type="number" step="0.05" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" required />
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={newPrice}
+                          onChange={e => setNewPrice(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                          required
+                        />
                       </div>
                       <div>
                         <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Stock Inicial</label>
-                        <input type="number" value={newStock} onChange={e => setNewStock(e.target.value)} placeholder="0" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" required />
+                        <input
+                          type="number"
+                          value={newStock}
+                          onChange={e => setNewStock(e.target.value)}
+                          placeholder="0"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                          required
+                        />
                       </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Vencimiento ⏳</label>
-                        <input type="date" value={newExpiryDate} onChange={e => setNewExpiryDate(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600 text-[10px]" />
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Fecha de Vencimiento ⏳</label>
+                        <input
+                          type="date"
+                          value={newExpiryDate}
+                          onChange={e => setNewExpiryDate(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                        />
                       </div>
                       <div>
                         <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">N° de Lote 🏷️</label>
-                        <input type="text" value={newBatchCode} onChange={e => setNewBatchCode(e.target.value)} placeholder="Ej. L-8842" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" />
+                        <input
+                          type="text"
+                          value={newBatchCode}
+                          onChange={e => setNewBatchCode(e.target.value)}
+                          placeholder="Ej. L-8842"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                        />
                       </div>
                     </div>
+
                     <div>
                       <div className="flex justify-between items-center mb-0.5">
-                        <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría</label>
-                        <button type="button" onClick={() => setInventorySubTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar</button>
+                        <label className="block text-zinc-400 font-bold uppercase text-[9px]">Categoría de Tienda</label>
+                        <button type="button" onClick={() => setInventorySubTab("categorias")} className="text-[9px] text-red-400 hover:underline">+ Gestionar Categorías</button>
                       </div>
-                      <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600">
-                        {categoriesList.map((cat, idx) => <option key={idx} value={cat.name}>{cat.name}</option>)}
+                      <select
+                        value={newCategory}
+                        onChange={e => setNewCategory(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                      >
+                        {categoriesList.map((cat, idx) => (
+                          <option key={idx} value={cat.name}>{cat.name}</option>
+                        ))}
                       </select>
                     </div>
+
                     <div className="flex gap-4 pt-1 font-bold">
-                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300"><input type="checkbox" checked={newIsOnSale} onChange={e => setNewIsOnSale(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> En Oferta 🔥</label>
-                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300"><input type="checkbox" checked={newIsFeatured} onChange={e => setNewIsFeatured(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐</label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                        <input type="checkbox" checked={newIsOnSale} onChange={e => setNewIsOnSale(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> En Oferta 🔥
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300">
+                        <input type="checkbox" checked={newIsFeatured} onChange={e => setNewIsFeatured(e.target.checked)} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐
+                      </label>
                     </div>
+
                     <div className="space-y-1">
                       <label className="block text-zinc-400 font-bold uppercase text-[9px]">Fotografía</label>
                       <div className="grid grid-cols-2 gap-2">
-                        <label className="bg-zinc-950 border border-zinc-800 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">📁 Subir <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" /></label>
-                        <label className="bg-zinc-950 border border-zinc-800 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">📷 Cámara <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" /></label>
+                        <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
+                          📁 Subir <input type="file" accept="image/*" onChange={handleNewFileChange} className="hidden" />
+                        </label>
+                        <label className="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-2 rounded-lg font-bold text-zinc-300 text-center cursor-pointer">
+                          📷 Cámara <input type="file" accept="image/*" capture="environment" onChange={handleNewFileChange} className="hidden" />
+                        </label>
                       </div>
                       {newImage && <p className="text-[9px] text-emerald-400 font-bold">✓ Imagen lista</p>}
                     </div>
-                    <button type="submit" className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1">Publicar Producto</button>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer mt-1"
+                    >
+                      Publicar Producto (SKU 6D)
+                    </button>
                   </form>
                 </div>
 
@@ -923,136 +1078,294 @@ export default function AdminPage() {
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-zinc-800 pb-2">
                     <div className="flex items-center gap-3">
                       <h2 className="text-xs font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
-                      {filterOrphanOnly && <button onClick={() => setFilterOrphanOnly(false)} className="bg-red-950/80 border border-red-900 text-red-400 px-2 py-0.5 rounded text-[9px] font-bold">✕ Quitar filtro</button>}
+                      {filterOrphanOnly && (
+                        <button 
+                          onClick={() => setFilterOrphanOnly(false)} 
+                          className="bg-red-950/80 border border-red-900 text-red-400 px-2 py-0.5 rounded text-[9px] font-bold transition cursor-pointer"
+                        >
+                          ✕ Quitar filtro de atención
+                        </button>
+                      )}
                     </div>
-                    <input type="text" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setFilterOrphanOnly(false); }} placeholder="Buscar por nombre o SKU..." className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-56" />
+
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={e => { setSearchTerm(e.target.value); setFilterOrphanOnly(false); }}
+                      placeholder="Buscar por nombre o SKU..."
+                      className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-red-600 w-56"
+                    />
                   </div>
 
-                  {loading ? <p className="text-zinc-500 text-center py-8">Sincronizando inventario...</p> : (
+                  {loading ? (
+                    <p className="text-zinc-500 text-center py-8">Sincronizando inventario...</p>
+                  ) : (
                     <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                      {filteredProducts.length === 0 ? <p className="text-zinc-500 text-center py-12 text-xs">No hay productos en esta vista.</p> : filteredProducts.map(product => {
-                        const currentStock = Number(product.stock ?? 0);
-                        const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
-                        const hasValidCategory = allCategoryNames.includes(prodCatTrimmed);
-                        const expiryInfo = getExpiryStatus(product.expiryDate);
+                      {filteredProducts.length === 0 ? (
+                        <p className="text-zinc-500 text-center py-12 text-xs">No hay productos que coincidan con la vista.</p>
+                      ) : (
+                        filteredProducts.map(product => {
+                          const currentStock = Number(product.stock ?? 0);
+                          const isOut = currentStock === 0;
+                          const isLow = currentStock > 0 && currentStock <= 5;
+                          const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
+                          const hasValidCategory = allCategoryNames.some(c => c === prodCatTrimmed);
+                          const expiryInfo = getExpiryStatus(product.expiryDate);
 
-                        return (
-                          <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
-                                {product.image ? <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" /> : <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>}
+                          return (
+                            <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                                  {product.image ? (
+                                    <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" />
+                                  ) : (
+                                    <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
+                                    {/* 🟢 ALERTA VERDE CLARA Y VISIBLE DE PRODUCTO NUEVO */}
+                                    {product.isNewRestock && (
+                                      <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 px-2 py-0.5 rounded text-[9px] font-black animate-pulse">
+                                        ✨ ¡Nuevo Ingreso (Asignar Foto y Categoría)!
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                                    <span className="text-[9px] text-zinc-300 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">SKU: {product.sku || 'N/A'}</span>
+                                    {hasValidCategory ? (
+                                      <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
+                                    ) : (
+                                      <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
+                                    )}
+                                    <span className={`text-[8px] px-1.5 py-0.2 rounded border font-bold ${expiryInfo.color}`}>
+                                      {expiryInfo.label}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                                  {product.isNewRestock && <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 px-2 py-0.5 rounded text-[9px] font-black animate-pulse">✨ ¡Nuevo Ingreso!</span>}
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintBarcode(product)}
+                                  className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition"
+                                  title="Generar Etiqueta PDF con Código de Barras"
+                                >
+                                  🏷️ Etiqueta
+                                </button>
+
+                                <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStockUpdate(product.id, currentStock, -1)}
+                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="w-5 text-center font-black">{currentStock}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStockUpdate(product.id, currentStock, 1)}
+                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                                  >
+                                    +
+                                  </button>
                                 </div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                                  <span className="text-[9px] text-zinc-300 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">SKU: {product.sku || 'N/A'}</span>
-                                  {hasValidCategory ? <span className="text-[9px] text-zinc-500">({product.category})</span> : <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>}
-                                  <span className={`text-[8px] px-1.5 py-0.2 rounded border font-bold ${expiryInfo.color}`}>{expiryInfo.label}</span>
-                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(product)}
+                                  className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
+                                  title="Editar"
+                                >
+                                  ✏️
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProduct(product.id, product.name)}
+                                  className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
+                                  title="Eliminar"
+                                >
+                                  🗑️
+                                </button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button type="button" onClick={() => handlePrintBarcode(product)} className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300">🏷️ Etiqueta</button>
-                              <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
-                                <button type="button" onClick={() => handleStockUpdate(product.id, currentStock, -1)} className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center">-</button>
-                                <span className="w-5 text-center font-black">{currentStock}</span>
-                                <button type="button" onClick={() => handleStockUpdate(product.id, currentStock, 1)} className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center">+</button>
-                              </div>
-                              <button type="button" onClick={() => openEditModal(product)} className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs">✏️</button>
-                              <button type="button" onClick={() => handleDeleteProduct(product.id, product.name)} className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs">🗑️</button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+
+            {/* SUBMENÚ 2: CONTROL DE VENCIMIENTOS (MERMA 0) */}
+            {inventorySubTab === "vencimientos" && (
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <div>
+                    <h2 className="text-sm font-black text-white">⏳ Semáforo de Vencimientos y Alertas (Merma 0)</h2>
+                    <p className="text-[10px] text-zinc-400">Listado completo de productos por vencer (hasta 10 días) y productos ya vencidos.</p>
+                  </div>
+                  <button
+                    onClick={() => setInventorySubTab("productos")}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                  >
+                    ← Volver a Productos
+                  </button>
+                </div>
+
+                {/* Sub-sección 1: Vencidos */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black text-red-400 uppercase">🔴 Productos Vencidos ({expiredProductsList.length})</h3>
+                  {expiredProductsList.length === 0 ? (
+                    <p className="text-zinc-500 text-[11px] pb-2">No hay productos vencidos.</p>
+                  ) : (
+                    expiredProductsList.map(product => (
+                      <div key={product.id} className="bg-red-950/30 border border-red-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                        <div>
+                          <h4 className="font-bold text-white text-xs">{product.name}</h4>
+                          <p className="text-[10px] text-red-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
+                        </div>
+                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-red-600 text-white font-bold rounded text-xs">Retirar / Liquidar</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Sub-sección 2: Por Vencer */}
+                <div className="space-y-2 pt-2 border-t border-zinc-800">
+                  <h3 className="text-xs font-black text-yellow-400 uppercase">⚡ Productos por Vencer en 10 días o menos ({expiringSoonProductsList.length})</h3>
+                  {expiringSoonProductsList.length === 0 ? (
+                    <p className="text-zinc-500 text-[11px]">No hay productos próximos a vencer.</p>
+                  ) : (
+                    expiringSoonProductsList.map(product => (
+                      <div key={product.id} className="bg-yellow-950/30 border border-yellow-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
+                        <div>
+                          <h4 className="font-bold text-white text-xs">{product.name}</h4>
+                          <p className="text-[10px] text-yellow-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
+                        </div>
+                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-yellow-600 text-black font-black rounded text-xs">Crear Oferta Flash 🔥</button>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
             )}
 
-            {inventorySubTab === "vencimientos" && (
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
-                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
-                  <div>
-                    <h2 className="text-sm font-black text-white">⏳ Semáforo de Vencimientos (Merma 0)</h2>
-                    <p className="text-[10px] text-zinc-400">Listado de productos próximos a vencer o vencidos.</p>
+            {/* SUBMENÚ 3: GESTIÓN DE CATEGORÍAS */}
+            {inventorySubTab === "categorias" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
+                    <h3 className="text-xs font-black text-white">✨ Crear Nueva Categoría</h3>
+                    <form onSubmit={handleAddCategory} className="space-y-3">
+                      <div>
+                        <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
+                        <input
+                          type="text"
+                          value={newCatName}
+                          onChange={e => setNewCatName(e.target.value)}
+                          placeholder="Ej. Bebidas Energizantes, Lácteos Premium"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                          required
+                        />
+                      </div>
+                      <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
+                    </form>
                   </div>
-                  <button onClick={() => setInventorySubTab("productos")} className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs">← Volver a Productos</button>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xs font-black text-red-400 uppercase">🔴 Productos Vencidos ({expiredProductsList.length})</h3>
-                  {expiredProductsList.length === 0 ? <p className="text-zinc-500 text-[11px] pb-2">No hay productos vencidos.</p> : expiredProductsList.map(product => (
-                    <div key={product.id} className="bg-red-950/30 border border-red-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
-                      <div><h4 className="font-bold text-white text-xs">{product.name}</h4><p className="text-[10px] text-red-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock}</p></div>
-                      <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-red-600 text-white font-bold rounded text-xs">Retirar / Liquidar</button>
+
+                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+                    <h3 className="text-xs font-black text-white">Listado General ({categoriesList.length})</h3>
+                    <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                      {categoriesList.map((catObj) => (
+                        <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                          <span className="font-bold text-white text-xs">{catObj.name}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }}
+                              className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded cursor-pointer hover:bg-zinc-800"
+                            >
+                              ✏️ Modificar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCategory(catObj.id, catObj.name)}
+                              className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded cursor-pointer hover:bg-red-900/60"
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="space-y-2 pt-2 border-t border-zinc-800">
-                  <h3 className="text-xs font-black text-yellow-400 uppercase">⚡ Productos por Vencer (&le; 10 días) ({expiringSoonProductsList.length})</h3>
-                  {expiringSoonProductsList.length === 0 ? <p className="text-zinc-500 text-[11px]">No hay productos próximos a vencer.</p> : expiringSoonProductsList.map(product => (
-                    <div key={product.id} className="bg-yellow-950/30 border border-yellow-900/60 rounded-xl p-3 flex justify-between items-center gap-3">
-                      <div><h4 className="font-bold text-white text-xs">{product.name}</h4><p className="text-[10px] text-yellow-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock}</p></div>
-                      <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-yellow-600 text-black font-black rounded text-xs">Crear Oferta Flash 🔥</button>
-                    </div>
-                  ))}
+                  </div>
                 </div>
               </div>
             )}
 
-            {inventorySubTab === "categorias" && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3 h-fit">
-                  <h3 className="text-xs font-black text-white">✨ Crear Nueva Categoría</h3>
-                  <form onSubmit={handleAddCategory} className="space-y-3">
-                    <div>
-                      <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label>
-                      <input type="text" value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Ej. Lácteos Premium" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" required />
-                    </div>
-                    <button type="submit" className="w-full py-2.5 bg-red-600 text-white font-black rounded-lg cursor-pointer">Registrar Categoría</button>
-                  </form>
-                </div>
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-                  <h3 className="text-xs font-black text-white">Listado General ({categoriesList.length})</h3>
-                  <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                    {categoriesList.map(catObj => (
-                      <div key={catObj.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
-                        <span className="font-bold text-white text-xs">{catObj.name}</span>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => { setEditingCategory(catObj); setEditCatName(catObj.name); }} className="text-[10px] text-zinc-300 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded">✏️ Modificar</button>
-                          <button onClick={() => handleDeleteCategory(catObj.id, catObj.name)} className="text-[10px] text-red-400 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded">🗑️ Eliminar</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* PEDIDOS TAB */}
+        {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD */}
         {activeTab === "pedidos" && (
           <div className="space-y-4">
+            
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1"><span className="text-[9px] font-bold text-zinc-400 uppercase">Ventas Totales</span><div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div></div>
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1"><span className="text-[9px] font-bold text-zinc-400 uppercase">Pendientes</span><div className="text-base font-black text-amber-400">{pendingCount}</div></div>
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1"><span className="text-[9px] font-bold text-zinc-400 uppercase">Inventario</span><div className="text-base font-black text-blue-400">{products.length}</div></div>
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1"><span className="text-[9px] font-bold text-zinc-400 uppercase">Rechazados / Otros</span><div className="text-base font-black text-red-400">{rejectedCount + uncollectedCount}</div></div>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Ventas Totales</span>
+                <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Pendientes</span>
+                <div className="text-base font-black text-amber-400">{pendingCount}</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Inventario</span>
+                <div className="text-base font-black text-blue-400">{products.length}</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Rechazados / Otros</span>
+                <div className="text-base font-black text-red-400">{rejectedCount + uncollectedCount}</div>
+              </div>
             </div>
 
             <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
               <div className="flex gap-1.5 overflow-x-auto pb-1">
-                <button onClick={() => setOrderStatusTab("PENDIENTE")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>⏳ Pendientes ({pendingCount})</button>
-                <button onClick={() => setOrderStatusTab("ENTREGADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✓ Entregados ({deliveredCount})</button>
-                <button onClick={() => setOrderStatusTab("RECHAZADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✕ Rechazados ({rejectedCount})</button>
-                <button onClick={() => setOrderStatusTab("NO_RECOGIDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🏪 No Recogidos ({uncollectedCount})</button>
+                <button 
+                  onClick={() => setOrderStatusTab("PENDIENTE")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ⏳ Pendientes ({pendingCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("ENTREGADO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ✓ Entregados ({deliveredCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("RECHAZADO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ✕ Rechazados ({rejectedCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("NO_RECOGIDO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🏪 No Recogidos ({uncollectedCount})
+                </button>
               </div>
 
+              {/* Subfiltros internos */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="text-zinc-400 font-bold">Tipo:</span>
@@ -1060,202 +1373,440 @@ export default function AdminPage() {
                   <button onClick={() => updateSubFilter("type", "DELIVERY")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Delivery</button>
                   <button onClick={() => updateSubFilter("type", "RECOJO")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Recojo</button>
                 </div>
+
                 <div className="flex items-center gap-1">
                   <span className="text-zinc-400 font-bold">Fecha:</span>
                   <input type="date" value={currentSubFilter.startDate} onChange={e => updateSubFilter("startDate", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-white text-[10px]" />
                   <span>-</span>
                   <input type="date" value={currentSubFilter.endDate} onChange={e => updateSubFilter("endDate", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-white text-[10px]" />
-                  {(currentSubFilter.startDate || currentSubFilter.endDate) && <button onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }} className="bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Limpiar</button>}
+                  {(currentSubFilter.startDate || currentSubFilter.endDate) && (
+                    <button onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }} className="bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Limpiar</button>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredOrders.length === 0 ? <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados con estos filtros.</p> : filteredOrders.map(order => (
-                <div key={order.id} className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3.5 space-y-2.5">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"}`}>{order.type}</span>
-                      <h3 className="text-xs font-black text-white mt-1">{order.client}</h3>
-                      <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
-                    </div>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-zinc-950 text-zinc-300">{order.status}</span>
-                  </div>
-                  <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
-                    <p className="text-zinc-300">{order.items}</p>
-                    <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900"><span>TOTAL</span><span className="text-red-400">S/ {(Number(order.total) || 0).toFixed(2)}</span></div>
-                  </div>
-                  <div className="space-y-1.5">
-                    {order.status === "PENDIENTE" && (
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")} className="py-1.5 bg-emerald-600 text-white font-bold text-[10px] rounded-lg">✓ Entregar</button>
-                        <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "RECHAZADO")} className="py-1.5 bg-red-950 text-red-400 border border-red-900 font-bold text-[10px] rounded-lg">✕ Rechazar</button>
+              {filteredOrders.length === 0 ? (
+                <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en {orderStatusTab.toLowerCase()} con estos filtros.</p>
+              ) : (
+                filteredOrders.map(order => (
+                  <div key={order.id} className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3.5 space-y-2.5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"}`}>
+                          {order.type}
+                        </span>
+                        <h3 className="text-xs font-black text-white mt-1">{order.client}</h3>
+                        <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
                       </div>
-                    )}
-                    {order.status === "RECHAZADO" && <div className="py-1 bg-red-950/30 text-red-400 text-center font-bold text-[10px] rounded border border-red-900">Rechazado</div>}
-                    {order.status === "NO_RECOGIDO" && <div className="py-1 bg-purple-950/30 text-purple-400 text-center font-bold text-[10px] rounded border border-purple-900">No Recogido</div>}
-                    {order.status === "ENTREGADO" && <div className="py-1 bg-zinc-950 text-emerald-400 text-center font-bold text-[10px] rounded border border-emerald-900">Entregado ✓</div>}
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-zinc-950 text-zinc-300">{order.status}</span>
+                    </div>
+
+                    <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
+                      <p className="text-zinc-300">{order.items}</p>
+                      <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900">
+                        <span>TOTAL</span>
+                        <span className="text-red-400">S/ {(Number(order.total) || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {order.status === "PENDIENTE" && (
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")} className="py-1.5 bg-emerald-600 text-white font-bold text-[10px] rounded-lg">✓ Entregar</button>
+                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "RECHAZADO")} className="py-1.5 bg-red-950 text-red-400 border border-red-900 font-bold text-[10px] rounded-lg">✕ Rechazar</button>
+                        </div>
+                      )}
+                      {order.status === "RECHAZADO" && <div className="py-1 bg-red-950/30 text-red-400 text-center font-bold text-[10px] rounded border border-red-900/30">Rechazado</div>}
+                      {order.status === "NO_RECOGIDO" && <div className="py-1 bg-purple-950/30 text-purple-400 text-center font-bold text-[10px] rounded border border-purple-900/30">No Recogido</div>}
+                      {order.status === "ENTREGADO" && <div className="py-1 bg-zinc-950 text-emerald-400 text-center font-bold text-[10px] rounded border border-emerald-900/30">Entregado ✓</div>}
+                      {order.status === "PENDIENTE" && order.type === "RECOJO" && (
+                        <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "NO_RECOGIDO")} className="w-full py-1 bg-zinc-950 text-zinc-400 border border-zinc-800 font-bold text-[9px] rounded">Marcar No Recogido</button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
 
-        {/* CAJA TAB */}
+        {/* VISTA 3: CAJA & REPORTES */}
         {activeTab === "caja" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1"><span className="text-[10px] font-bold text-zinc-400 uppercase">Ingresos Hoy</span><div className="text-lg font-black text-emerald-400">S/ {todaySalesTotal.toFixed(2)}</div></div>
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1"><span className="text-[10px] font-bold text-zinc-400 uppercase">Tickets Emitidos</span><div className="text-lg font-black text-blue-400">{todaySalesOrders.length}</div></div>
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1"><span className="text-[10px] font-bold text-zinc-400 uppercase">Ticket Promedio</span><div className="text-lg font-black text-amber-400">S/ {todayTicketAverage.toFixed(2)}</div></div>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Ingresos Hoy (Lima)</span>
+                <div className="text-lg font-black text-emerald-400">S/ {todaySalesTotal.toFixed(2)}</div>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Tickets Emitidos</span>
+                <div className="text-lg font-black text-blue-400">{todaySalesOrders.length}</div>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Ticket Promedio</span>
+                <div className="text-lg font-black text-amber-400">S/ {todayTicketAverage.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
+              <h2 className="text-xs font-black text-white">📋 Detalle de Facturación ({todayDateStr})</h2>
+              <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                {todaySalesOrders.length === 0 ? (
+                  <p className="text-zinc-500 text-center py-8">No hay ventas registradas hoy.</p>
+                ) : (
+                  todaySalesOrders.map((o: any) => (
+                    <div key={o.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-white">{o.client} <span className="text-[9px] text-zinc-500">({o.phone})</span></p>
+                        <p className="text-[10px] text-zinc-400">{o.items}</p>
+                      </div>
+                      <span className="text-emerald-400 font-black">S/ {Number(o.total || 0).toFixed(2)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* CLIENTES CRM TAB */}
+        {/* VISTA 4: CLIENTES CRM */}
         {activeTab === "clientes" && (
           <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
             <h2 className="text-xs font-black text-white">👥 Clientes Frecuentes ({clientsList.length})</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {clientsList.map((c: any, i) => (
                 <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 space-y-1">
-                  <div className="flex justify-between items-start"><h3 className="font-bold text-white">{c.name}</h3><span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">{c.totalOrders} compras</span></div>
-                  <p className="text-zinc-400">📱 {c.phone}</p><p className="text-zinc-400 truncate">🏠 {c.address}</p>
-                  <p className="text-emerald-400 font-black pt-1 border-t border-zinc-900 flex justify-between"><span>Total gastado:</span><span>S/ {c.spent.toFixed(2)}</span></p>
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-bold text-white">{c.name}</h3>
+                    <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">{c.totalOrders} compras</span>
+                  </div>
+                  <p className="text-zinc-400">📱 {c.phone}</p>
+                  <p className="text-zinc-400 truncate">🏠 {c.address}</p>
+                  <p className="text-emerald-400 font-black pt-1 border-t border-zinc-900 flex justify-between">
+                    <span>Total gastado:</span>
+                    <span>S/ {c.spent.toFixed(2)}</span>
+                  </p>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* PROVEEDORES / FACTURAS TAB */}
+        {/* VISTA 5: FACTURAS Y REPOSICIÓN (CON BOTÓN PROCESAR STOCK INACTIVO DESPUÉS DE USAR Y OPCIÓN DE ELIMINAR) */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 h-fit space-y-4 lg:col-span-1">
               <h2 className="text-xs font-black text-white flex items-center gap-2">🧾 Registrar Factura y Actualizar Stock</h2>
+              
               <form onSubmit={handleSaveInvoice} className="space-y-3 text-xs">
                 <div>
-                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">N° de Factura</label>
-                  <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Ej. F001-00482" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" required />
+                  <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">N° de Factura / Recibo</label>
+                  <input
+                    type="text"
+                    value={invoiceNumber}
+                    onChange={e => setInvoiceNumber(e.target.value)}
+                    placeholder="Ej. F001-00482"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    required
+                  />
                 </div>
+
                 <div className="grid grid-cols-2 gap-2">
-                  <div><label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Proveedor</label><input type="text" value={invoiceProvider} onChange={e => setInvoiceProvider(e.target.value)} placeholder="Gloria S.A." className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" required /></div>
-                  <div><label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">RUC</label><input type="text" value={invoiceRuc} onChange={e => setInvoiceRuc(e.target.value)} placeholder="20100100100" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Emisión</label><input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white text-[10px]" /></div>
                   <div>
-                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Pago</label>
-                    <select value={invoicePaymentTerm} onChange={e => setInvoicePaymentTerm(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white text-[10px]">
-                      <option value="CONTADO">Contado</option><option value="CREDITO_15D">Crédito 15 días</option><option value="CREDITO_30D">Crédito 30 días</option>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Proveedor / Distribuidora</label>
+                    <input
+                      type="text"
+                      value={invoiceProvider}
+                      onChange={e => setInvoiceProvider(e.target.value)}
+                      placeholder="Ej. Gloria S.A."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">RUC del Proveedor</label>
+                    <input
+                      type="text"
+                      value={invoiceRuc}
+                      onChange={e => setInvoiceRuc(e.target.value)}
+                      placeholder="20100100100"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Fecha de Emisión</label>
+                    <input
+                      type="date"
+                      value={invoiceDate}
+                      onChange={e => setInvoiceDate(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Condición de Pago</label>
+                    <select
+                      value={invoicePaymentTerm}
+                      onChange={e => setInvoicePaymentTerm(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white focus:outline-none focus:border-red-600 text-[10px]"
+                    >
+                      <option value="CONTADO">Contado</option>
+                      <option value="CREDITO_15D">Crédito 15 días</option>
+                      <option value="CREDITO_30D">Crédito 30 días</option>
                     </select>
                   </div>
                 </div>
+
                 <div className="border-t border-zinc-800 pt-3 space-y-2">
-                  <div className="flex justify-between items-center"><span className="font-bold text-zinc-300 uppercase text-[10px]">Ítems de Factura</span><button type="button" onClick={handleAddInvoiceItem} className="text-red-400 font-bold hover:underline">+ Agregar Ítem</button></div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-zinc-300 uppercase text-[10px]">Detalle de Ítems / Autocompletado</span>
+                    <button type="button" onClick={handleAddInvoiceItem} className="text-red-400 font-bold hover:underline">+ Agregar Ítem</button>
+                  </div>
+
                   <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                     {invoiceItems.map((item, index) => (
                       <div key={index} className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-2 relative">
                         <div className="flex justify-between items-center gap-2">
                           <div className="flex-1 relative">
-                            <input type="text" list={`products-list-${index}`} value={item.productName} onChange={e => handleInvoiceItemChange(index, "productName", e.target.value)} placeholder="Buscar producto..." className="w-full bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-xs" required />
-                            <datalist id={`products-list-${index}`}>{products.map((p) => <option key={p.id} value={p.name} />)}</datalist>
+                            <input
+                              type="text"
+                              list={`products-list-${index}`}
+                              value={item.productName}
+                              onChange={e => handleInvoiceItemChange(index, "productName", e.target.value)}
+                              placeholder="Escribe o busca producto..."
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-xs"
+                              required
+                            />
+                            <datalist id={`products-list-${index}`}>
+                              {products.map((p) => (
+                                <option key={p.id} value={p.name} />
+                              ))}
+                            </datalist>
                           </div>
-                          <select value={item.unitType} onChange={e => handleInvoiceItemChange(index, "unitType", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-[10px]">
-                            <option value="UNIDAD">Unidades</option><option value="KG">Kilogramos</option><option value="PAQUETE">Paquetes</option><option value="LITRO">Litros</option><option value="CAJA">Cajas</option>
+
+                          <select
+                            value={item.unitType}
+                            onChange={e => handleInvoiceItemChange(index, "unitType", e.target.value)}
+                            className="bg-zinc-900 border border-zinc-800 rounded p-1.5 text-white text-[10px]"
+                          >
+                            <option value="UNIDAD">Unidades</option>
+                            <option value="KG">Kilogramos (kg)</option>
+                            <option value="PAQUETE">Paquetes</option>
+                            <option value="LITRO">Litros (L)</option>
+                            <option value="CAJA">Cajas</option>
                           </select>
-                          {invoiceItems.length > 1 && <button type="button" onClick={() => handleRemoveInvoiceItem(index)} className="text-red-400 font-bold px-1.5">✕</button>}
+                          {invoiceItems.length > 1 && (
+                            <button type="button" onClick={() => handleRemoveInvoiceItem(index)} className="text-red-400 font-bold px-1.5">✕</button>
+                          )}
                         </div>
+
                         <div className="grid grid-cols-3 gap-1.5">
-                          <div><span className="text-[8px] text-zinc-400 uppercase">Cantidad</span><input type="number" step="any" value={item.quantity} onChange={e => handleInvoiceItemChange(index, "quantity", e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-white text-center" required /></div>
-                          <div><span className="text-[8px] text-zinc-400 uppercase">Costo Unit.</span><input type="number" step="0.05" value={item.unitCost} onChange={e => handleInvoiceItemChange(index, "unitCost", e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-white text-center" required /></div>
-                          <div><span className="text-[8px] text-zinc-400 uppercase">Total</span><div className="bg-zinc-900/50 border border-zinc-800 rounded p-1 text-emerald-400 text-center font-black">S/ {item.totalCost.toFixed(2)}</div></div>
+                          <div>
+                            <span className="text-[8px] text-zinc-400 uppercase">Cantidad</span>
+                            <input
+                              type="number"
+                              step="any"
+                              value={item.quantity}
+                              onChange={e => handleInvoiceItemChange(index, "quantity", e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-white text-center"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[8px] text-zinc-400 uppercase">Costo Unit. (S/)</span>
+                            <input
+                              type="number"
+                              step="0.05"
+                              value={item.unitCost}
+                              onChange={e => handleInvoiceItemChange(index, "unitCost", e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-white text-center"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[8px] text-zinc-400 uppercase">Total (S/)</span>
+                            <div className="bg-zinc-900/50 border border-zinc-800/80 rounded p-1 text-emerald-400 text-center font-black">
+                              S/ {item.totalCost.toFixed(2)}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
+
                 <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1 text-xs">
-                  <div className="flex justify-between text-zinc-400"><span>Subtotal:</span><span>S/ {subTotalInvoice.toFixed(2)}</span></div>
-                  <div className="flex justify-between text-zinc-400"><span>IGV (18%):</span><span>S/ {igvInvoice.toFixed(2)}</span></div>
-                  <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900 text-sm"><span>TOTAL:</span><span className="text-emerald-400">S/ {totalInvoiceAmount.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Subtotal:</span>
+                    <span>S/ {subTotalInvoice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>IGV (18%):</span>
+                    <span>S/ {igvInvoice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900 text-sm">
+                    <span>TOTAL FACTURA:</span>
+                    <span className="text-emerald-400">S/ {totalInvoiceAmount.toFixed(2)}</span>
+                  </div>
                 </div>
-                <button type="submit" className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-lg transition shadow-lg">Guardar Factura e Impactar Stock 🚀</button>
+
+                <button type="submit" className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-lg transition cursor-pointer shadow-lg">
+                  Guardar Factura e Impactar Stock 🚀
+                </button>
               </form>
             </div>
 
             <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
-              <h2 className="text-sm font-black text-white">Historial de Facturas ({suppliers.length})</h2>
+              <h2 className="text-sm font-black text-white">Historial de Facturas y Proveedores ({suppliers.length})</h2>
               <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
-                {suppliers.length === 0 ? <p className="text-zinc-500 text-center py-16">No hay facturas registradas.</p> : suppliers.map(sup => (
-                  <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2.5">
-                    <div className="flex justify-between items-start border-b border-zinc-800 pb-2">
-                      <div>
-                        <span className="text-[9px] bg-red-950 text-red-400 border border-red-900 px-2 py-0.5 rounded font-bold uppercase">Factura: {sup.invoiceNumber}</span>
-                        <h3 className="font-black text-white text-sm mt-1">{sup.provider} <span className="text-[10px] text-zinc-400 font-normal">(RUC: {sup.ruc})</span></h3>
-                      </div>
-                      <div className="text-right flex flex-col items-end gap-1.5">
-                        <div>
-                          <span className="text-emerald-400 font-black text-sm">S/ {(Number(sup.totalCost) || 0).toFixed(2)}</span>
-                          <p className="text-[9px] text-zinc-500">Emisión: {sup.date} • Pago: {sup.paymentTerm}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {sup.processed ? (
-                            <span className="bg-zinc-800 text-emerald-400 font-black px-2.5 py-1 rounded text-[10px] border border-emerald-900/50">✓ Procesado</span>
-                          ) : (
-                            <button type="button" onClick={() => handleProcessExistingInvoice(sup)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-2.5 py-1 rounded text-[10px] shadow">⚡ Procesar Stock</button>
-                          )}
-                          <button type="button" onClick={() => handleDeleteInvoice(sup.id, sup.invoiceNumber)} className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900 px-2 py-1 rounded text-[10px] font-bold" title="Eliminar factura">🗑️</button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems:</span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                        {extractItems(sup.items).map((it: any, i: number) => (
-                          <div key={i} className="bg-zinc-900/65 border border-zinc-800 p-2 rounded flex justify-between items-center text-[11px]">
-                            <span>{it?.quantity || 1} {it?.unitType || 'UNIDAD'}(s) de <strong>{it?.productName || it || 'Ítem'}</strong></span>
-                            <span className="text-zinc-400">S/ {(Number(it?.totalCost || sup?.totalCost || 0)).toFixed(2)}</span>
+                {suppliers.length === 0 ? (
+                  <p className="text-zinc-500 text-center py-16">No hay facturas registradas en el sistema.</p>
+                ) : (
+                  suppliers.map(sup => {
+                    // Conversión robusta de items guardados
+                    let historicItems: any[] = [];
+                    if (Array.isArray(sup.items)) {
+                      historicItems = sup.items;
+                    } else if (typeof sup.items === "string") {
+                      historicItems = [{ productName: sup.items, quantity: 1, totalCost: sup.totalCost || 0, unitType: "UNIDAD" }];
+                    } else if (sup.items && typeof sup.items === "object") {
+                      historicItems = Object.values(sup.items);
+                    }
+
+                    return (
+                      <div key={sup.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2.5">
+                        <div className="flex justify-between items-start border-b border-zinc-800 pb-2">
+                          <div>
+                            <span className="text-[9px] bg-red-950 text-red-400 border border-red-900 px-2 py-0.5 rounded font-bold uppercase">Factura: {sup.invoiceNumber}</span>
+                            <h3 className="font-black text-white text-sm mt-1">{sup.provider} <span className="text-[10px] text-zinc-400 font-normal">(RUC: {sup.ruc})</span></h3>
                           </div>
-                        ))}
+                          <div className="text-right flex flex-col items-end gap-1.5">
+                            <div>
+                              <span className="text-emerald-400 font-black text-sm">S/ {(Number(sup.totalCost) || 0).toFixed(2)}</span>
+                              <p className="text-[9px] text-zinc-500">Emisión: {sup.date} • Pago: {sup.paymentTerm}</p>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              {/* 🔘 BOTÓN PROCESAR STOCK (SE INACTIVA A "PROCESADO" SI YA SE USÓ) */}
+                              {sup.processed ? (
+                                <span className="bg-zinc-800 text-emerald-400 font-black px-2.5 py-1 rounded text-[10px] border border-emerald-900/50">
+                                  ✓ Procesado
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleProcessExistingInvoice(sup)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-2.5 py-1 rounded text-[10px] transition cursor-pointer shadow"
+                                >
+                                  ⚡ Procesar Stock
+                                </button>
+                              )}
+
+                              {/* 🗑️ BOTÓN ELIMINAR FACTURA DEL HISTORIAL */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteInvoice(sup.id, sup.invoiceNumber)}
+                                className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900/60 px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer"
+                                title="Eliminar factura del historial"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems ingresados al stock:</span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {historicItems.map((it: any, i: number) => (
+                              <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
+                                <span>{it?.quantity || 1} {it?.unitType || 'UNIDAD'}(s) de <strong>{it?.productName || it || 'Ítem'}</strong></span>
+                                <span className="text-zinc-400">S/ {(Number(it?.totalCost || sup?.totalCost || 0)).toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })
+                )}
               </div>
             </div>
+
           </div>
         )}
 
-        {/* MARKETING TAB */}
+        {/* 🚀 MARKETING TAB (VISTA CONECTADA A FIREBASE) */}
         {activeTab === "marketing" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Formulario de Creación */}
             <div className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
               <h2 className="text-sm font-black text-white">🎯 Crear Campaña Flash</h2>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                if (!newPromoTitle) return;
-                setPromos([{ id: Date.now(), title: newPromoTitle, description: newPromoDesc || "Promo", discount: newPromoDiscount || "OFERTA", active: true }, ...promos]);
-                setNewPromoTitle(""); setNewPromoDesc(""); setNewPromoDiscount("");
-                alert("¡Campaña publicada!");
-              }} className="space-y-3 text-xs">
-                <div><label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Título</label><input type="text" value={newPromoTitle} onChange={e => setNewPromoTitle(e.target.value)} placeholder="Mega Oferta" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600" required /></div>
-                <div><label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Descripción</label><input type="text" value={newPromoDesc} onChange={e => setNewPromoDesc(e.target.value)} placeholder="Descripción" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600" /></div>
-                <div><label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Descuento</label><input type="text" value={newPromoDiscount} onChange={e => setNewPromoDiscount(e.target.value)} placeholder="-20% OFF" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600" /></div>
-                <button type="submit" className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition">Lanzar Anuncio</button>
+              <form onSubmit={handleCreatePromo} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Título</label>
+                  <input type="text" value={newPromoTitle} onChange={e => setNewPromoTitle(e.target.value)} placeholder="Mega Oferta Lácteos" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600" required />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Descripción</label>
+                  <input type="text" value={newPromoDesc} onChange={e => setNewPromoDesc(e.target.value)} placeholder="Aprovecha hoy mismo" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600" />
+                </div>
+                <div>
+                  <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Descuento / Badge</label>
+                  <input type="text" value={newPromoDiscount} onChange={e => setNewPromoDiscount(e.target.value)} placeholder="-20% OFF" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600" required />
+                </div>
+                <button type="submit" className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition">
+                  Lanzar Anuncio Web 🚀
+                </button>
               </form>
             </div>
+
+            {/* Listado de Promociones Administrables */}
             <div className="lg:col-span-2 bg-zinc-900/70 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
-              <h2 className="text-sm font-black text-white">Campañas Activas ({promos.length})</h2>
-              <div className="space-y-3">
-                {promos.map(promo => (
-                  <div key={promo.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex justify-between items-center">
-                    <div><span className="text-red-400 font-black text-[10px]">{promo.discount}</span><h3 className="font-bold text-white text-xs">{promo.title}</h3><p className="text-zinc-400 text-[10px]">{promo.description}</p></div>
+              <h2 className="text-sm font-black text-white">Campañas y Anuncios ({promos.length})</h2>
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                {promos.length === 0 ? (
+                  <p className="text-zinc-500 text-center py-10">No hay anuncios configurados.</p>
+                ) : promos.map(promo => (
+                  <div key={promo.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex-1">
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${promo.active ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-zinc-800 text-zinc-500 border border-zinc-700"}`}>
+                        {promo.active ? "🟢 Activo en tienda" : "⚫ Pausado"}
+                      </span>
+                      <span className="ml-2 text-red-400 font-black text-[10px] uppercase">{promo.discount}</span>
+                      <h3 className={`font-bold text-sm mt-2 ${promo.active ? "text-white" : "text-zinc-500"}`}>{promo.title}</h3>
+                      <p className="text-zinc-400 text-xs mt-0.5">{promo.description}</p>
+                    </div>
+
+                    <div className="flex flex-row sm:flex-col gap-2 shrink-0 w-full sm:w-auto">
+                      <button
+                        onClick={() => handleTogglePromo(promo.id, promo.active)}
+                        className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                          promo.active 
+                            ? "bg-zinc-900 border-zinc-700 text-zinc-300 hover:text-white" 
+                            : "bg-emerald-900/40 border-emerald-900 text-emerald-400 hover:bg-emerald-800/60"
+                        }`}
+                      >
+                        {promo.active ? "Pausar ⏸️" : "Activar ▶️"}
+                      </button>
+                      <button
+                        onClick={() => handleDeletePromo(promo.id)}
+                        className="flex-1 sm:flex-none px-3 py-2 bg-red-950/50 hover:bg-red-900 border border-red-900/50 text-red-400 rounded-lg text-xs font-bold transition cursor-pointer"
+                      >
+                        Eliminar 🗑️
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
+
           </div>
         )}
 
