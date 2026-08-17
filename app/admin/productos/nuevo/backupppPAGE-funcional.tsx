@@ -107,22 +107,18 @@ export default function AdminPage() {
     { id: 2, title: "Delivery Gratis en Zona Norte", description: "Por compras mayores a S/ 30.00 en toda la app.", discount: "ENVÍO S/0", active: true }
   ]);
 
-  // Generador de SKU aleatorio de 6 dígitos único (Inmutable / Como un DNI)
+  // Generador estricto de SKU único de 6 dígitos (Estático e inmutable)
   const generateUniqueSku = (existingList: any[]) => {
+    const list = Array.isArray(existingList) ? existingList : [];
+    const existingSkusSet = new Set(list.map(p => String(p?.sku || "")));
     let randomSku = "";
-    let exists = true;
-    const currentSkus = existingList.map(p => String(p.sku || ""));
-
-    while (exists) {
+    do {
       randomSku = Math.floor(100000 + Math.random() * 900000).toString();
-      if (!currentSkus.includes(randomSku)) {
-        exists = false;
-      }
-    }
+    } while (existingSkusSet.has(randomSku));
     return randomSku;
   };
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL (SKU PERMANENTE E INMUTABLE)
+  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -253,7 +249,7 @@ export default function AdminPage() {
       setNewName(""); setNewPrice(""); setNewStock(""); 
       setNewExpiryDate(""); setNewBatchCode("");
       setNewIsOnSale(false); setNewIsFeatured(false); setNewImage("");
-      alert(`¡Producto publicado con éxito! Código SKU (DNI): ${uniqueSku}`);
+      alert(`¡Producto publicado con éxito! SKU estático asignado: ${uniqueSku}`);
     } catch (error: any) {
       alert(`Error al publicar: ${error.message}`);
     }
@@ -401,7 +397,82 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🚀 GUARDAR FACTURA E IMPACTAR INVENTARIO
+  // 🛡️ CONVERTIDOR ULTRASEGURO DE ÍTEMS (EVITA CUALQUIER ERROR DE ARREGLOS)
+  const safeGetItemsArray = (itemsData: any) => {
+    try {
+      if (!itemsData) return [];
+      if (Array.isArray(itemsData)) return itemsData;
+      if (typeof itemsData === "string") {
+        return [{ productName: itemsData, quantity: 1, totalCost: 0, unitType: "UNIDAD" }];
+      }
+      if (typeof itemsData === "object") {
+        return Object.values(itemsData);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
+  // 🚀 PROCESAR ÍTEMS DE FACTURA E IMPACTAR STOCK
+  const processInvoiceItemsToStock = async (rawItems: any, invoiceNum: string, supplierDocId?: string) => {
+    const itemsArray = safeGetItemsArray(rawItems);
+
+    if (itemsArray.length === 0) {
+      throw new Error("No hay ítems válidos para procesar en esta factura.");
+    }
+
+    const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
+    let refreshedProducts = Array.isArray(products) ? [...products] : [];
+
+    for (const item of itemsArray as any[]) {
+      const cleanName = String(item?.productName || item || "").trim();
+      const quantityToAdd = Number(item?.quantity || 1) || 1;
+      if (!cleanName || quantityToAdd <= 0) continue;
+
+      const existingProd = refreshedProducts.find(p => String(p?.name || "").trim().toLowerCase() === cleanName.toLowerCase());
+
+      if (existingProd) {
+        const newStockVal = Number(existingProd.stock || 0) + quantityToAdd;
+        const productRef = doc(db, "products", existingProd.id);
+        await updateDoc(productRef, {
+          stock: newStockVal,
+          isNewRestock: true
+        });
+        existingProd.stock = newStockVal;
+        existingProd.isNewRestock = true;
+      } else {
+        const uniqueSku = generateUniqueSku(refreshedProducts);
+        const newDocRef = await addDoc(collection(db, "products"), {
+          name: cleanName,
+          sku: uniqueSku,
+          price: Number(((item?.unitCost || 0) * 1.3).toFixed(2)),
+          stock: quantityToAdd,
+          category: defaultCategory,
+          expiryDate: "",
+          batchCode: `L-${invoiceNum || 'GEN'}`,
+          isOnSale: false,
+          isFeatured: false,
+          isNewRestock: true, // Alerta verde de producto nuevo
+          image: ""
+        });
+        refreshedProducts.push({
+          id: newDocRef.id,
+          name: cleanName,
+          sku: uniqueSku,
+          stock: quantityToAdd,
+          category: defaultCategory,
+          isNewRestock: true
+        });
+      }
+    }
+
+    if (supplierDocId) {
+      await updateDoc(doc(db, "suppliers", supplierDocId), { processed: true });
+    }
+  };
+
+  // 🚀 GUARDAR FACTURA E IMPACTAR AUTOMÁTICAMENTE EL INVENTARIO
   const handleSaveInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoiceNumber || !invoiceProvider) {
@@ -420,48 +491,11 @@ export default function AdminPage() {
         subTotal: subTotalInvoice,
         igv: igvInvoice,
         totalCost: totalInvoiceAmount,
+        processed: true,
         registeredAt: todayDateStr
       });
 
-      const defaultCategory = categoriesList.length > 0 ? categoriesList[0].name : "Abarrotes y Despensa";
-      let currentProductsList = [...products];
-
-      for (const item of invoiceItems) {
-        const cleanName = String(item.productName || "").trim();
-        if (!cleanName) continue;
-
-        const existingProd = currentProductsList.find(p => p.name.trim().toLowerCase() === cleanName.toLowerCase());
-
-        if (existingProd) {
-          const newStockVal = Number(existingProd.stock || 0) + Number(item.quantity || 0);
-          await updateDoc(doc(db, "products", existingProd.id), { stock: newStockVal, isNewRestock: true });
-          existingProd.stock = newStockVal;
-          existingProd.isNewRestock = true;
-        } else {
-          const uniqueSku = generateUniqueSku(currentProductsList);
-          const newDocRef = await addDoc(collection(db, "products"), {
-            name: cleanName,
-            sku: uniqueSku,
-            price: Number((item.unitCost * 1.3).toFixed(2)),
-            stock: Number(item.quantity || 1),
-            category: defaultCategory,
-            expiryDate: "",
-            batchCode: `L-${invoiceNumber}`,
-            isOnSale: false,
-            isFeatured: false,
-            isNewRestock: true, // 🟢 Alerta verde visible en inventario
-            image: ""
-          });
-          currentProductsList.push({
-            id: newDocRef.id,
-            name: cleanName,
-            sku: uniqueSku,
-            stock: Number(item.quantity || 1),
-            category: defaultCategory,
-            isNewRestock: true
-          });
-        }
-      }
+      await processInvoiceItemsToStock(invoiceItems, invoiceNumber);
 
       setInvoiceNumber("");
       setInvoiceProvider("");
@@ -469,11 +503,36 @@ export default function AdminPage() {
       setInvoiceDate("");
       setInvoiceItems([{ productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
       
-      alert("¡Factura registrada! Los productos ingresados ya aparecen en el inventario con su alerta verde.");
+      alert("¡Factura guardada y stock de inventario actualizado con éxito!");
       setActiveTab("inventario");
       setInventorySubTab("productos");
     } catch (error: any) {
       alert(`Error al registrar factura: ${error.message}`);
+    }
+  };
+
+  // ⚙️ PROCESAR MANUALMENTE FACTURA HISTÓRICA
+  const handleProcessExistingInvoice = async (sup: any) => {
+    if (sup.processed) return;
+    if (!window.confirm(`¿Deseas procesar y sumar el stock de los ítems de la factura N° ${sup.invoiceNumber} al inventario?`)) return;
+    try {
+      await processInvoiceItemsToStock(sup.items, sup.invoiceNumber, sup.id);
+      alert(`¡Factura N° ${sup.invoiceNumber} procesada con éxito! El stock ha sido sumado al inventario.`);
+      setActiveTab("inventario");
+      setInventorySubTab("productos");
+    } catch (error: any) {
+      alert(`Error al procesar factura: ${error.message}`);
+    }
+  };
+
+  // 🗑️ ELIMINAR FACTURA DEL HISTORIAL
+  const handleDeleteInvoice = async (supId: string, invoiceNum: string) => {
+    if (!window.confirm(`¿Estás seguro de eliminar el registro de la factura ${invoiceNum} del historial? (El stock asociado se mantendrá intacto en el inventario).`)) return;
+    try {
+      await deleteDoc(doc(db, "suppliers", supId));
+      alert("Factura eliminada del historial con éxito.");
+    } catch (error: any) {
+      alert(`Error al eliminar factura: ${error.message}`);
     }
   };
 
@@ -831,7 +890,7 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ICONO CORTO DE ALERTA (HOVER/CLIC) */}
+        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ICONO CORTO DE ALERTA (TOOLTIP CORTITO) */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div className="flex items-center gap-3 flex-wrap">
             <div>
@@ -856,21 +915,19 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* ⏳ ICONO CORTO DE ALERTA DE VENCIMIENTO CON TOOLTIP INFORMATIVO Y CLIC TRASLADADOR */}
+            {/* ⏳ ICONO CORTO DE ALERTA DE VENCIMIENTO CON TOOLTIP DESPLEGABLE AL PASAR EL CURSOR */}
             {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
               <div 
                 onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }}
-                title="Ver detalles de vencimientos"
                 className="relative group flex items-center justify-center cursor-pointer ml-2 w-7 h-7 bg-amber-500/20 border border-amber-500/60 rounded-full text-amber-400 hover:bg-amber-500 hover:text-black transition shadow-lg animate-bounce"
               >
                 <span className="text-xs font-black">⏳</span>
 
-                {/* Tooltip con información puntual desplegada al pasar el cursor */}
-                <div className="absolute left-0 top-9 z-50 hidden group-hover:block bg-zinc-950 text-white border border-amber-500/60 p-3 rounded-xl shadow-2xl w-56 text-[10px] leading-tight pointer-events-none space-y-1">
-                  <p className="font-black text-amber-400 uppercase">Resumen de Vencimientos:</p>
+                {/* Tooltip corto y puntual desplegado al pasar sobre el icono */}
+                <div className="absolute left-0 top-8 z-50 hidden group-hover:block bg-zinc-950 text-white border border-amber-500/60 p-2.5 rounded-xl shadow-2xl w-48 text-[10px] leading-tight pointer-events-none space-y-0.5">
+                  <p className="font-black text-amber-400 uppercase">Alertas de Stock:</p>
                   <p className="text-red-400">• Vencidos: {expiredProductsList.length}</p>
-                  <p className="text-yellow-400">• Por vencer (&le; 10d): {expiringSoonProductsList.length}</p>
-                  <p className="text-[9px] text-zinc-400 pt-1 italic">Haz clic para ir a revisión.</p>
+                  <p className="text-yellow-400">• Por vencer: {expiringSoonProductsList.length}</p>
                 </div>
               </div>
             )}
@@ -1655,19 +1712,48 @@ export default function AdminPage() {
                           <span className="text-[9px] bg-red-950 text-red-400 border border-red-900 px-2 py-0.5 rounded font-bold uppercase">Factura: {sup.invoiceNumber}</span>
                           <h3 className="font-black text-white text-sm mt-1">{sup.provider} <span className="text-[10px] text-zinc-400 font-normal">(RUC: {sup.ruc})</span></h3>
                         </div>
-                        <div className="text-right">
-                          <span className="text-emerald-400 font-black text-sm">S/ {(Number(sup.totalCost) || 0).toFixed(2)}</span>
-                          <p className="text-[9px] text-zinc-500">Emisión: {sup.date} • Pago: {sup.paymentTerm}</p>
+                        <div className="text-right flex flex-col items-end gap-1.5">
+                          <div>
+                            <span className="text-emerald-400 font-black text-sm">S/ {(Number(sup.totalCost) || 0).toFixed(2)}</span>
+                            <p className="text-[9px] text-zinc-500">Emisión: {sup.date} • Pago: {sup.paymentTerm}</p>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            {/* 🔘 BOTÓN PROCESAR STOCK (SE INACTIVA A "PROCESADO" SI YA SE USÓ) */}
+                            {sup.processed ? (
+                              <span className="bg-zinc-800 text-emerald-400 font-black px-2.5 py-1 rounded text-[10px] border border-emerald-900/50">
+                                ✓ Procesado
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleProcessExistingInvoice(sup)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-2.5 py-1 rounded text-[10px] transition cursor-pointer shadow"
+                              >
+                                ⚡ Procesar Stock
+                              </button>
+                            )}
+
+                            {/* 🗑️ BOTÓN ELIMINAR FACTURA DEL HISTORIAL */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteInvoice(sup.id, sup.invoiceNumber)}
+                              className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900/60 px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer"
+                              title="Eliminar factura del historial"
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-1">
                         <span className="text-[9px] font-bold text-zinc-400 uppercase">Ítems ingresados al stock:</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {sup.items?.map((it: any, i: number) => (
+                          {safeGetItemsArray(sup.items).map((it: any, i: number) => (
                             <div key={i} className="bg-zinc-900/60 border border-zinc-800/80 p-2 rounded flex justify-between items-center text-[11px]">
-                              <span>{it.quantity} {it.unitType}(s) de <strong>{it.productName}</strong></span>
-                              <span className="text-zinc-400">S/ {(Number(it.totalCost) || 0).toFixed(2)}</span>
+                              <span>{it?.quantity || 1} {it?.unitType || 'UNIDAD'}(s) de <strong>{it?.productName || it || 'Ítem'}</strong></span>
+                              <span className="text-zinc-400">S/ {(Number(it?.totalCost || sup?.totalCost || 0)).toFixed(2)}</span>
                             </div>
                           ))}
                         </div>
