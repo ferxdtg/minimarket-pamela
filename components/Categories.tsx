@@ -1,69 +1,65 @@
 "use client";
 
 export default function Categories() {
-
   const categories = [
-    { id: "ofertas", icon: "🔥", title: "Ofertas", description: "Promociones y descuentos" },
-    { id: "abarrotes", icon: "🍚", title: "Abarrotes", description: "Arroz, fideos y básicos" },
-    { id: "bebidas", icon: "🥤", title: "Bebidas", description: "Gaseosas, jugos y agua" },
-    { id: "snacks", icon: "🍪", title: "Snacks", description: "Galletas y dulces" },
-    { id: "limpieza", icon: "🧼", title: "Limpieza", description: "Productos para tu hogar" },
-    { id: "bebes", icon: "🍼", title: "Bebés", description: "Todo para los pequeños" },
+    { id: "ofertas", icon: "🔥", title: "Ofertas", description: "Súper promos", bg: "bg-red-50 text-red-600" },
+    { id: "abarrotes", icon: "🍚", title: "Abarrotes", description: "Arroz, aceite...", bg: "bg-amber-50 text-amber-600" },
+    { id: "bebidas", icon: "🥤", title: "Bebidas", description: "Refrescos y más", bg: "bg-blue-50 text-blue-600" },
+    { id: "snacks", icon: "🍪", title: "Snacks", description: "Para el antojo", bg: "bg-orange-50 text-orange-600" },
+    { id: "limpieza", icon: "🧼", title: "Limpieza", description: "Hogar impecable", bg: "bg-teal-50 text-teal-600" },
+    { id: "bebes", icon: "🍼", title: "Bebés", description: "Pañales y leche", bg: "bg-pink-50 text-pink-600" },
   ];
 
   const handleCategoryClick = (categoryId: string) => {
-    // Dispara el evento global con la categoría seleccionada
+    // Dispara el evento global para filtrar
     window.dispatchEvent(new CustomEvent("filter_category", { detail: categoryId }));
     
-    // Desplaza la vista suavemente hacia la sección de productos
+    // Scrollea suavemente al catálogo
     const section = document.getElementById("productos-section");
-    if (section) {
-      section.scrollIntoView({ behavior: "smooth" });
-    }
+    if (section) section.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
-    <section className="py-20 px-6 bg-white">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-end mb-10">
-          <div>
-            <h2 className="text-3xl md:text-5xl font-black text-gray-900">
-              Compra por categoría
-            </h2>
-            <p className="mt-3 text-gray-600">
-              Encuentra lo que necesitas rápidamente
+    <section className="py-12 sm:py-20 px-4 sm:px-6 max-w-7xl mx-auto">
+      <div className="flex items-end justify-between mb-8 sm:mb-12">
+        <div>
+          <h2 className="text-3xl sm:text-5xl font-black text-gray-900 tracking-tight">
+            ¿Qué buscas hoy?
+          </h2>
+          <p className="mt-2 text-sm sm:text-base text-gray-500 font-medium">
+            Explora nuestros pasillos digitales
+          </p>
+        </div>
+        
+        <button
+          onClick={() => handleCategoryClick("todos")}
+          className="hidden md:flex items-center gap-2 text-red-600 font-bold hover:bg-red-50 px-5 py-2.5 rounded-full transition-all cursor-pointer"
+        >
+          Ver todo el catálogo <span>→</span>
+        </button>
+      </div>
+
+      {/* CARRUSEL HORIZONTAL EN MÓVIL, GRILLA EN PC */}
+      <div className="flex overflow-x-auto pb-8 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-5 snap-x custom-scrollbar">
+        {categories.map((category) => (
+          <div
+            key={category.id}
+            onClick={() => handleCategoryClick(category.id)}
+            className="min-w-[140px] sm:min-w-0 snap-start cursor-pointer group bg-white rounded-[2rem] p-5 text-center border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_40px_rgba(220,38,38,0.08)] hover:border-red-100 transition-all duration-300 hover:-translate-y-1 active:scale-95"
+          >
+            {/* Ícono con fondo de color suave */}
+            <div className={`w-16 h-16 mx-auto ${category.bg} rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm`}>
+              {category.icon}
+            </div>
+            
+            <h3 className="mt-4 font-black text-gray-900 group-hover:text-red-600 transition-colors">
+              {category.title}
+            </h3>
+            <p className="mt-1 text-[10px] sm:text-xs text-gray-400 font-medium leading-tight">
+              {category.description}
             </p>
           </div>
-          
-          <button
-            onClick={() => handleCategoryClick("todos")}
-            className="hidden md:block text-red-600 font-black cursor-pointer hover:underline"
-          >
-            Ver todas →
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              onClick={() => handleCategoryClick(category.id)}
-              className="group cursor-pointer bg-[#FFF8F0] rounded-3xl p-6 text-center hover:bg-red-600 transition-all duration-300 hover:-translate-y-2 shadow-sm hover:shadow-xl"
-            >
-              <div className="text-5xl group-hover:scale-110 transition">
-                {category.icon}
-              </div>
-              
-              <h3 className="mt-4 font-black text-gray-900 group-hover:text-white">
-                {category.title}
-              </h3>
-              
-              <p className="mt-2 text-xs text-gray-600 group-hover:text-white/90">
-                {category.description}
-              </p>
-            </div>
-          ))}
-        </div>
+        ))}
       </div>
     </section>
   );

@@ -10,24 +10,20 @@ export default function CheckoutModal({ cartItems, onClose, onSuccess }: any) {
   const [phone, setPhone] = useState('');
   const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   
-  // Campos de Dirección
   const [address, setAddress] = useState('');
   const [reference, setReference] = useState(''); 
   const [locLoading, setLocLoading] = useState(false);
 
-  // Campos de Pago
   const [paymentMethod, setPaymentMethod] = useState('Yape'); 
   const [cashAmount, setCashAmount] = useState(''); 
 
   const totalAmount = cartItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
 
-  // 🚀 MEJORA PRO: GPS DIRECTO A GOOGLE MAPS
   const getLocation = () => {
     setLocLoading(true);
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          // Genera un link clickeable de Google Maps con el pin exacto
           const mapsLink = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
           setAddress(mapsLink);
           setLocLoading(false);
@@ -36,7 +32,7 @@ export default function CheckoutModal({ cartItems, onClose, onSuccess }: any) {
           alert("No pudimos obtener tu GPS. Por favor activa la ubicación de tu celular o escribe tu dirección.");
           setLocLoading(false);
         },
-        { enableHighAccuracy: true } // Pide la mayor precisión posible al celular
+        { enableHighAccuracy: true } 
       );
     } else {
       alert("Tu dispositivo no soporta geolocalización.");
@@ -52,7 +48,9 @@ export default function CheckoutModal({ cartItems, onClose, onSuccess }: any) {
       const orderRef = doc(collection(db, "orders"));
 
       await runTransaction(db, async (transaction) => {
-        // 1. Verificar stock actual de cada producto
+        // 🚀 PASO 1: LECTURAS (READS)
+        const productsToUpdate: any[] = [];
+
         for (const item of cartItems) {
           const productRef = doc(db, "products", String(item.id));
           const productSnap = await transaction.get(productRef);
@@ -65,17 +63,15 @@ export default function CheckoutModal({ cartItems, onClose, onSuccess }: any) {
           if (currentStock < item.quantity) {
             throw new Error(`Stock insuficiente para ${item.name}. Quedan ${currentStock}.`);
           }
+
+          productsToUpdate.push({ ref: productRef, newStock: currentStock - item.quantity });
         }
 
-        // 2. Descontar el stock
-        for (const item of cartItems) {
-          const productRef = doc(db, "products", String(item.id));
-          const productSnap = await transaction.get(productRef);
-          const currentStock = productSnap.data()?.stock || 0;
-          transaction.update(productRef, { stock: currentStock - item.quantity });
+        // 🚀 PASO 2: ESCRITURAS (WRITES)
+        for (const productToUpdate of productsToUpdate) {
+          transaction.update(productToUpdate.ref, { stock: productToUpdate.newStock });
         }
 
-        // 3. Crear la orden
         const itemsDescription = cartItems.map((item: any) => `${item.quantity}x ${item.name}`).join(", ");
         const options: Intl.DateTimeFormatOptions = { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" };
         const todayDateStr = new Intl.DateTimeFormat("en-CA", options).format(new Date());

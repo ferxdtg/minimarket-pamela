@@ -12,7 +12,6 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
   const [customerAddress, setCustomerAddress] = useState("");
   const [deliveryType, setDeliveryType] = useState<"DELIVERY" | "RECOJO">("DELIVERY");
   
-  // ✨ NUEVO: Estados para Método de Pago
   const [paymentMethod, setPaymentMethod] = useState("Yape");
   const [cashAmount, setCashAmount] = useState("");
 
@@ -20,7 +19,6 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
   const [loading, setLoading] = useState(false);
   const [locLoading, setLocLoading] = useState(false);
 
-  // 🚀 GPS DIRECTO A GOOGLE MAPS PARA WHATSAPP
   const getLocation = () => {
     setLocLoading(true);
     if (navigator.geolocation) {
@@ -55,26 +53,35 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
       const orderRef = doc(collection(db, "orders"));
 
       await runTransaction(db, async (transaction) => {
+        // 🚀 PASO 1: TODAS LAS LECTURAS (READS) PRIMERO
+        const productsToUpdate: any[] = [];
+        
         for (const item of cartItems) {
           const productRef = doc(db, "products", String(item.id));
           const productSnap = await transaction.get(productRef);
-          if (!productSnap.exists()) throw new Error(`El producto ${item.name} ya no está disponible.`);
+          
+          if (!productSnap.exists()) {
+            throw new Error(`El producto ${item.name} ya no está disponible.`);
+          }
+          
           const currentStock = productSnap.data().stock || 0;
-          if (currentStock < item.quantity) throw new Error(`Solo quedan ${currentStock} unidades de ${item.name}.`);
+          if (currentStock < item.quantity) {
+            throw new Error(`Solo quedan ${currentStock} unidades de ${item.name}.`);
+          }
+          
+          // Guardamos en memoria lo que vamos a descontar luego
+          productsToUpdate.push({ ref: productRef, newStock: currentStock - item.quantity });
         }
 
-        for (const item of cartItems) {
-          const productRef = doc(db, "products", String(item.id));
-          const productSnap = await transaction.get(productRef);
-          const currentStock = productSnap.data()?.stock || 0;
-          transaction.update(productRef, { stock: currentStock - item.quantity });
+        // 🚀 PASO 2: TODAS LAS ESCRITURAS (WRITES) DESPUÉS (Regla estricta de Firebase)
+        for (const productToUpdate of productsToUpdate) {
+          transaction.update(productToUpdate.ref, { stock: productToUpdate.newStock });
         }
 
         const itemsDescription = cartItems.map(item => `${item.quantity}x ${item.name}`).join(", ");
         const options: Intl.DateTimeFormatOptions = { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" };
         const todayStr = new Intl.DateTimeFormat("en-CA", options).format(new Date());
 
-        // 🚀 GUARDAMOS EL MÉTODO DE PAGO EN FIREBASE
         transaction.set(orderRef, {
           client: customerName,
           phone: customerPhone,
@@ -90,7 +97,6 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
         });
       });
 
-      // 🚀 CONSTRUIMOS EL MENSAJE PARA WHATSAPP CON EL MÉTODO DE PAGO
       const adminPhone = "51950323959";
       let message = `*NUEVO PEDIDO - MINIMARKET PAMELA* 🛒\n\n`;
       message += `*Cliente:* ${customerName}\n`;
@@ -160,7 +166,6 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
           </div>
         )}
 
-        {/* ✨ NUEVO: SELECCIÓN DE MÉTODO DE PAGO */}
         <div className="pt-1">
           <p className="text-[10px] font-bold text-zinc-400 mb-1.5">Método de pago:</p>
           <div className="flex gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
@@ -170,7 +175,6 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
           </div>
         </div>
 
-        {/* SI ES EFECTIVO, PEDIR BILLETE */}
         {paymentMethod === "Efectivo" && (
           <input 
             type="number" 
