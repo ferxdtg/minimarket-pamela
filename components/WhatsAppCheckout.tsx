@@ -12,8 +12,35 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
   const [customerAddress, setCustomerAddress] = useState("");
   const [deliveryType, setDeliveryType] = useState<"DELIVERY" | "RECOJO">("DELIVERY");
   
+  // ✨ NUEVO: Estados para Método de Pago
+  const [paymentMethod, setPaymentMethod] = useState("Yape");
+  const [cashAmount, setCashAmount] = useState("");
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [locLoading, setLocLoading] = useState(false);
+
+  // 🚀 GPS DIRECTO A GOOGLE MAPS PARA WHATSAPP
+  const getLocation = () => {
+    setLocLoading(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const mapsLink = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
+          setCustomerAddress(mapsLink);
+          setLocLoading(false);
+        },
+        () => {
+          alert("No pudimos obtener tu GPS. Por favor activa la ubicación de tu celular o escribe tu dirección.");
+          setLocLoading(false);
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      alert("Tu navegador no soporta GPS.");
+      setLocLoading(false);
+    }
+  };
 
   const handleWhatsAppOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,24 +54,15 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
     try {
       const orderRef = doc(collection(db, "orders"));
 
-      // 🛡️ TRANSACCIÓN SEGURA: DESCUENTA STOCK INCLUSO SI PIDEN POR WHATSAPP
       await runTransaction(db, async (transaction) => {
-        // 1. Verificamos que haya stock suficiente para cada producto
         for (const item of cartItems) {
           const productRef = doc(db, "products", String(item.id));
           const productSnap = await transaction.get(productRef);
-          
-          if (!productSnap.exists()) {
-            throw new Error(`El producto ${item.name} ya no está disponible.`);
-          }
-          
+          if (!productSnap.exists()) throw new Error(`El producto ${item.name} ya no está disponible.`);
           const currentStock = productSnap.data().stock || 0;
-          if (currentStock < item.quantity) {
-            throw new Error(`Solo quedan ${currentStock} unidades de ${item.name}.`);
-          }
+          if (currentStock < item.quantity) throw new Error(`Solo quedan ${currentStock} unidades de ${item.name}.`);
         }
 
-        // 2. Descontamos el stock
         for (const item of cartItems) {
           const productRef = doc(db, "products", String(item.id));
           const productSnap = await transaction.get(productRef);
@@ -52,18 +70,18 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
           transaction.update(productRef, { stock: currentStock - item.quantity });
         }
 
-        // 3. Registramos la orden en el Panel de Administración
         const itemsDescription = cartItems.map(item => `${item.quantity}x ${item.name}`).join(", ");
         const options: Intl.DateTimeFormatOptions = { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" };
         const todayStr = new Intl.DateTimeFormat("en-CA", options).format(new Date());
 
+        // 🚀 GUARDAMOS EL MÉTODO DE PAGO EN FIREBASE
         transaction.set(orderRef, {
           client: customerName,
           phone: customerPhone,
           address: deliveryType === "DELIVERY" ? customerAddress || "No especificada" : "Recojo en tienda",
           type: deliveryType,
-          paymentMethod: "Coordinar por WhatsApp",
-          cashAmount: "N/A",
+          paymentMethod: paymentMethod,
+          cashAmount: paymentMethod === "Efectivo" ? cashAmount : "N/A",
           items: itemsDescription,
           total: totalAmount,
           status: "PENDIENTE",
@@ -72,25 +90,30 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
         });
       });
 
-      // 🚀 CONSTRUIMOS EL MENSAJE PARA WHATSAPP
-      const adminPhone = "51950323959"; // Tu número
+      // 🚀 CONSTRUIMOS EL MENSAJE PARA WHATSAPP CON EL MÉTODO DE PAGO
+      const adminPhone = "51950323959";
       let message = `*NUEVO PEDIDO - MINIMARKET PAMELA* 🛒\n\n`;
       message += `*Cliente:* ${customerName}\n`;
       message += `*Teléfono:* ${customerPhone}\n`;
       message += `*Tipo:* ${deliveryType === "DELIVERY" ? "🛵 Delivery" : "🏪 Recojo en Tienda"}\n`;
       if (deliveryType === "DELIVERY") {
-        message += `*Dirección:* ${customerAddress}\n`;
+        message += `*Dirección/GPS:* ${customerAddress}\n`;
       }
+      
+      message += `*Método de Pago:* ${paymentMethod}\n`;
+      if (paymentMethod === "Efectivo") {
+        message += `*Paga con:* S/ ${cashAmount || "Monto no especificado"} (Llevar vuelto)\n`;
+      }
+
       message += `\n*Detalle del Pedido:*\n`;
       cartItems.forEach(item => {
         message += `▪️ ${item.quantity}x ${item.name} (S/ ${Number(item.price).toFixed(2)})\n`;
       });
       message += `\n*TOTAL A PAGAR: S/ ${totalAmount.toFixed(2)}*\n\n`;
-      message += `_Por favor, confírmame el pedido y el método de pago._`;
+      message += `_Por favor, confírmame el pedido. ¡Gracias!_`;
 
       const whatsappUrl = `https://wa.me/${adminPhone}?text=${encodeURIComponent(message)}`;
 
-      // Limpiamos y redirigimos
       clearCart();
       if (onClose) onClose();
       window.open(whatsappUrl, "_blank");
@@ -121,7 +144,7 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
         <button onClick={() => setIsExpanded(false)} className="text-zinc-500 hover:text-white text-xs cursor-pointer font-black">✕</button>
       </div>
       
-      <form onSubmit={handleWhatsAppOrder} className="space-y-2">
+      <form onSubmit={handleWhatsAppOrder} className="space-y-2.5">
         <div className="flex gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
           <button type="button" onClick={() => setDeliveryType("DELIVERY")} className={`flex-1 py-1.5 text-[10px] font-bold rounded cursor-pointer transition ${deliveryType === "DELIVERY" ? "bg-[#25D366] text-white" : "text-zinc-500 hover:text-white"}`}>Delivery</button>
           <button type="button" onClick={() => setDeliveryType("RECOJO")} className={`flex-1 py-1.5 text-[10px] font-bold rounded cursor-pointer transition ${deliveryType === "RECOJO" ? "bg-[#25D366] text-white" : "text-zinc-500 hover:text-white"}`}>Recojo</button>
@@ -131,10 +154,36 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
         <input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Teléfono / WhatsApp *" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-[#25D366]" required />
         
         {deliveryType === "DELIVERY" && (
-          <input type="text" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} placeholder="Dirección exacta *" className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-[#25D366]" required />
+          <div className="flex gap-2">
+            <input type="text" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} placeholder="Dirección o GPS 📍*" className="flex-1 w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-[#25D366]" required />
+            <button type="button" onClick={getLocation} disabled={locLoading} className="px-3 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-base transition disabled:opacity-50 flex items-center justify-center cursor-pointer" title="Compartir mi GPS">📍</button>
+          </div>
         )}
 
-        <button type="submit" disabled={loading} className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-black py-2.5 px-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer border border-[#128C7E]/50 mt-2 disabled:opacity-50">
+        {/* ✨ NUEVO: SELECCIÓN DE MÉTODO DE PAGO */}
+        <div className="pt-1">
+          <p className="text-[10px] font-bold text-zinc-400 mb-1.5">Método de pago:</p>
+          <div className="flex gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
+            <button type="button" onClick={() => setPaymentMethod("Yape")} className={`flex-1 py-1.5 text-[10px] font-bold rounded cursor-pointer transition ${paymentMethod === "Yape" ? "bg-[#742284] text-white" : "text-zinc-500 hover:text-white"}`}>Yape</button>
+            <button type="button" onClick={() => setPaymentMethod("Plin")} className={`flex-1 py-1.5 text-[10px] font-bold rounded cursor-pointer transition ${paymentMethod === "Plin" ? "bg-[#00E0C6] text-black" : "text-zinc-500 hover:text-white"}`}>Plin</button>
+            <button type="button" onClick={() => setPaymentMethod("Efectivo")} className={`flex-1 py-1.5 text-[10px] font-bold rounded cursor-pointer transition ${paymentMethod === "Efectivo" ? "bg-emerald-600 text-white" : "text-zinc-500 hover:text-white"}`}>Efectivo</button>
+          </div>
+        </div>
+
+        {/* SI ES EFECTIVO, PEDIR BILLETE */}
+        {paymentMethod === "Efectivo" && (
+          <input 
+            type="number" 
+            step="0.5" 
+            value={cashAmount} 
+            onChange={e => setCashAmount(e.target.value)} 
+            placeholder="¿Con cuánto billete pagas? *" 
+            className="w-full bg-zinc-900 border border-emerald-900/50 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 mt-1" 
+            required 
+          />
+        )}
+
+        <button type="submit" disabled={loading} className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-black py-2.5 px-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer border border-[#128C7E]/50 mt-3 disabled:opacity-50">
           {loading ? "Verificando stock..." : "Enviar Pedido 💬"}
         </button>
       </form>
