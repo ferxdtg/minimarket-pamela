@@ -12,39 +12,39 @@ import CartNotificationWrapper from "@/components/CartNotificationWrapper";
 
 export default function Home() {
   return (
-    <div className="relative min-h-screen bg-[#09090b] flex flex-col font-sans selection:bg-red-600 selection:text-white">
+    <div className="relative min-h-screen bg-gray-50 flex flex-col font-sans selection:bg-red-600 selection:text-white">
       
-      {/* 1. BANNER SUPERIOR DE OFERTAS (Z-50 para que quede arriba de todo) */}
+      {/* 1. BANNER SUPERIOR DINÁMICO (Conectado a Firebase) */}
       <TopBanner />
 
-      {/* 2. NAVEGACIÓN PRINCIPAL (Pegajosa/Sticky en la parte superior) */}
+      {/* 2. NAVEGACIÓN PRINCIPAL (Pegajosa y con buscador) */}
       <Navbar />
 
-      {/* 3. CONTENIDO PRINCIPAL DE LA PÁGINA */}
+      {/* 3. CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col w-full">
         
-        {/* Sección Hero: Llamado a la acción inicial */}
+        {/* Llamado a la acción principal */}
         <Hero />
 
-        {/* Sección de Filtros rápidos por Categoría */}
+        {/* Filtros por Categoría */}
         <Categories />
 
-        {/* Catálogo de Productos (Conectado a Firebase) */}
+        {/* Catálogo en tiempo real */}
         <Products />
 
-        {/* Beneficios de la tienda (Delivery, GPS, Pagos) */}
+        {/* Beneficios (Delivery, Pagos) */}
         <Features />
 
-        {/* Nivel Pro: Testimonios de confianza vecinal */}
+        {/* Confianza Vecinal (Testimonios) */}
         <Testimonials />
 
       </main>
 
-      {/* 4. FOOTER */}
+      {/* 4. PIE DE PÁGINA */}
       <Footer />
 
       {/* =========================================
-          ELEMENTOS FLOTANTES (OVERLAYS / MODALS)
+          OVERLAYS Y ELEMENTOS FLOTANTES
           ========================================= */}
 
       {/* Botón flotante de WhatsApp (Inferior derecho) */}
@@ -53,7 +53,7 @@ export default function Home() {
       {/* Cajón lateral del carrito de compras */}
       <CartDrawer />
 
-      {/* Notificaciones animadas de "Producto agregado" */}
+      {/* Notificaciones animadas */}
       <CartNotificationWrapper />
 
     </div>
