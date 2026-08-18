@@ -25,8 +25,8 @@ export default function Navbar() {
             <h1 className="text-base sm:text-xl font-black text-slate-900 tracking-tight truncate group-hover:text-red-600 transition-colors">
               Pamela Market
             </h1>
-            <p className="hidden sm:block text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-              Delivery Express
+            <p className="hidden sm:block text-[10px] text-red-500 font-bold uppercase tracking-widest">
+              Delivery Express ⚡
             </p>
           </div>
         </div>
@@ -46,7 +46,7 @@ export default function Navbar() {
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.78.929l-.15.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
           </a>
 
-          {/* BOTÓN DE CARRITO MINIMALISTA */}
+          {/* BOTÓN DE CARRITO VIBRANTE Y LLAMATIVO */}
           <button
             onClick={() => {
               if (typeof openCart === 'function') {
@@ -55,15 +55,15 @@ export default function Navbar() {
                 window.dispatchEvent(new CustomEvent('open_cart'));
               }
             }}
-            className="relative bg-white hover:bg-slate-50 text-slate-900 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-bold text-xs sm:text-sm flex items-center gap-2 transition-all shadow-sm active:scale-95 cursor-pointer border border-slate-200"
+            className="relative bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-full font-black text-sm flex items-center gap-2 transition-all shadow-[0_4px_15px_rgba(220,38,38,0.4)] hover:shadow-[0_6px_20px_rgba(220,38,38,0.5)] active:scale-95 cursor-pointer"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
             </svg>
-            <span className="hidden sm:inline">Mi Carrito</span>
+            <span className="hidden sm:inline">Ver Carrito</span>
             
             {totalItems > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-black shadow-sm animate-in zoom-in duration-300">
+              <span className="absolute -top-2 -right-2 bg-yellow-400 text-slate-900 border-2 border-white text-[11px] w-6 h-6 rounded-full flex items-center justify-center font-black shadow-md animate-bounce">
                 {totalItems}
               </span>
             )}
