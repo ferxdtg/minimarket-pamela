@@ -11,24 +11,20 @@ export default function Products() {
   const [selectedCategory, setSelectedCategory] = useState<string>("todos");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [mounted, setMounted] = useState(false);
-  
-  // 🚀 NUEVO: Estado de carga para los Skeletons
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
 
-    // Conexión en tiempo real con Firestore
     const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
       const productsData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
       setProducts(productsData);
-      setLoading(false); // ✨ APAGAMOS LA CARGA AL RECIBIR LOS DATOS
+      setLoading(false);
     });
 
-    // Escuchadores de eventos globales para categorías y búsquedas
     const handleFilterCategory = (e: any) => {
       if (e.detail) {
         setSelectedCategory(e.detail.toLowerCase().trim());
@@ -64,53 +60,61 @@ export default function Products() {
 
   return (
     <section id="productos-section" className="py-12 px-4 sm:px-6 max-w-7xl mx-auto min-h-screen">
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
         <SectionTitle
           title={
             searchQuery
-              ? `Resultado para: "${searchQuery}"`
+              ? `Buscando: "${searchQuery}"`
               : selectedCategory === "todos"
-              ? "Productos Destacados"
-              : `Categoría: ${selectedCategory.toUpperCase()}`
+              ? "Nuestros Productos"
+              : `Categoría: ${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}`
           }
-          subtitle="Las mejores ofertas para tu hogar"
+          subtitle="Calidad y frescura directa a tu hogar"
         />
+        
+        {/* BOTÓN DE LIMPIAR FILTROS (ESTILO NEÓN) */}
         {(selectedCategory !== "todos" || searchQuery !== "") && (
           <button
             onClick={() => {
               setSelectedCategory("todos");
               setSearchQuery("");
             }}
-            className="text-xs font-black bg-red-600/20 text-red-500 border border-red-600/30 px-5 py-2.5 rounded-full hover:bg-red-600/30 transition self-start md:self-auto cursor-pointer"
+            className="text-xs font-black bg-red-600/10 text-red-500 border border-red-500/30 px-6 py-3 rounded-full hover:bg-red-600 hover:text-white transition-all shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] self-start md:self-auto cursor-pointer flex items-center gap-2 active:scale-95"
           >
-            Ver todos los productos ✕
+            <span>Ver todo el catálogo</span>
+            <span className="bg-red-500/20 rounded-full w-5 h-5 flex items-center justify-center">✕</span>
           </button>
         )}
       </div>
 
-      {/* 🚀 RENDERIZADO CONDICIONAL DE SKELETONS O PRODUCTOS */}
       {loading ? (
-        // 1. ESTADO DE CARGA: SKELETONS ANIMADOS (Shimmer effect)
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+        // 🚀 SKELETONS MODO OSCURO (DARK SHIMMER)
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col h-full animate-pulse">
-              <div className="w-full aspect-square bg-gray-200 rounded-2xl mb-4"></div>
-              <div className="w-3/4 h-4 bg-gray-200 rounded-full mb-2"></div>
-              <div className="w-1/2 h-3 bg-gray-200 rounded-full mb-4"></div>
-              <div className="w-1/3 h-5 bg-gray-200 rounded-full mt-auto mb-3"></div>
-              <div className="w-full h-10 bg-gray-200 rounded-xl"></div>
+            <div key={i} className="bg-zinc-900/40 border border-zinc-800/50 rounded-[2rem] p-5 flex flex-col h-full animate-pulse backdrop-blur-sm">
+              <div className="w-full aspect-square bg-zinc-800/50 rounded-2xl mb-4"></div>
+              <div className="w-3/4 h-5 bg-zinc-800/80 rounded-full mb-3"></div>
+              <div className="w-1/2 h-4 bg-zinc-800/60 rounded-full mb-6"></div>
+              <div className="w-full h-12 bg-zinc-800/80 rounded-2xl mt-auto"></div>
             </div>
           ))}
         </div>
       ) : filteredProducts.length === 0 ? (
-        // 2. ESTADO VACÍO (No se encontraron productos)
-        <div className="text-center py-20 bg-zinc-900/50 rounded-3xl border border-dashed border-zinc-800">
-          <p className="text-lg font-bold text-zinc-400">No encontramos productos en esta sección.</p>
-          <p className="text-xs text-zinc-600 mt-1">Intenta con otra categoría o término de búsqueda.</p>
+        // 🚀 ESTADO VACÍO (MODO OSCURO PREMIUM)
+        <div className="text-center py-24 bg-zinc-900/30 backdrop-blur-md rounded-[3rem] border border-zinc-800/50 shadow-inner">
+          <div className="text-6xl mb-4 opacity-50">🛸</div>
+          <p className="text-xl font-black text-white tracking-tight">No encontramos lo que buscas.</p>
+          <p className="text-sm text-zinc-500 mt-2 max-w-sm mx-auto">Quizás escribiste mal el nombre o este producto está agotado temporalmente.</p>
+          <button 
+            onClick={() => { setSelectedCategory("todos"); setSearchQuery(""); }}
+            className="mt-6 px-8 py-3 bg-white text-black font-black rounded-full hover:bg-gray-200 transition-colors cursor-pointer active:scale-95 shadow-lg"
+          >
+            Volver al inicio
+          </button>
         </div>
       ) : (
-        // 3. CATÁLOGO REAL (Tus productos cargados)
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+        // 🚀 CATÁLOGO REAL CON LAS TARJETAS OSCURAS
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
           {filteredProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
