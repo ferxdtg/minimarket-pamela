@@ -25,89 +25,71 @@ export default function CartDrawer() {
   };
 
   return (
-    <div className={`fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end transition-opacity duration-500 ${cartOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
+    <div className={`fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex justify-end transition-opacity duration-500 ${cartOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
       
-      <div className={`w-full max-w-md h-[100dvh] bg-zinc-950/95 backdrop-blur-xl text-zinc-100 shadow-[0_0_50px_rgba(0,0,0,0.5)] p-5 sm:p-6 flex flex-col rounded-l-[2rem] sm:rounded-l-[3rem] border-l border-zinc-800/50 transform transition-transform duration-500 ease-[cubic-bezier(0.3,0.9,0.4,1)] ${cartOpen ? "translate-x-0" : "translate-x-full"}`}>
+      <div className={`w-full max-w-md h-[100dvh] bg-white text-slate-900 shadow-[-10px_0_40px_rgba(0,0,0,0.1)] p-5 sm:p-6 flex flex-col rounded-l-[2rem] border-l border-slate-100 transform transition-transform duration-500 ease-[cubic-bezier(0.3,0.9,0.4,1)] ${cartOpen ? "translate-x-0" : "translate-x-full"}`}>
         
         {/* ENCABEZADO */}
-        <div className="flex justify-between items-center pb-4 border-b border-zinc-800/60 shrink-0">
+        <div className="flex justify-between items-center pb-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-lg text-white font-black shadow-[0_2px_10px_rgba(220,38,38,0.3)]">
-              🛍️
-            </div>
-            <div>
-              <h2 className="text-lg font-black tracking-tight text-white leading-none">
-                Tu Orden
-              </h2>
-              <p className="text-xs text-zinc-400 font-medium mt-1">
-                {totalItemsCount} {totalItemsCount === 1 ? 'producto seleccionado' : 'productos seleccionados'}
-              </p>
-            </div>
+            <h2 className="text-xl font-black tracking-tight text-slate-900 leading-none">
+              Tu Carrito
+            </h2>
+            <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-full">
+              {totalItemsCount} {totalItemsCount === 1 ? 'item' : 'items'}
+            </span>
           </div>
-          <button onClick={closeCart} className="w-9 h-9 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center text-sm font-bold transition-all border border-zinc-800 cursor-pointer hover:rotate-90">
-            ✕
+          <button onClick={closeCart} className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
-        </div>
-
-        {/* BANNER EXPRESS */}
-        <div className="bg-gradient-to-r from-red-600/10 to-transparent border border-red-500/20 rounded-2xl p-3 my-4 flex items-center gap-3 shrink-0">
-          <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center text-sm shrink-0">
-            🛵
-          </div>
-          <div>
-            <p className="text-xs font-black text-red-400 uppercase tracking-wider">Delivery Express</p>
-            <p className="text-[10px] text-zinc-400 font-medium mt-0.5">Llegamos volando a tu puerta ⚡</p>
-          </div>
         </div>
 
         {/* LISTA DE PRODUCTOS */}
         {cart.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-4">
-            <div className="w-20 h-20 rounded-full bg-zinc-900 flex items-center justify-center text-4xl border border-zinc-800 shadow-inner">
-              🛒
-            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor" className="w-16 h-16 text-slate-300">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
             <div>
-              <p className="text-zinc-200 font-black text-lg">Tu carrito está vacío</p>
-              <p className="text-zinc-500 text-xs mt-1 max-w-[200px] mx-auto">Parece que aún no has decidido qué llevar hoy.</p>
+              <p className="text-slate-800 font-bold text-lg">Tu carrito está vacío</p>
+              <p className="text-slate-500 text-sm mt-1">Explora nuestro catálogo y agrega productos.</p>
             </div>
-            <button onClick={handleContinueShopping} className="px-6 py-3 rounded-2xl bg-white hover:bg-gray-100 text-zinc-900 font-black text-sm transition-transform hover:-translate-y-1 active:scale-95 cursor-pointer shadow-lg mt-2">
-              Explorar catálogo
+            <button onClick={handleContinueShopping} className="px-6 py-3 rounded-full bg-slate-900 hover:bg-black text-white font-bold text-sm transition-transform hover:-translate-y-0.5 active:scale-95 cursor-pointer shadow-md mt-2">
+              Explorar productos
             </button>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar min-h-0">
+          <div className="flex-1 overflow-y-auto space-y-3 pt-4 pr-1 custom-scrollbar min-h-0">
             {cart.map(item => (
-              <div key={item.id} className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-3 flex flex-col gap-3 transition-colors hover:bg-zinc-900 hover:border-zinc-700 group">
-                
-                <div className="flex gap-3 items-center">
-                  <div className="relative w-14 h-14 bg-white/5 rounded-xl overflow-hidden shrink-0 border border-white/5">
-                    <Image src={item.image} alt={item.name} fill className="object-contain p-1.5 group-hover:scale-110 transition-transform duration-300" />
+              <div key={item.id} className="bg-white border-b border-slate-100 pb-4 mb-2 flex flex-col gap-3">
+                <div className="flex gap-3 items-start">
+                  <div className="relative w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
+                    <Image src={item.image} alt={item.name} fill className="object-contain p-2" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold text-zinc-100 truncate">{item.name}</h3>
+                  <div className="flex-1 min-w-0 pt-1">
+                    <h3 className="text-sm font-bold text-slate-800 truncate">{item.name}</h3>
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-zinc-500 text-[11px] font-medium">S/ {item.price.toFixed(2)} c/u</span>
-                      <span className="text-white font-black text-sm">S/ {(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="text-slate-500 text-xs font-medium">S/ {item.price.toFixed(2)} c/u</span>
+                      <span className="text-slate-900 font-black text-sm">S/ {(item.price * item.quantity).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between bg-zinc-950/50 rounded-xl p-1 border border-zinc-800/50">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => decreaseQuantity(item.id)} className="w-7 h-7 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5">
+                    <button onClick={() => decreaseQuantity(item.id)} className="w-7 h-7 rounded-md bg-white hover:bg-slate-50 text-slate-600 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition-all">
                       -
                     </button>
-                    <span className="text-white font-black w-6 text-center text-xs">{item.quantity}</span>
-                    <button onClick={() => increaseQuantity(item.id)} className="w-7 h-7 rounded-lg bg-red-600 hover:bg-red-700 text-white font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all text-xs shadow-md">
+                    <span className="text-slate-900 font-bold w-6 text-center text-xs">{item.quantity}</span>
+                    <button onClick={() => increaseQuantity(item.id)} className="w-7 h-7 rounded-md bg-white hover:bg-slate-50 text-slate-600 font-bold flex items-center justify-center cursor-pointer active:scale-95 transition-all">
                       +
                     </button>
                   </div>
 
-                  <button onClick={() => removeFromCart(item.id)} className="text-zinc-500 hover:text-red-500 font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer px-3 py-1.5 rounded-lg hover:bg-red-500/10">
-                    Quitar 🗑️
+                  <button onClick={() => removeFromCart(item.id)} className="text-slate-400 hover:text-red-500 font-semibold text-xs transition-colors cursor-pointer underline">
+                    Quitar
                   </button>
                 </div>
-
               </div>
             ))}
           </div>
@@ -115,24 +97,23 @@ export default function CartDrawer() {
 
         {/* PIE DE PAGO */}
         {cart.length > 0 && (
-          <div className="mt-4 border-t border-zinc-800/60 pt-4 space-y-3 shrink-0">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex justify-between items-center shadow-lg">
-              <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">Total a pagar</span>
-              <div className="flex items-start text-red-500 font-black">
+          <div className="mt-2 pt-4 space-y-4 shrink-0 bg-white">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-bold text-slate-500">Total</span>
+              <div className="flex items-start text-slate-900 font-black">
                 <span className="text-sm mt-0.5 mr-0.5">S/</span>
                 <span className="text-3xl tracking-tighter leading-none">{total.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* BOTÓN WHATSAPP YA ESTÁ INTEGRADO EN ESTE COMPONENTE */}
             <WhatsAppCheckout cartItems={cart} totalAmount={total} onClose={closeCart} />
 
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setShowCheckout(true)} className="py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-xs transition-all cursor-pointer border border-zinc-800 active:scale-95">
-                Formulario Web 📋
+              <button onClick={() => setShowCheckout(true)} className="py-2.5 rounded-full bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-all cursor-pointer border border-slate-200 active:scale-95 text-center">
+                Pago Web
               </button>
-              <button onClick={handleContinueShopping} className="py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-xs transition-all cursor-pointer border border-zinc-800 text-center active:scale-95">
-                Seguir viendo 👀
+              <button onClick={handleContinueShopping} className="py-2.5 rounded-full bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-all cursor-pointer border border-slate-200 text-center active:scale-95">
+                Seguir comprando
               </button>
             </div>
 
