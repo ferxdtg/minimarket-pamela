@@ -48,7 +48,7 @@ export default function CheckoutModal({ cartItems, onClose, onSuccess }: any) {
       const orderRef = doc(collection(db, "orders"));
 
       await runTransaction(db, async (transaction) => {
-        // 🚀 PASO 1: LECTURAS (READS)
+        // 🚀 PASO 1: TODAS LAS LECTURAS (READS) PRIMERO
         const productsToUpdate: any[] = [];
 
         for (const item of cartItems) {
@@ -64,14 +64,16 @@ export default function CheckoutModal({ cartItems, onClose, onSuccess }: any) {
             throw new Error(`Stock insuficiente para ${item.name}. Quedan ${currentStock}.`);
           }
 
+          // Guardamos en memoria para no romper la regla de Firebase
           productsToUpdate.push({ ref: productRef, newStock: currentStock - item.quantity });
         }
 
-        // 🚀 PASO 2: ESCRITURAS (WRITES)
+        // 🚀 PASO 2: TODAS LAS ESCRITURAS (WRITES) DESPUÉS
         for (const productToUpdate of productsToUpdate) {
           transaction.update(productToUpdate.ref, { stock: productToUpdate.newStock });
         }
 
+        // 🚀 PASO 3: GUARDAR LA ORDEN
         const itemsDescription = cartItems.map((item: any) => `${item.quantity}x ${item.name}`).join(", ");
         const options: Intl.DateTimeFormatOptions = { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" };
         const todayDateStr = new Intl.DateTimeFormat("en-CA", options).format(new Date());

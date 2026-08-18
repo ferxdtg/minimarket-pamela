@@ -69,15 +69,15 @@ export default function WhatsAppCheckout({ cartItems, totalAmount, onClose }: { 
             throw new Error(`Solo quedan ${currentStock} unidades de ${item.name}.`);
           }
           
-          // Guardamos en memoria lo que vamos a descontar luego
           productsToUpdate.push({ ref: productRef, newStock: currentStock - item.quantity });
         }
 
-        // 🚀 PASO 2: TODAS LAS ESCRITURAS (WRITES) DESPUÉS (Regla estricta de Firebase)
+        // 🚀 PASO 2: TODAS LAS ESCRITURAS (WRITES) DESPUÉS
         for (const productToUpdate of productsToUpdate) {
           transaction.update(productToUpdate.ref, { stock: productToUpdate.newStock });
         }
 
+        // 🚀 PASO 3: GUARDAR LA ORDEN
         const itemsDescription = cartItems.map(item => `${item.quantity}x ${item.name}`).join(", ");
         const options: Intl.DateTimeFormatOptions = { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" };
         const todayStr = new Intl.DateTimeFormat("en-CA", options).format(new Date());
