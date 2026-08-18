@@ -72,48 +72,46 @@ export default function Products() {
           subtitle="Calidad y frescura directa a tu hogar"
         />
         
-        {/* BOTÓN DE LIMPIAR FILTROS (ESTILO NEÓN) */}
         {(selectedCategory !== "todos" || searchQuery !== "") && (
           <button
             onClick={() => {
               setSelectedCategory("todos");
               setSearchQuery("");
             }}
-            className="text-xs font-black bg-red-600/10 text-red-500 border border-red-500/30 px-6 py-3 rounded-full hover:bg-red-600 hover:text-white transition-all shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] self-start md:self-auto cursor-pointer flex items-center gap-2 active:scale-95"
+            className="text-xs font-black bg-red-50 text-red-600 border border-red-100 px-6 py-3 rounded-full hover:bg-red-600 hover:text-white transition-all shadow-sm self-start md:self-auto cursor-pointer flex items-center gap-2 active:scale-95"
           >
             <span>Ver todo el catálogo</span>
-            <span className="bg-red-500/20 rounded-full w-5 h-5 flex items-center justify-center">✕</span>
+            <span className="bg-red-600/10 rounded-full w-5 h-5 flex items-center justify-center">✕</span>
           </button>
         )}
       </div>
 
       {loading ? (
-        // 🚀 SKELETONS MODO OSCURO (DARK SHIMMER)
+        // 🚀 SKELETONS LUMINOSOS Y LIMPIOS
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-zinc-900/40 border border-zinc-800/50 rounded-[2rem] p-5 flex flex-col h-full animate-pulse backdrop-blur-sm">
-              <div className="w-full aspect-square bg-zinc-800/50 rounded-2xl mb-4"></div>
-              <div className="w-3/4 h-5 bg-zinc-800/80 rounded-full mb-3"></div>
-              <div className="w-1/2 h-4 bg-zinc-800/60 rounded-full mb-6"></div>
-              <div className="w-full h-12 bg-zinc-800/80 rounded-2xl mt-auto"></div>
+            <div key={i} className="bg-white border border-slate-100 rounded-[2rem] p-5 flex flex-col h-full animate-pulse shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+              <div className="w-full aspect-square bg-slate-100 rounded-2xl mb-4"></div>
+              <div className="w-3/4 h-5 bg-slate-200 rounded-full mb-3"></div>
+              <div className="w-1/2 h-4 bg-slate-100 rounded-full mb-6"></div>
+              <div className="w-full h-12 bg-slate-100 rounded-2xl mt-auto"></div>
             </div>
           ))}
         </div>
       ) : filteredProducts.length === 0 ? (
-        // 🚀 ESTADO VACÍO (MODO OSCURO PREMIUM)
-        <div className="text-center py-24 bg-zinc-900/30 backdrop-blur-md rounded-[3rem] border border-zinc-800/50 shadow-inner">
-          <div className="text-6xl mb-4 opacity-50">🛸</div>
-          <p className="text-xl font-black text-white tracking-tight">No encontramos lo que buscas.</p>
-          <p className="text-sm text-zinc-500 mt-2 max-w-sm mx-auto">Quizás escribiste mal el nombre o este producto está agotado temporalmente.</p>
+        // 🚀 ESTADO VACÍO LUMINOSO
+        <div className="text-center py-24 bg-white rounded-[3rem] border border-dashed border-slate-200 shadow-sm">
+          <div className="text-6xl mb-4 opacity-50">🛒</div>
+          <p className="text-xl font-black text-slate-800 tracking-tight">No encontramos lo que buscas.</p>
+          <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">Quizás escribiste mal el nombre o este producto está agotado temporalmente.</p>
           <button 
             onClick={() => { setSelectedCategory("todos"); setSearchQuery(""); }}
-            className="mt-6 px-8 py-3 bg-white text-black font-black rounded-full hover:bg-gray-200 transition-colors cursor-pointer active:scale-95 shadow-lg"
+            className="mt-6 px-8 py-3 bg-slate-900 text-white font-black rounded-full hover:bg-black transition-colors cursor-pointer active:scale-95 shadow-lg"
           >
             Volver al inicio
           </button>
         </div>
       ) : (
-        // 🚀 CATÁLOGO REAL CON LAS TARJETAS OSCURAS
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
           {filteredProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
