@@ -120,7 +120,6 @@ export default function AdminPage() {
   // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
-      // ✅ AÑADIDO as any para que TypeScript no arroje error
       let prodList: any[] = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
 
       for (let prod of prodList) {
@@ -143,7 +142,6 @@ export default function AdminPage() {
     });
 
     const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
-      // ✅ AÑADIDO as any para que TypeScript no arroje error
       const ordList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
       if (ordList.length > 0) {
         setOrders([...ordList]);
@@ -156,7 +154,6 @@ export default function AdminPage() {
     });
 
     const unsubscribeSuppliers = onSnapshot(collection(db, "suppliers"), (snapshot) => {
-      // ✅ AÑADIDO as any para que TypeScript no arroje error
       const supList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
       setSuppliers(supList);
     }, (error) => {
@@ -164,7 +161,6 @@ export default function AdminPage() {
     });
 
     const unsubscribeCategories = onSnapshot(collection(db, "categories"), (snapshot) => {
-      // ✅ AÑADIDO as any para que TypeScript no arroje error
       const catList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
       setCategoriesList(catList);
       if (catList.length > 0 && !catList.some((c: any) => c.name === newCategory)) {
@@ -174,11 +170,8 @@ export default function AdminPage() {
       console.error("Error al escuchar categorías:", error);
     });
 
-    // 🚀 LISTENER DE PROMOCIONES DE MARKETING
     const unsubscribePromos = onSnapshot(collection(db, "promotions"), (snapshot) => {
-      // ✅ AÑADIDO as any para que TypeScript no arroje error (Esto soluciona el error createdAt y name)
       const pList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
-      // Ordenamos para que salgan primero las más recientes
       pList.sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
       setPromos(pList);
     });
@@ -346,7 +339,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🏷️ GENERADOR DE ETIQUETA / CÓDIGO DE BARRAS EN PDF
   const handlePrintBarcode = (product: any) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
@@ -383,7 +375,6 @@ export default function AdminPage() {
     printWindow.document.close();
   };
 
-  // 🧾 GESTIÓN DE ÍTEMS EN FACTURA
   const handleAddInvoiceItem = () => {
     setInvoiceItems([...invoiceItems, { productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }]);
   };
@@ -408,7 +399,6 @@ export default function AdminPage() {
   const igvInvoice = Number((subTotalInvoice * 0.18).toFixed(2));
   const totalInvoiceAmount = Number((subTotalInvoice + igvInvoice).toFixed(2));
 
-  // 🛡️ LECTOR BLINDADO DE ÍTEMS PARA FACTURAS
   const extractItems = (raw: any): any[] => {
     try {
       if (!raw) return [];
@@ -421,7 +411,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 PROCESAR O RE-PROCESAR FACTURA AL INVENTARIO
   const processInvoiceToStock = async (supItem: any, docId?: string) => {
     try {
       const itemsList = extractItems(supItem?.items);
@@ -593,7 +582,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🚀 LÓGICA CRUD PARA MARKETING Y PROMOS
   const handleCreatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPromoTitle) return;
@@ -801,11 +789,12 @@ export default function AdminPage() {
               {suppliers.length > 0 && <span className="bg-emerald-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black">{suppliers.length}</span>}
             </button>
 
+            {/* BOTÓN CAMBIADO A "Pedidos" */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("pedidos"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "pedidos" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
             >
-              <span className="flex items-center gap-3"><span className="text-sm shrink-0">🛒</span>{isSidebarExpanded && <span className="whitespace-nowrap">Centro Logístico</span>}</span>
+              <span className="flex items-center gap-3"><span className="text-sm shrink-0">🛒</span>{isSidebarExpanded && <span className="whitespace-nowrap">Pedidos</span>}</span>
               {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black">{pendingCount}</span>}
             </button>
 
@@ -852,7 +841,7 @@ export default function AdminPage() {
       {/* ÁREA DE CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* 🏢 ENCABEZADO FIJO PRINCIPAL CON ICONO CORTO DE ALERTA (TOOLTIP CORTITO) */}
+        {/* ENCABEZADO FIJO PRINCIPAL */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div className="flex items-center gap-3 flex-wrap">
             <div>
@@ -860,7 +849,6 @@ export default function AdminPage() {
               <p className="text-[10px] sm:text-xs font-semibold text-zinc-400">panel de administración</p>
             </div>
 
-            {/* ALARMA 1: PRODUCTOS HUÉRFANOS */}
             {orphanProducts.length > 0 && (
               <div 
                 onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(true); }}
@@ -877,15 +865,12 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* ⏳ ICONO CORTO DE ALERTA DE VENCIMIENTO CON TOOLTIP DESPLEGABLE AL PASAR EL CURSOR */}
             {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
               <div 
                 onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }}
                 className="relative group flex items-center justify-center cursor-pointer ml-2 w-7 h-7 bg-amber-500/20 border border-amber-500/60 rounded-full text-amber-400 hover:bg-amber-500 hover:text-black transition shadow-lg animate-bounce"
               >
                 <span className="text-xs font-black">⏳</span>
-
-                {/* Tooltip corto y puntual desplegado al pasar sobre el icono */}
                 <div className="absolute left-0 top-8 z-50 hidden group-hover:block bg-zinc-950 text-white border border-amber-500/60 p-2.5 rounded-xl shadow-2xl w-48 text-[10px] leading-tight pointer-events-none space-y-0.5">
                   <p className="font-black text-amber-400 uppercase">Alertas de Stock:</p>
                   <p className="text-red-400">• Vencidos: {expiredProductsList.length}</p>
@@ -910,7 +895,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS MÓVILES (Celulares) */}
+        {/* PESTAÑAS MÓVILES (Celulares) - Cambiado a "Pedidos" */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "productos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
@@ -925,8 +910,6 @@ export default function AdminPage() {
         {/* 📦 CONTENEDOR PRINCIPAL DE INVENTARIO Y SUS SUBMENÚS */}
         {activeTab === "inventario" && (
           <div className="space-y-4">
-            
-            {/* Pestañas internas de navegación para los submenús de inventario */}
             <div className="flex gap-2 border-b border-zinc-800 pb-2">
               <button
                 onClick={() => { setInventorySubTab("productos"); setFilterOrphanOnly(false); }}
@@ -959,10 +942,8 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* SUBMENÚ 1: PRODUCTOS & STOCK */}
             {inventorySubTab === "productos" && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                
                 <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 h-fit space-y-3">
                   <h2 className="text-xs font-black text-white flex items-center gap-2">✨ Registrar Nuevo Producto (SKU 6D)</h2>
                   
@@ -1106,8 +1087,6 @@ export default function AdminPage() {
                       ) : (
                         filteredProducts.map(product => {
                           const currentStock = Number(product.stock ?? 0);
-                          const isOut = currentStock === 0;
-                          const isLow = currentStock > 0 && currentStock <= 5;
                           const prodCatTrimmed = String(product.category || "").trim().toLowerCase();
                           const hasValidCategory = allCategoryNames.some(c => c === prodCatTrimmed);
                           const expiryInfo = getExpiryStatus(product.expiryDate);
@@ -1125,10 +1104,9 @@ export default function AdminPage() {
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2">
                                     <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
-                                    {/* 🟢 ALERTA VERDE CLARA Y VISIBLE DE PRODUCTO NUEVO */}
                                     {product.isNewRestock && (
                                       <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 px-2 py-0.5 rounded text-[9px] font-black animate-pulse">
-                                        ✨ ¡Nuevo Ingreso (Asignar Foto y Categoría)!
+                                        ✨ ¡Nuevo Ingreso!
                                       </span>
                                     )}
                                   </div>
@@ -1152,7 +1130,7 @@ export default function AdminPage() {
                                   type="button"
                                   onClick={() => handlePrintBarcode(product)}
                                   className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition"
-                                  title="Generar Etiqueta PDF con Código de Barras"
+                                  title="Generar Etiqueta PDF"
                                 >
                                   🏷️ Etiqueta
                                 </button>
@@ -1200,11 +1178,9 @@ export default function AdminPage() {
                     </div>
                   )}
                 </div>
-
               </div>
             )}
 
-            {/* SUBMENÚ 2: CONTROL DE VENCIMIENTOS (MERMA 0) */}
             {inventorySubTab === "vencimientos" && (
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
                 <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
@@ -1220,7 +1196,6 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                {/* Sub-sección 1: Vencidos */}
                 <div className="space-y-2">
                   <h3 className="text-xs font-black text-red-400 uppercase">🔴 Productos Vencidos ({expiredProductsList.length})</h3>
                   {expiredProductsList.length === 0 ? (
@@ -1238,7 +1213,6 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                {/* Sub-sección 2: Por Vencer */}
                 <div className="space-y-2 pt-2 border-t border-zinc-800">
                   <h3 className="text-xs font-black text-yellow-400 uppercase">⚡ Productos por Vencer en 10 días o menos ({expiringSoonProductsList.length})</h3>
                   {expiringSoonProductsList.length === 0 ? (
@@ -1258,7 +1232,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* SUBMENÚ 3: GESTIÓN DE CATEGORÍAS */}
             {inventorySubTab === "categorias" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1307,14 +1280,12 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
           </div>
         )}
 
-        {/* VISTA 2: CENTRO LOGÍSTICO Y DASHBOARD */}
+        {/* VISTA 2: PEDIDOS (Antes Centro Logístico) */}
         {activeTab === "pedidos" && (
           <div className="space-y-4">
-            
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
                 <span className="text-[9px] font-bold text-zinc-400 uppercase">Ventas Totales</span>
@@ -1365,7 +1336,6 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Subfiltros internos */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="text-zinc-400 font-bold">Tipo:</span>
@@ -1494,10 +1464,9 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 5: FACTURAS Y REPOSICIÓN (CON BOTÓN PROCESAR STOCK INACTIVO DESPUÉS DE USAR Y OPCIÓN DE ELIMINAR) */}
+        {/* VISTA 5: FACTURAS Y REPOSICIÓN */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 h-fit space-y-4 lg:col-span-1">
               <h2 className="text-xs font-black text-white flex items-center gap-2">🧾 Registrar Factura y Actualizar Stock</h2>
               
@@ -1668,7 +1637,6 @@ export default function AdminPage() {
                   <p className="text-zinc-500 text-center py-16">No hay facturas registradas en el sistema.</p>
                 ) : (
                   suppliers.map(sup => {
-                    // Conversión robusta de items guardados
                     let historicItems: any[] = [];
                     if (Array.isArray(sup.items)) {
                       historicItems = sup.items;
@@ -1692,7 +1660,6 @@ export default function AdminPage() {
                             </div>
                             
                             <div className="flex items-center gap-2">
-                              {/* 🔘 BOTÓN PROCESAR STOCK (SE INACTIVA A "PROCESADO" SI YA SE USÓ) */}
                               {sup.processed ? (
                                 <span className="bg-zinc-800 text-emerald-400 font-black px-2.5 py-1 rounded text-[10px] border border-emerald-900/50">
                                   ✓ Procesado
@@ -1707,7 +1674,6 @@ export default function AdminPage() {
                                 </button>
                               )}
 
-                              {/* 🗑️ BOTÓN ELIMINAR FACTURA DEL HISTORIAL */}
                               <button
                                 type="button"
                                 onClick={() => handleDeleteInvoice(sup.id, sup.invoiceNumber)}
@@ -1737,15 +1703,12 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
-
           </div>
         )}
 
-        {/* 🚀 MARKETING TAB (VISTA CONECTADA A FIREBASE) */}
+        {/* MARKETING TAB */}
         {activeTab === "marketing" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Formulario de Creación */}
             <div className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
               <h2 className="text-sm font-black text-white">🎯 Crear Campaña Flash</h2>
               <form onSubmit={handleCreatePromo} className="space-y-3 text-xs">
@@ -1767,7 +1730,6 @@ export default function AdminPage() {
               </form>
             </div>
 
-            {/* Listado de Promociones Administrables */}
             <div className="lg:col-span-2 bg-zinc-900/70 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
               <h2 className="text-sm font-black text-white">Campañas y Anuncios ({promos.length})</h2>
               <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
@@ -1806,7 +1768,6 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
-
           </div>
         )}
 
