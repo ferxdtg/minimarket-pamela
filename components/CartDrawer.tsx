@@ -1,18 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCart } from "@/lib/CartContext";
 import { useCartUI } from "@/lib/CartUIContext";
 import CheckoutModal from "./CheckoutModal";
 import WhatsAppCheckout from "./WhatsAppCheckout";
 import Image from "next/image";
+import { db } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 export default function CartDrawer() {
-  const { cart, increaseQuantity, decreaseQuantity, removeFromCart, total } = useCart();
+  const { cart, addToCart, increaseQuantity, decreaseQuantity, removeFromCart, total } = useCart();
   const { cartOpen, closeCart } = useCartUI();
   const [showCheckout, setShowCheckout] = useState(false);
-  
+  const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
+
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  useEffect(() => {
+    async function fetchSuggestions() {
+      try {
+        const querySnapshot = await getDocs(collection(db, "products"));
+        const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const cartIds = cart.map(i => String(i.id));
+        const filtered = list.filter((p: any) => !cartIds.includes(String(p.id)) && Number(p.stock) > 0);
+        setSuggestedProducts(filtered.slice(0, 2));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    if (cartOpen) {
+      fetchSuggestions();
+    }
+  }, [cartOpen, cart]);
 
   const handleContinueShopping = () => {
     closeCart();
@@ -95,6 +115,34 @@ export default function CartDrawer() {
                 </div>
               </div>
             ))}
+
+            {/* SUGERENCIAS / VENTA CRUZADA CORREGIDA */}
+            {suggestedProducts.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-dashed border-slate-200">
+                <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">¿Te falta algo para completar tu pedido? 🔥</p>
+                <div className="space-y-2">
+                  {suggestedProducts.map(sug => (
+                    <div key={sug.id} className="flex items-center justify-between bg-amber-50/50 border border-amber-100 p-2.5 rounded-xl">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-amber-200">
+                          <Image src={sug.image} alt={sug.name} fill className="object-contain p-1" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 truncate">{sug.name}</p>
+                          <p className="text-[11px] text-red-600 font-black">S/ {Number(sug.price).toFixed(2)}</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => addToCart({ id: sug.id, name: sug.name, price: Number(sug.price), image: sug.image, quantity: 1 })}
+                        className="bg-red-600 hover:bg-red-700 text-white font-black text-xs px-3 py-2 rounded-lg transition shadow-sm active:scale-95 cursor-pointer shrink-0"
+                      >
+                        + Agregar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
