@@ -9,17 +9,17 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos">("inventario");
   const [inventorySubTab, setInventorySubTab] = useState<"productos" | "vencimientos" | "categorias">("productos");
   
-  // Estado para expandir el menú desplegable de Inventario & Stock en el Sidebar
   const [isInventoryDropdownOpen, setIsInventoryDropdownOpen] = useState(false);
 
-  const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
+  // Estados logísticos ampliados para el seguimiento visual
+  const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "PREPARANDO" | "EN_CAMINO" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
-  // Estado para contraer/expandir el Sidebar lateral
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
-  // Subfiltros independientes por cada pestaña de estado logístico
   const [filtersByStatus, setFiltersByStatus] = useState({
     PENDIENTE: { type: "TODOS", startDate: "", endDate: "" },
+    PREPARANDO: { type: "TODOS", startDate: "", endDate: "" },
+    EN_CAMINO: { type: "TODOS", startDate: "", endDate: "" },
     ENTREGADO: { type: "TODOS", startDate: "", endDate: "" },
     RECHAZADO: { type: "TODOS", startDate: "", endDate: "" },
     NO_RECOGIDO: { type: "TODOS", startDate: "", endDate: "" }
@@ -29,15 +29,12 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
-  
-  // 🚀 ESTADO PARA PROMOCIONES CONECTADO A FIREBASE
   const [promos, setPromos] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterOrphanOnly, setFilterOrphanOnly] = useState(false);
 
-  // Estados para Agregar Nuevo Producto
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newStock, setNewStock] = useState("");
@@ -48,7 +45,6 @@ export default function AdminPage() {
   const [newIsFeatured, setNewIsFeatured] = useState(false);
   const [newImage, setNewImage] = useState("");
 
-  // Estado para el modal de edición de productos
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -63,7 +59,6 @@ export default function AdminPage() {
     image: ""
   });
 
-  // 🧾 ESTADOS DE FACTURACIÓN Y REPOSICIÓN PROFESIONAL
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceProvider, setInvoiceProvider] = useState("");
   const [invoiceRuc, setInvoiceRuc] = useState("");
@@ -73,17 +68,14 @@ export default function AdminPage() {
     { productName: "", unitType: "UNIDAD", quantity: 1, unitCost: 0, totalCost: 0 }
   ]);
 
-  // Estados para Marketing & Promos
   const [newPromoTitle, setNewPromoTitle] = useState("");
   const [newPromoDesc, setNewPromoDesc] = useState("");
   const [newPromoDiscount, setNewPromoDiscount] = useState("");
 
-  // Estados para Gestión, Edición y Eliminación de Categorías
   const [newCatName, setNewCatName] = useState("");
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [editCatName, setEditCatName] = useState("");
 
-  // 🕒 HORA EXACTA DE LIMA, PERÚ
   const getLimaDateStr = () => {
     try {
       const options: Intl.DateTimeFormatOptions = {
@@ -106,7 +98,6 @@ export default function AdminPage() {
     { id: "fallback-2", client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr }
   ];
 
-  // Generador estricto de SKU único de 6 dígitos (Estático e inmutable)
   const generateUniqueSku = (existingList: any[]) => {
     const list = Array.isArray(existingList) ? existingList : [];
     const existingSkusSet = new Set(list.map(p => String(p?.sku || "")));
@@ -117,7 +108,6 @@ export default function AdminPage() {
     return randomSku;
   };
 
-  // 🚀 INICIALIZACIÓN Y ESCUCHA EN TIEMPO REAL
   useEffect(() => {
     const unsubscribeProducts = onSnapshot(collection(db, "products"), async (snapshot) => {
       let prodList: any[] = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
@@ -224,15 +214,6 @@ export default function AdminPage() {
   const handleNewFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) compressImage(file, (base64) => setNewImage(base64));
-  };
-
-  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      compressImage(file, (base64) => {
-        setEditForm(prev => ({ ...prev, image: base64 }));
-      });
-    }
   };
 
   const handleCreateProduct = async (e: React.FormEvent) => {
@@ -667,6 +648,8 @@ export default function AdminPage() {
 
   const totalSales = orders?.filter(o => o.status === "ENTREGADO").reduce((sum, o) => sum + (Number(o.total) || 0), 0) || 0;
   const pendingCount = orders?.filter(o => o.status === "PENDIENTE").length || 0;
+  const preparingCount = orders?.filter(o => o.status === "PREPARANDO").length || 0;
+  const shippingCount = orders?.filter(o => o.status === "EN_CAMINO").length || 0;
   const deliveredCount = orders?.filter(o => o.status === "ENTREGADO").length || 0;
   const rejectedCount = orders?.filter(o => o.status === "RECHAZADO").length || 0;
   const uncollectedCount = orders?.filter(o => o.status === "NO_RECOGIDO").length || 0;
@@ -789,13 +772,26 @@ export default function AdminPage() {
               {suppliers.length > 0 && <span className="bg-emerald-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black">{suppliers.length}</span>}
             </button>
 
-            {/* BOTÓN CAMBIADO A "Pedidos" */}
+            {/* BOTÓN PEDIDOS CON EFECTO LLAMATIVO SI HAY PENDIENTES */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("pedidos"); setIsSidebarExpanded(false); }}
-              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "pedidos" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                activeTab === "pedidos" 
+                  ? "bg-red-600 text-white" 
+                  : pendingCount > 0 
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 hover:bg-amber-500/30" 
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
             >
-              <span className="flex items-center gap-3"><span className="text-sm shrink-0">🛒</span>{isSidebarExpanded && <span className="whitespace-nowrap">Pedidos</span>}</span>
-              {pendingCount > 0 && <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black">{pendingCount}</span>}
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🛒</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Pedidos</span>}
+              </span>
+              {pendingCount > 0 && (
+                <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black animate-bounce">
+                  {pendingCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -895,19 +891,21 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS MÓVILES (Celulares) - Cambiado a "Pedidos" */}
+        {/* PESTAÑAS MÓVILES (Celulares) */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "productos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("categorias"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Facturas</button>
-          <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Pedidos</button>
+          <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>
+            Pedidos {pendingCount > 0 && `(${pendingCount})`}
+          </button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
           <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
           <button onClick={() => setActiveTab("marketing")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
         </div>
 
-        {/* 📦 CONTENEDOR PRINCIPAL DE INVENTARIO Y SUS SUBMENÚS */}
+        {/* 📦 INVENTARIO */}
         {activeTab === "inventario" && (
           <div className="space-y-4">
             <div className="flex gap-2 border-b border-zinc-800 pb-2">
@@ -1283,7 +1281,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 2: PEDIDOS (Antes Centro Logístico) */}
+        {/* 🛒 VISTA 2: PEDIDOS (Con efecto llamativo en pendientes) */}
         {activeTab === "pedidos" && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1292,8 +1290,16 @@ export default function AdminPage() {
                 <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
               </div>
 
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 space-y-1">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase">Pendientes</span>
+              {/* Tarjeta métrica de Pendientes con efecto llamativo intermitente */}
+              <div className={`border rounded-xl p-3 space-y-1 transition-all ${
+                pendingCount > 0 
+                  ? "bg-amber-500/10 border-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse" 
+                  : "bg-zinc-900/80 border-zinc-800"
+              }`}>
+                <span className="text-[9px] font-bold text-amber-400 uppercase flex items-center gap-1">
+                  {pendingCount > 0 && <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>}
+                  Pendientes por Atender
+                </span>
                 <div className="text-base font-black text-amber-400">{pendingCount}</div>
               </div>
 
@@ -1310,11 +1316,34 @@ export default function AdminPage() {
 
             <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
               <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {/* Pestaña Pendientes con animación sutil y color llamativo */}
                 <button 
                   onClick={() => setOrderStatusTab("PENDIENTE")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PENDIENTE" ? "bg-amber-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all ${
+                    orderStatusTab === "PENDIENTE" 
+                      ? "bg-amber-500 text-black font-black shadow-[0_0_12px_rgba(245,158,11,0.5)]" 
+                      : pendingCount > 0 
+                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/60 animate-pulse" 
+                        : "bg-zinc-950 text-zinc-400 border border-zinc-800"
+                  }`}
                 >
-                  ⏳ Pendientes ({pendingCount})
+                  ⏳ Pendientes 
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${orderStatusTab === "PENDIENTE" ? "bg-black text-amber-400" : "bg-amber-500 text-black font-black"}`}>
+                    {pendingCount}
+                  </span>
+                </button>
+
+                <button 
+                  onClick={() => setOrderStatusTab("PREPARANDO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PREPARANDO" ? "bg-yellow-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🍳 Preparando ({preparingCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("EN_CAMINO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "EN_CAMINO" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🛵 En Camino ({shippingCount})
                 </button>
                 <button 
                   onClick={() => setOrderStatusTab("ENTREGADO")}
@@ -1360,49 +1389,89 @@ export default function AdminPage() {
               {filteredOrders.length === 0 ? (
                 <p className="text-zinc-500 text-center py-16 col-span-full">No hay pedidos registrados en {orderStatusTab.toLowerCase()} con estos filtros.</p>
               ) : (
-                filteredOrders.map(order => (
-                  <div key={order.id} className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3.5 space-y-2.5">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"}`}>
-                          {order.type}
-                        </span>
-                        <h3 className="text-xs font-black text-white mt-1">{order.client}</h3>
-                        <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
-                      </div>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-zinc-950 text-zinc-300">{order.status}</span>
-                    </div>
+                filteredOrders.map(order => {
+                  const isPending = order.status === "PENDIENTE";
 
-                    <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
-                      <p className="text-zinc-300">{order.items}</p>
-                      <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900">
-                        <span>TOTAL</span>
-                        <span className="text-red-400">S/ {(Number(order.total) || 0).toFixed(2)}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      {order.status === "PENDIENTE" && (
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")} className="py-1.5 bg-emerald-600 text-white font-bold text-[10px] rounded-lg">✓ Entregar</button>
-                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "RECHAZADO")} className="py-1.5 bg-red-950 text-red-400 border border-red-900 font-bold text-[10px] rounded-lg">✕ Rechazar</button>
+                  return (
+                    <div 
+                      key={order.id} 
+                      className={`border rounded-xl p-3.5 space-y-2.5 transition-all ${
+                        isPending 
+                          ? "bg-zinc-900 border-amber-500/70 shadow-[0_0_20px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/40" 
+                          : "bg-zinc-900/80 border-zinc-800"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${order.type === "DELIVERY" ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"}`}>
+                            {order.type}
+                          </span>
+                          <h3 className="text-xs font-black text-white mt-1">{order.client}</h3>
+                          <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
                         </div>
-                      )}
-                      {order.status === "RECHAZADO" && <div className="py-1 bg-red-950/30 text-red-400 text-center font-bold text-[10px] rounded border border-red-900/30">Rechazado</div>}
-                      {order.status === "NO_RECOGIDO" && <div className="py-1 bg-purple-950/30 text-purple-400 text-center font-bold text-[10px] rounded border border-purple-900/30">No Recogido</div>}
-                      {order.status === "ENTREGADO" && <div className="py-1 bg-zinc-950 text-emerald-400 text-center font-bold text-[10px] rounded border border-emerald-900/30">Entregado ✓</div>}
-                      {order.status === "PENDIENTE" && order.type === "RECOJO" && (
-                        <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "NO_RECOGIDO")} className="w-full py-1 bg-zinc-950 text-zinc-400 border border-zinc-800 font-bold text-[9px] rounded">Marcar No Recogido</button>
-                      )}
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase ${
+                          isPending 
+                            ? "bg-amber-500/20 text-amber-300 border-amber-500 animate-pulse font-black" 
+                            : "bg-zinc-950 text-zinc-300 border-zinc-800"
+                        }`}>
+                          {order.status}
+                        </span>
+                      </div>
+
+                      <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
+                        <p className="text-zinc-300">{order.items}</p>
+                        <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900">
+                          <span>TOTAL</span>
+                          <span className="text-red-400">S/ {(Number(order.total) || 0).toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      {/* Botones de control progresivo de estados */}
+                      <div className="space-y-1.5">
+                        {order.status === "PENDIENTE" && (
+                          <div className="space-y-1.5">
+                            <button 
+                              type="button" 
+                              onClick={() => handleUpdateOrderStatus(order.id, "PREPARANDO")} 
+                              className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-black font-black text-[11px] rounded-lg cursor-pointer shadow-md transition"
+                            >
+                              🍳 Pasar a Preparando
+                            </button>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")} className="py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] rounded-lg cursor-pointer">✓ Entregar</button>
+                              <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "RECHAZADO")} className="py-1.5 bg-red-950 hover:bg-red-900 text-red-400 border border-red-900 font-bold text-[10px] rounded-lg cursor-pointer">✕ Rechazar</button>
+                            </div>
+                          </div>
+                        )}
+
+                        {order.status === "PREPARANDO" && (
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "EN_CAMINO")} className="py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] rounded-lg cursor-pointer">🛵 En Camino</button>
+                            <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")} className="py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] rounded-lg cursor-pointer">✓ Entregado</button>
+                          </div>
+                        )}
+
+                        {order.status === "EN_CAMINO" && (
+                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "ENTREGADO")} className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] rounded-lg cursor-pointer shadow">✓ Marcar como Entregado</button>
+                        )}
+
+                        {order.status === "RECHAZADO" && <div className="py-1 bg-red-950/30 text-red-400 text-center font-bold text-[10px] rounded border border-red-900/30">Rechazado</div>}
+                        {order.status === "NO_RECOGIDO" && <div className="py-1 bg-purple-950/30 text-purple-400 text-center font-bold text-[10px] rounded border border-purple-900/30">No Recogido</div>}
+                        {order.status === "ENTREGADO" && <div className="py-1 bg-zinc-950 text-emerald-400 text-center font-bold text-[10px] rounded border border-emerald-900/30">Entregado ✓</div>}
+                        
+                        {order.status === "PENDIENTE" && order.type === "RECOJO" && (
+                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "NO_RECOGIDO")} className="w-full py-1 bg-zinc-950 text-zinc-400 border border-zinc-800 font-bold text-[9px] rounded">Marcar No Recogido</button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
         )}
 
-        {/* VISTA 3: CAJA & REPORTES */}
+        {/* 📊 CAJA & REPORTES */}
         {activeTab === "caja" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1441,7 +1510,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 4: CLIENTES CRM */}
+        {/* 👥 CLIENTES CRM */}
         {activeTab === "clientes" && (
           <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
             <h2 className="text-xs font-black text-white">👥 Clientes Frecuentes ({clientsList.length})</h2>
@@ -1464,7 +1533,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* VISTA 5: FACTURAS Y REPOSICIÓN */}
+        {/* 🧾 FACTURAS Y REPOSICIÓN */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 h-fit space-y-4 lg:col-span-1">
@@ -1706,7 +1775,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* MARKETING TAB */}
+        {/* 🎯 MARKETING TAB */}
         {activeTab === "marketing" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
