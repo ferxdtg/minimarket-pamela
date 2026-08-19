@@ -17,16 +17,13 @@ export default function Footer() {
           </p>
         </div>
 
-        {/* Enlaces de interés */}
+        {/* Enlaces de interés (Sin el botón admin visible) */}
         <div className="flex items-center gap-6 text-sm font-bold">
           <Link href="/seguimiento" className="text-slate-600 hover:text-red-600 transition-colors">
             Rastrear Pedido 🛵
           </Link>
           <a href="#productos-section" className="text-slate-600 hover:text-red-600 transition-colors">
             Catálogo
-          </a>
-          <a href="/admin/login" className="text-slate-400 hover:text-slate-600 transition-colors text-xs">
-            Admin
           </a>
         </div>
 
