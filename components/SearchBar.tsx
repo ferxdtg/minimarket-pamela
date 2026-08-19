@@ -39,7 +39,7 @@ export default function SearchBar() {
     };
   }, []);
 
-  // 3. Filtrar sugerencias
+  // 3. Filtrar sugerencias (Inteligente y flexible)
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
@@ -49,7 +49,7 @@ export default function SearchBar() {
       setIsOpen(false);
     } else {
       const results = products.filter((p) =>
-        p.name?.toLowerCase().includes(value.toLowerCase())
+        p.name?.toLowerCase().includes(value.toLowerCase().trim())
       );
       setFilteredProducts(results);
       setIsOpen(true);
@@ -63,19 +63,16 @@ export default function SearchBar() {
 
     const targetId = `product-${productId}`;
     
-    // Usamos un pequeño retraso para asegurar que el DOM móvil procese el cierre del menú de forma fluida
     setTimeout(() => {
       const element = document.getElementById(targetId);
 
       if (element) {
-        // Si la tarjeta está montada en la pantalla, hace scroll hasta ella
         element.scrollIntoView({ behavior: "smooth", block: "center" });
         element.classList.add("ring-4", "ring-red-600");
         setTimeout(() => {
           element.classList.remove("ring-4", "ring-red-600");
         }, 2000);
       } else {
-        // Si el producto no está dibujado por filtros de categoría, navega al ancla directa
         window.location.hash = targetId;
       }
     }, 50);
@@ -86,52 +83,51 @@ export default function SearchBar() {
       <div className="relative">
         <input
           type="text"
-          placeholder="Busca productos..."
+          placeholder="Busca arroz, leche, bebidas, snacks..."
           value={query}
           onChange={handleSearchChange}
           onFocus={() => {
             if (query.trim() !== "" && filteredProducts.length > 0) setIsOpen(true);
           }}
-          className="w-full bg-zinc-900 border border-zinc-800 text-white px-4 py-3 pl-10 rounded-2xl text-sm outline-none focus:border-red-600 transition shadow-inner"
+          className="w-full bg-slate-100 hover:bg-slate-200/60 focus:bg-white text-slate-900 placeholder-slate-400 px-4 py-3 pl-10 rounded-2xl text-sm outline-none border border-transparent focus:border-red-600 transition-all shadow-inner"
         />
-        <span className="absolute left-3.5 top-3.5 text-zinc-500 text-sm">🔍</span>
+        <span className="absolute left-3.5 top-3.5 text-slate-400 text-sm">🔍</span>
       </div>
 
-      {/* Menú desplegable */}
+      {/* Menú desplegable Luminoso y Limpio */}
       {isOpen && query.trim() !== "" && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-[99999] max-h-72 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden z-[99999] max-h-72 overflow-y-auto">
           {filteredProducts.length > 0 ? (
             filteredProducts.map((p) => (
               <div
                 key={p.id}
                 onPointerDown={(e) => {
-                  // onPointerDown unifica de forma perfecta el clic de PC y el toque de Celular
                   e.preventDefault();
                   handleSelectProduct(p.id);
                 }}
-                className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-none active:bg-zinc-700"
+                className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer transition border-b border-slate-100 last:border-none active:bg-slate-100"
               >
-                <div className="w-10 h-10 bg-zinc-800 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
+                <div className="w-10 h-10 bg-slate-50 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-slate-100">
                   {p.image ? (
                     <Image
                       src={p.image}
                       alt={p.name || "Producto"}
                       width={40}
                       height={40}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain p-1"
                     />
                   ) : (
                     <span>📦</span>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
-                  <p className="text-xs text-red-500 font-bold">S/ {Number(p.price || 0).toFixed(2)}</p>
+                  <h4 className="text-sm font-bold text-slate-900 truncate">{p.name}</h4>
+                  <p className="text-xs text-red-600 font-bold">S/ {Number(p.price || 0).toFixed(2)}</p>
                 </div>
               </div>
             ))
           ) : (
-            <div className="p-4 text-center text-sm text-zinc-400">
+            <div className="p-4 text-center text-sm text-slate-500">
               No se encontraron productos
             </div>
           )}
