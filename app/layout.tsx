@@ -45,7 +45,7 @@ export default function RootLayout({
             {children}
 
             {/* Modales globales de la tienda */}
-            <CartDrawer />
+
             <CartNotificationWrapper />
             
           </CartUIProvider>
