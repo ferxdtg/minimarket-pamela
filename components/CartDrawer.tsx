@@ -9,31 +9,31 @@ import { db } from "@/lib/firebase";
 import { collection, getDocs, doc, getDoc, updateDoc, setDoc, addDoc } from "firebase/firestore";
 
 export default function CartDrawer() {
-  // 1. RECONECTADO: Usando tus hooks globales originales
   const { cart, addToCart, increaseQuantity, decreaseQuantity, removeFromCart, total: cartTotal } = useCart();
   const { cartOpen, closeCart } = useCartUI();
+  
   const [showCheckout, setShowCheckout] = useState(false);
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
 
-  // 2. ESTADOS: Para Fidelización y Checkout Integrado
+  // 1. ESTADOS PARA LA ANIMACIÓN Y EL FORMULARIO
+  const [showForm, setShowForm] = useState(false);
+  const [isAnimatingBtn, setIsAnimatingBtn] = useState(false);
+
+  // 2. ESTADOS DE CLIENTE Y COINS
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [orderType, setOrderType] = useState<"DELIVERY" | "RECOJO">("DELIVERY");
   const [loading, setLoading] = useState(false);
-  
   const [clientPoints, setClientPoints] = useState(0);
   const [useCoins, setUseCoins] = useState(false);
 
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // 3. CÁLCULOS: Delivery y Pamela Coins
+  // CÁLCULOS
   const deliveryFee = orderType === "DELIVERY" ? 5.00 : 0.00;
-  // 100 Coins = S/ 1.00 de descuento
   const discountFromCoins = useCoins ? Math.min(cartTotal + deliveryFee, clientPoints / 100) : 0;
   const finalTotal = Math.max(0, cartTotal + deliveryFee - discountFromCoins);
-  
-  // Ganas 10 Coins por cada Sol gastado
   const coinsEarned = Math.floor(finalTotal * 10);
 
   useEffect(() => {
@@ -50,6 +50,9 @@ export default function CartDrawer() {
     }
     if (cartOpen) {
       fetchSuggestions();
+      // Reiniciamos el formulario al abrir el carrito
+      setShowForm(false); 
+      setIsAnimatingBtn(false);
     }
   }, [cartOpen, cart]);
 
@@ -63,7 +66,6 @@ export default function CartDrawer() {
     }
   };
 
-  // 4. FUNCIÓN: Buscar si el celular ya tiene Pamela Coins
   const handlePhoneBlur = async () => {
     if (!clientPhone || clientPhone.length < 6) return;
     try {
@@ -79,7 +81,6 @@ export default function CartDrawer() {
     }
   };
 
-  // 5. FUNCIÓN: Procesar Pedido por WhatsApp, Actualizar Stock y Guardar Monedas
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
@@ -89,7 +90,7 @@ export default function CartDrawer() {
       const itemsSummary = cart.map(i => `${i.quantity}x ${i.name}`).join(", ");
       const todayStr = new Date().toISOString().split("T")[0];
 
-      // A. Descontar Stock en Firebase
+      // A. Descontar Stock
       for (const item of cart) {
         if (item.id) {
           const productRef = doc(db, "products", String(item.id));
@@ -102,7 +103,7 @@ export default function CartDrawer() {
         }
       }
 
-      // B. Actualizar Billetera de Pamela Coins del Cliente
+      // B. Actualizar Billetera de Pamela Coins
       const customerRef = doc(db, "customers", clientPhone.trim());
       const customerSnap = await getDoc(customerRef);
       let finalPoints = coinsEarned;
@@ -150,6 +151,15 @@ export default function CartDrawer() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // FUNCIÓN PARA ANIMAR Y MOSTRAR EL FORMULARIO
+  const triggerCheckoutAnimation = () => {
+    setIsAnimatingBtn(true);
+    setTimeout(() => {
+      setIsAnimatingBtn(false);
+      setShowForm(true);
+    }, 600); // 600ms de animación de barrido antes de desplegar
   };
 
   return (
@@ -208,24 +218,17 @@ export default function CartDrawer() {
 
                 <div className="flex items-center justify-between bg-slate-50 rounded-xl p-1 border border-slate-100">
                   <div className="flex items-center gap-1">
-                    <button onClick={() => decreaseQuantity(item.id)} className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-600 font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-sm">
-                      -
-                    </button>
+                    <button onClick={() => decreaseQuantity(item.id)} className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-600 font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-sm">-</button>
                     <span className="text-slate-900 font-black w-8 text-center text-sm">{item.quantity}</span>
-                    <button onClick={() => increaseQuantity(item.id)} className="w-8 h-8 rounded-lg bg-white hover:bg-red-50 text-red-600 font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-sm">
-                      +
-                    </button>
+                    <button onClick={() => increaseQuantity(item.id)} className="w-8 h-8 rounded-lg bg-white hover:bg-red-50 text-red-600 font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-sm">+</button>
                   </div>
-
-                  <button onClick={() => removeFromCart(item.id)} className="text-slate-400 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors cursor-pointer px-3 py-1">
-                    Quitar
-                  </button>
+                  <button onClick={() => removeFromCart(item.id)} className="text-slate-400 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors cursor-pointer px-3 py-1">Quitar</button>
                 </div>
               </div>
             ))}
 
-            {/* SUGERENCIAS / VENTA CRUZADA */}
-            {suggestedProducts.length > 0 && (
+            {/* SUGERENCIAS */}
+            {suggestedProducts.length > 0 && !showForm && (
               <div className="mt-6 pt-4 border-t border-dashed border-slate-200">
                 <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">¿Te falta algo para completar tu pedido? 🔥</p>
                 <div className="space-y-2">
@@ -240,12 +243,7 @@ export default function CartDrawer() {
                           <p className="text-[11px] text-red-600 font-black">S/ {Number(sug.price).toFixed(2)}</p>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => addToCart({ id: sug.id, name: sug.name, price: Number(sug.price), image: sug.image, quantity: 1 })}
-                        className="bg-red-600 hover:bg-red-700 text-white font-black text-xs px-3 py-2 rounded-lg transition shadow-sm active:scale-95 cursor-pointer shrink-0"
-                      >
-                        + Agregar
-                      </button>
+                      <button onClick={() => addToCart({ id: sug.id, name: sug.name, price: Number(sug.price), image: sug.image, quantity: 1 })} className="bg-red-600 hover:bg-red-700 text-white font-black text-xs px-3 py-2 rounded-lg transition shadow-sm active:scale-95 cursor-pointer shrink-0">+ Agregar</button>
                     </div>
                   ))}
                 </div>
@@ -254,86 +252,106 @@ export default function CartDrawer() {
           </div>
         )}
 
-        {/* PIE DE PAGO VIBRANTE */}
+        {/* PIE DE PAGO VIBRANTE Y DINÁMICO */}
         {cart.length > 0 && (
-          <div className="mt-2 pt-4 shrink-0 bg-white border-t border-slate-100 space-y-4">
+          <div className={`mt-2 pt-4 shrink-0 bg-white border-t border-slate-100 space-y-4 transition-all duration-300`}>
             
-            {/* 🪙 BANNER VISUAL DE PAMELA COINS */}
-            <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-yellow-500/15 border border-amber-500/40 rounded-2xl p-3 flex items-center justify-between shadow-sm">
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex justify-between items-center shadow-inner">
+              <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Total a Pagar</span>
+              <div className="flex items-start text-red-600 font-black">
+                <span className="text-lg mt-0.5 mr-1">S/</span>
+                <span className="text-3xl tracking-tighter leading-none">{cartTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* BANNER VISUAL DE PAMELA COINS */}
+            <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-yellow-500/15 border border-amber-500/40 rounded-xl p-2.5 flex items-center justify-between shadow-sm">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-base animate-bounce shrink-0 shadow-inner">
-                  🪙
-                </div>
+                <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-sm animate-bounce shrink-0 shadow-inner">🪙</div>
                 <div>
                   <p className="text-[10px] font-black text-amber-600 uppercase tracking-wide">¡Ganas Pamela Coins!</p>
                   <p className="text-[9px] text-slate-600 font-medium leading-tight">Acumula puntos para descuentos</p>
                 </div>
               </div>
-              <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-2 py-1 rounded-lg shadow-sm">
-                +{coinsEarned} Coins
-              </span>
+              <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-2 py-1 rounded-lg shadow-sm">+{coinsEarned} Coins</span>
             </div>
 
-            {/* FORMULARIO DE CHECKOUT Y CANJE */}
-            <form onSubmit={handleCheckout} className="space-y-3">
-              
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setOrderType("DELIVERY")} className={`py-1.5 rounded-xl text-[11px] font-bold transition border cursor-pointer ${orderType === "DELIVERY" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-slate-50 text-slate-600 border-slate-200"}`}>🛵 Delivery</button>
-                <button type="button" onClick={() => setOrderType("RECOJO")} className={`py-1.5 rounded-xl text-[11px] font-bold transition border cursor-pointer ${orderType === "RECOJO" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-slate-50 text-slate-600 border-slate-200"}`}>🏪 Recojo Tienda</button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre (Ej. María)" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:border-red-600" required />
-                </div>
-                <div>
-                  <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} onBlur={handlePhoneBlur} placeholder="Celular / Yape" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:border-red-600" required />
-                </div>
-              </div>
-
-              {clientPoints > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 space-y-1.5">
-                  <div className="flex justify-between items-center text-[10px]">
-                    <span className="font-black text-amber-800">🪙 Saldo: {clientPoints} Coins</span>
-                    <span className="font-black text-emerald-600">Dto. S/ {(clientPoints / 100).toFixed(2)}</span>
-                  </div>
-                  <label className="flex items-center gap-1.5 cursor-pointer border-t border-amber-200/60 pt-1">
-                    <input type="checkbox" checked={useCoins} onChange={(e) => setUseCoins(e.target.checked)} className="accent-amber-500 w-3.5 h-3.5 rounded cursor-pointer" />
-                    <span className="text-[10px] font-bold text-amber-900">Canjear monedas en esta orden</span>
-                  </label>
-                </div>
-              )}
-
-              {orderType === "DELIVERY" && (
-                <div>
-                  <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección de Envío" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:border-red-600" required />
-                </div>
-              )}
-
-              {/* Resumen Final de Costos */}
-              <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl space-y-1 text-[10px]">
-                <div className="flex justify-between text-slate-600"><span>Subtotal:</span><span>S/ {cartTotal.toFixed(2)}</span></div>
-                {orderType === "DELIVERY" && <div className="flex justify-between text-slate-600"><span>Delivery:</span><span>S/ {deliveryFee.toFixed(2)}</span></div>}
-                {useCoins && <div className="flex justify-between text-amber-600 font-bold"><span>Descuento Coins:</span><span>-S/ {discountFromCoins.toFixed(2)}</span></div>}
-                <div className="flex justify-between font-black text-slate-900 pt-1 border-t border-slate-200 text-xs mt-1"><span>TOTAL A PAGAR:</span><span className="text-red-600">S/ {finalTotal.toFixed(2)}</span></div>
-              </div>
-
-              {/* BOTONES DE PAGO */}
+            {/* SECCIÓN DINÁMICA: Botón Animado VS Formulario */}
+            {!showForm ? (
               <div className="pt-2 flex flex-col gap-2">
-                <button type="submit" disabled={loading} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl transition shadow-lg cursor-pointer text-xs active:scale-95 flex items-center justify-center gap-2">
-                  {loading ? "Procesando..." : "Confirmar por WhatsApp 📱"}
+                {/* BOTÓN CON ANIMACIÓN DE LUZ Y DESLIZAMIENTO */}
+                <button
+                  type="button"
+                  onClick={triggerCheckoutAnimation}
+                  className="relative overflow-hidden w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg cursor-pointer text-xs active:scale-95 flex items-center justify-center group"
+                >
+                  {/* Filtro de luz (Glare Effect) */}
+                  <div className={`absolute top-0 left-0 h-full w-[150%] bg-gradient-to-r from-transparent via-white/50 to-transparent skew-x-[30deg] transition-all duration-500 ease-in-out ${isAnimatingBtn ? 'translate-x-[100%]' : '-translate-x-[150%]'}`} />
+                  
+                  {/* Letras e íconos deslizantes */}
+                  <div className={`flex items-center gap-2 transition-transform duration-300 ease-in-out ${isAnimatingBtn ? 'translate-x-4 scale-95 opacity-80' : 'translate-x-0'}`}>
+                    Confirmar tu pedido por WhatsApp <span className="text-lg">📱</span>
+                  </div>
                 </button>
                 
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setShowCheckout(true)} className="w-full py-2 bg-slate-900 hover:bg-black text-white font-bold rounded-xl transition cursor-pointer text-[10px] active:scale-95 text-center">
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button type="button" onClick={() => setShowCheckout(true)} className="w-full py-2.5 bg-slate-900 hover:bg-black text-white font-bold rounded-xl transition cursor-pointer text-[10px] active:scale-95 text-center shadow-md">
                     Pagar en Web 💳
                   </button>
-                  <button type="button" onClick={handleContinueShopping} className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition cursor-pointer border border-red-100 text-[10px] active:scale-95 text-center">
+                  <button type="button" onClick={handleContinueShopping} className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition cursor-pointer border border-red-100 text-[10px] active:scale-95 text-center">
                     + Agregar más
                   </button>
                 </div>
               </div>
-            </form>
+            ) : (
+              /* FORMULARIO DESPLEGABLE */
+              <form onSubmit={handleCheckout} className="space-y-3 animate-in slide-in-from-bottom-6 fade-in duration-300 pb-2">
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setOrderType("DELIVERY")} className={`py-2 rounded-xl text-[11px] font-bold transition border cursor-pointer ${orderType === "DELIVERY" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-slate-50 text-slate-600 border-slate-200"}`}>🛵 Delivery</button>
+                  <button type="button" onClick={() => setOrderType("RECOJO")} className={`py-2 rounded-xl text-[11px] font-bold transition border cursor-pointer ${orderType === "RECOJO" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-slate-50 text-slate-600 border-slate-200"}`}>🏪 Recojo Tienda</button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre (Ej. María)" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition" required />
+                  <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} onBlur={handlePhoneBlur} placeholder="Celular / WhatsApp" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition" required />
+                </div>
+
+                {clientPoints > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 space-y-1.5 animate-in fade-in zoom-in duration-300">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-black text-amber-800">🪙 Saldo: {clientPoints} Coins</span>
+                      <span className="font-black text-emerald-600">Dto. S/ {(clientPoints / 100).toFixed(2)}</span>
+                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer border-t border-amber-200/60 pt-1">
+                      <input type="checkbox" checked={useCoins} onChange={(e) => setUseCoins(e.target.checked)} className="accent-amber-500 w-3.5 h-3.5 rounded cursor-pointer" />
+                      <span className="text-[10px] font-bold text-amber-900">Canjear monedas en esta orden</span>
+                    </label>
+                  </div>
+                )}
+
+                {orderType === "DELIVERY" && (
+                  <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección de Envío" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition" required />
+                )}
+
+                {/* Resumen Final Detallado */}
+                <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl space-y-1 text-[10px]">
+                  <div className="flex justify-between text-slate-600"><span>Subtotal:</span><span>S/ {cartTotal.toFixed(2)}</span></div>
+                  {orderType === "DELIVERY" && <div className="flex justify-between text-slate-600"><span>Delivery:</span><span>S/ {deliveryFee.toFixed(2)}</span></div>}
+                  {useCoins && <div className="flex justify-between text-amber-600 font-bold"><span>Descuento Coins:</span><span>-S/ {discountFromCoins.toFixed(2)}</span></div>}
+                  <div className="flex justify-between font-black text-slate-900 pt-1 border-t border-slate-200 text-xs mt-1"><span>TOTAL A PAGAR:</span><span className="text-red-600">S/ {finalTotal.toFixed(2)}</span></div>
+                </div>
+
+                <div className="pt-2">
+                  <button type="submit" disabled={loading} className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl transition shadow-lg cursor-pointer text-xs active:scale-95 flex items-center justify-center gap-2">
+                    {loading ? "Procesando..." : "Enviar Pedido Ahora 🚀"}
+                  </button>
+                  <button type="button" onClick={() => setShowForm(false)} className="w-full text-center mt-3 text-[10px] font-bold text-slate-400 hover:text-slate-600 transition cursor-pointer">
+                    ← Cancelar y volver
+                  </button>
+                </div>
+              </form>
+            )}
 
             {showCheckout && (
               <CheckoutModal cartItems={cart} onSuccess={() => { cart.forEach(item => removeFromCart(item.id)); }} onClose={() => { setShowCheckout(false); closeCart(); }} />
