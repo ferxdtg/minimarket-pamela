@@ -15,11 +15,11 @@ export default function CartDrawer() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
 
-  // 1. ESTADOS PARA LA ANIMACIÓN Y EL FORMULARIO
+  // ESTADOS PARA LA ANIMACIÓN Y EL FORMULARIO
   const [showForm, setShowForm] = useState(false);
   const [isAnimatingBtn, setIsAnimatingBtn] = useState(false);
 
-  // 2. ESTADOS DE CLIENTE Y COINS
+  // ESTADOS DE CLIENTE Y COINS
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientAddress, setClientAddress] = useState("");
@@ -50,7 +50,6 @@ export default function CartDrawer() {
     }
     if (cartOpen) {
       fetchSuggestions();
-      // Reiniciamos el formulario al abrir el carrito
       setShowForm(false); 
       setIsAnimatingBtn(false);
     }
@@ -78,6 +77,26 @@ export default function CartDrawer() {
       }
     } catch (error) {
       console.error("Error buscando cliente:", error);
+    }
+  };
+
+  // 📍 FUNCIÓN PARA OBTENER GPS AUTOMÁTICO
+  const handleGetLocation = () => {
+    if ("geolocation" in navigator) {
+      setClientAddress("📍 Buscando ubicación...");
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          // Esto guardará un link exacto de Google Maps en el campo de dirección
+          setClientAddress(`📍 https://maps.google.com/?q=${latitude},${longitude}`);
+        },
+        (error) => {
+          setClientAddress("");
+          alert("No pudimos acceder a tu GPS. Por favor, escribe tu dirección manualmente.");
+        }
+      );
+    } else {
+      alert("Tu navegador no soporta ubicación.");
     }
   };
 
@@ -153,13 +172,12 @@ export default function CartDrawer() {
     }
   };
 
-  // FUNCIÓN PARA ANIMAR Y MOSTRAR EL FORMULARIO
   const triggerCheckoutAnimation = () => {
     setIsAnimatingBtn(true);
     setTimeout(() => {
       setIsAnimatingBtn(false);
       setShowForm(true);
-    }, 600); // 600ms de animación de barrido antes de desplegar
+    }, 600);
   };
 
   return (
@@ -285,10 +303,7 @@ export default function CartDrawer() {
                   onClick={triggerCheckoutAnimation}
                   className="relative overflow-hidden w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg cursor-pointer text-xs active:scale-95 flex items-center justify-center group"
                 >
-                  {/* Filtro de luz (Glare Effect) */}
                   <div className={`absolute top-0 left-0 h-full w-[150%] bg-gradient-to-r from-transparent via-white/50 to-transparent skew-x-[30deg] transition-all duration-500 ease-in-out ${isAnimatingBtn ? 'translate-x-[100%]' : '-translate-x-[150%]'}`} />
-                  
-                  {/* Letras e íconos deslizantes */}
                   <div className={`flex items-center gap-2 transition-transform duration-300 ease-in-out ${isAnimatingBtn ? 'translate-x-4 scale-95 opacity-80' : 'translate-x-0'}`}>
                     Confirmar tu pedido por WhatsApp <span className="text-lg">📱</span>
                   </div>
@@ -304,17 +319,24 @@ export default function CartDrawer() {
                 </div>
               </div>
             ) : (
-              /* FORMULARIO DESPLEGABLE */
+              /* FORMULARIO DESPLEGABLE CON LABELS CLAROS */
               <form onSubmit={handleCheckout} className="space-y-3 animate-in slide-in-from-bottom-6 fade-in duration-300 pb-2">
                 
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setOrderType("DELIVERY")} className={`py-2 rounded-xl text-[11px] font-bold transition border cursor-pointer ${orderType === "DELIVERY" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-slate-50 text-slate-600 border-slate-200"}`}>🛵 Delivery</button>
-                  <button type="button" onClick={() => setOrderType("RECOJO")} className={`py-2 rounded-xl text-[11px] font-bold transition border cursor-pointer ${orderType === "RECOJO" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-slate-50 text-slate-600 border-slate-200"}`}>🏪 Recojo Tienda</button>
+                {/* TABS ELEGANTES DE DELIVERY / RECOJO */}
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button type="button" onClick={() => setOrderType("DELIVERY")} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm cursor-pointer ${orderType === "DELIVERY" ? "bg-white text-red-600" : "text-slate-500 hover:text-slate-700 shadow-none"}`}>🛵 Delivery</button>
+                  <button type="button" onClick={() => setOrderType("RECOJO")} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm cursor-pointer ${orderType === "RECOJO" ? "bg-white text-red-600" : "text-slate-500 hover:text-slate-700 shadow-none"}`}>🏪 Recojo Tienda</button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre (Ej. María)" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition" required />
-                  <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} onBlur={handlePhoneBlur} placeholder="Celular / WhatsApp" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition" required />
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">Tu Nombre</label>
+                    <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ej. María" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition shadow-sm" required />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">Celular / WhatsApp</label>
+                    <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} onBlur={handlePhoneBlur} placeholder="950 000 000" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition shadow-sm" required />
+                  </div>
                 </div>
 
                 {clientPoints > 0 && (
@@ -330,8 +352,17 @@ export default function CartDrawer() {
                   </div>
                 )}
 
+                {/* DIRECCIÓN CON BOTÓN GPS */}
                 {orderType === "DELIVERY" && (
-                  <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección de Envío" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition" required />
+                  <div className="space-y-1 animate-in fade-in duration-300">
+                    <label className="flex justify-between items-center text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">
+                      <span>Dirección de Entrega</span>
+                      <button type="button" onClick={handleGetLocation} className="text-red-500 hover:text-red-700 flex items-center gap-1 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded cursor-pointer transition-colors shadow-sm">
+                        📍 <span>Usar GPS</span>
+                      </button>
+                    </label>
+                    <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Ej. Av. Los Pinos 204, SMP..." className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition shadow-sm" required />
+                  </div>
                 )}
 
                 {/* Resumen Final Detallado */}
