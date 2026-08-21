@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
+import OrderAlerts from "@/components/OrderAlerts";
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos">("inventario");
@@ -598,6 +599,86 @@ export default function AdminPage() {
     }
   };
 
+  // 🖨️ FUNCIÓN PARA GENERAR TICKET TÉRMICO
+  const handlePrintTicket = (order: any) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Por favor permite las ventanas emergentes.");
+      return;
+    }
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Ticket #${String(order.id).slice(0,6).toUpperCase()}</title>
+          <style>
+            @page { margin: 0; }
+            body { 
+              font-family: 'Courier New', Courier, monospace; 
+              font-size: 12px; 
+              width: 58mm;
+              margin: 0; 
+              padding: 10px;
+              color: #000;
+            }
+            .text-center { text-align: center; }
+            .font-bold { font-weight: bold; }
+            .divider { border-top: 1px dashed #000; margin: 5px 0; }
+            .flex-between { display: flex; justify-content: space-between; }
+            .item-text { font-size: 11px; margin: 2px 0; }
+            .total-text { font-size: 16px; font-weight: bold; margin-top: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="text-center font-bold" style="font-size: 16px;">MINIMARKET PAMELA</div>
+          <div class="text-center" style="font-size: 10px;">Comprobante de Pedido</div>
+          
+          <div class="divider"></div>
+          
+          <div><b>Cliente:</b> ${order.client}</div>
+          <div><b>Teléfono:</b> ${order.phone}</div>
+          <div><b>Fecha:</b> ${order.date}</div>
+          <div><b>Tipo:</b> ${order.type}</div>
+          ${order.type === 'DELIVERY' ? `<div><b>Dir:</b> ${order.address}</div>` : ''}
+          
+          <div class="divider"></div>
+          <div class="font-bold mb-1">PRODUCTOS:</div>
+          
+          ${String(order.items).split(', ').map((item: string) => `<div class="item-text">- ${item}</div>`).join('')}
+          
+          <div class="divider"></div>
+          
+          ${order.discount > 0 ? `
+          <div class="flex-between">
+            <span>Subtotal:</span>
+            <span>S/ ${(Number(order.total) + Number(order.discount)).toFixed(2)}</span>
+          </div>
+          <div class="flex-between" style="color: #666;">
+            <span>Dcto (Coins):</span>
+            <span>-S/ ${Number(order.discount).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          
+          <div class="flex-between total-text">
+            <span>TOTAL:</span>
+            <span>S/ ${Number(order.total).toFixed(2)}</span>
+          </div>
+          
+          <div class="divider" style="margin-top: 10px;"></div>
+          <div class="text-center" style="font-size: 10px; margin-top: 5px;">¡Gracias por tu compra vecino!</div>
+          <div class="text-center" style="font-size: 10px;">Acumulaste Pamela Coins 🪙</div>
+          
+          <script>
+            window.onload = function() { 
+              setTimeout(() => { window.print(); window.close(); }, 500);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const currentSubFilter = filtersByStatus[orderStatusTab] || { type: "TODOS", startDate: "", endDate: "" };
 
   const updateSubFilter = (field: "type" | "startDate" | "endDate", value: string) => {
@@ -692,6 +773,9 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white text-xs">
+      
+      {/* 👇 EL VIGILANTE DE PEDIDOS 24/7 👇 */}
+      <OrderAlerts />
       
       {/* SIDEBAR */}
       <aside 
@@ -1281,7 +1365,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🛒 VISTA 2: PEDIDOS (Con efecto llamativo en pendientes) */}
+        {/* 🛒 VISTA 2: PEDIDOS */}
         {activeTab === "pedidos" && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1290,7 +1374,6 @@ export default function AdminPage() {
                 <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
               </div>
 
-              {/* Tarjeta métrica de Pendientes con efecto llamativo intermitente */}
               <div className={`border rounded-xl p-3 space-y-1 transition-all ${
                 pendingCount > 0 
                   ? "bg-amber-500/10 border-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse" 
@@ -1316,7 +1399,6 @@ export default function AdminPage() {
 
             <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
               <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {/* Pestaña Pendientes con animación sutil y color llamativo */}
                 <button 
                   onClick={() => setOrderStatusTab("PENDIENTE")}
                   className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all ${
@@ -1333,36 +1415,11 @@ export default function AdminPage() {
                   </span>
                 </button>
 
-                <button 
-                  onClick={() => setOrderStatusTab("PREPARANDO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PREPARANDO" ? "bg-yellow-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  🍳 Preparando ({preparingCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("EN_CAMINO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "EN_CAMINO" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  🛵 En Camino ({shippingCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("ENTREGADO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  ✓ Entregados ({deliveredCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("RECHAZADO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  ✕ Rechazados ({rejectedCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("NO_RECOGIDO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  🏪 No Recogidos ({uncollectedCount})
-                </button>
+                <button onClick={() => setOrderStatusTab("PREPARANDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PREPARANDO" ? "bg-yellow-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🍳 Preparando ({preparingCount})</button>
+                <button onClick={() => setOrderStatusTab("EN_CAMINO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "EN_CAMINO" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🛵 En Camino ({shippingCount})</button>
+                <button onClick={() => setOrderStatusTab("ENTREGADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✓ Entregados ({deliveredCount})</button>
+                <button onClick={() => setOrderStatusTab("RECHAZADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✕ Rechazados ({rejectedCount})</button>
+                <button onClick={() => setOrderStatusTab("NO_RECOGIDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🏪 No Recogidos ({uncollectedCount})</button>
               </div>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
@@ -1426,8 +1483,17 @@ export default function AdminPage() {
                         </div>
                       </div>
 
+                      {/* 👇 NUEVO BOTÓN DE IMPRESIÓN 👇 */}
+                      <button 
+                        type="button" 
+                        onClick={() => handlePrintTicket(order)} 
+                        className="w-full py-1.5 mt-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-[10px] rounded flex items-center justify-center gap-2 transition cursor-pointer border border-zinc-700"
+                      >
+                        🖨️ Imprimir Ticket (Voucher)
+                      </button>
+
                       {/* Botones de control progresivo de estados */}
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 mt-1.5">
                         {order.status === "PENDIENTE" && (
                           <div className="space-y-1.5">
                             <button 
