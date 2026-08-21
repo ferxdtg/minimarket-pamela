@@ -4,18 +4,37 @@ import { useState, useEffect } from "react";
 import { useCart } from "@/lib/CartContext";
 import { useCartUI } from "@/lib/CartUIContext";
 import CheckoutModal from "./CheckoutModal";
-import WhatsAppCheckout from "./WhatsAppCheckout";
 import Image from "next/image";
 import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, updateDoc, setDoc, addDoc } from "firebase/firestore";
 
 export default function CartDrawer() {
-  const { cart, addToCart, increaseQuantity, decreaseQuantity, removeFromCart, total } = useCart();
+  // 1. RECONECTADO: Usando tus hooks globales originales
+  const { cart, addToCart, increaseQuantity, decreaseQuantity, removeFromCart, total: cartTotal } = useCart();
   const { cartOpen, closeCart } = useCartUI();
   const [showCheckout, setShowCheckout] = useState(false);
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
 
+  // 2. ESTADOS: Para Fidelización y Checkout Integrado
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
+  const [orderType, setOrderType] = useState<"DELIVERY" | "RECOJO">("DELIVERY");
+  const [loading, setLoading] = useState(false);
+  
+  const [clientPoints, setClientPoints] = useState(0);
+  const [useCoins, setUseCoins] = useState(false);
+
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // 3. CÁLCULOS: Delivery y Pamela Coins
+  const deliveryFee = orderType === "DELIVERY" ? 5.00 : 0.00;
+  // 100 Coins = S/ 1.00 de descuento
+  const discountFromCoins = useCoins ? Math.min(cartTotal + deliveryFee, clientPoints / 100) : 0;
+  const finalTotal = Math.max(0, cartTotal + deliveryFee - discountFromCoins);
+  
+  // Ganas 10 Coins por cada Sol gastado
+  const coinsEarned = Math.floor(finalTotal * 10);
 
   useEffect(() => {
     async function fetchSuggestions() {
@@ -41,6 +60,95 @@ export default function CartDrawer() {
       productsSection.scrollIntoView({ behavior: "smooth" });
     } else {
       window.scrollTo({ top: 500, behavior: "smooth" });
+    }
+  };
+
+  // 4. FUNCIÓN: Buscar si el celular ya tiene Pamela Coins
+  const handlePhoneBlur = async () => {
+    if (!clientPhone || clientPhone.length < 6) return;
+    try {
+      const docRef = doc(db, "customers", clientPhone.trim());
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setClientPoints(Number(docSnap.data().points || 0));
+      } else {
+        setClientPoints(0);
+      }
+    } catch (error) {
+      console.error("Error buscando cliente:", error);
+    }
+  };
+
+  // 5. FUNCIÓN: Procesar Pedido por WhatsApp, Actualizar Stock y Guardar Monedas
+  const handleCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (cart.length === 0) return;
+    setLoading(true);
+
+    try {
+      const itemsSummary = cart.map(i => `${i.quantity}x ${i.name}`).join(", ");
+      const todayStr = new Date().toISOString().split("T")[0];
+
+      // A. Descontar Stock en Firebase
+      for (const item of cart) {
+        if (item.id) {
+          const productRef = doc(db, "products", String(item.id));
+          const productSnap = await getDoc(productRef);
+          if (productSnap.exists()) {
+            const currentStock = Number(productSnap.data().stock || 0);
+            const newStock = Math.max(0, currentStock - item.quantity);
+            await updateDoc(productRef, { stock: newStock });
+          }
+        }
+      }
+
+      // B. Actualizar Billetera de Pamela Coins del Cliente
+      const customerRef = doc(db, "customers", clientPhone.trim());
+      const customerSnap = await getDoc(customerRef);
+      let finalPoints = coinsEarned;
+
+      if (customerSnap.exists()) {
+        const existingPoints = Number(customerSnap.data().points || 0);
+        const spentPoints = useCoins ? Math.floor(discountFromCoins * 100) : 0;
+        finalPoints = Math.max(0, existingPoints - spentPoints) + coinsEarned;
+      }
+
+      await setDoc(customerRef, {
+        phone: clientPhone.trim(),
+        name: clientName,
+        address: clientAddress,
+        points: finalPoints,
+        lastOrderDate: todayStr
+      }, { merge: true });
+
+      // C. Crear la Orden
+      await addDoc(collection(db, "orders"), {
+        client: clientName,
+        phone: clientPhone,
+        address: clientAddress,
+        type: orderType,
+        items: itemsSummary,
+        subtotal: cartTotal,
+        discount: discountFromCoins,
+        total: finalTotal,
+        status: "PENDIENTE",
+        date: todayStr,
+        createdAt: new Date().toISOString()
+      });
+
+      // D. Enviar a WhatsApp estructurado
+      const adminWhatsApp = "51950323959"; 
+      const message = encodeURIComponent(
+        `*🛒 ¡NUEVO PEDIDO - MINIMARKET PAMELA!*\n----------------------------------\n👤 *Cliente:* ${clientName}\n📱 *Teléfono:* ${clientPhone}\n🏠 *Dirección:* ${orderType === "DELIVERY" ? clientAddress : "🏪 Recojo en Tienda"}\n🛵 *Tipo:* ${orderType}\n\n📦 *PRODUCTOS:*\n${cart.map((i) => `- ${i.quantity}x ${i.name} (S/ ${(i.price * i.quantity).toFixed(2)})`).join("\n")}\n\n----------------------------------\n💳 *Subtotal:* S/ ${cartTotal.toFixed(2)}\n${deliveryFee > 0 ? `🛵 *Delivery:* S/ ${deliveryFee.toFixed(2)}\n` : ""}${useCoins ? `🪙 *Descuento Pamela Coins:* -S/ ${discountFromCoins.toFixed(2)}\n` : ""}💰 *TOTAL A PAGAR:* *S/ ${finalTotal.toFixed(2)}*\n----------------------------------\n✨ *Puntos ganados hoy:* +${coinsEarned} Pamela Coins\n🪙 *Tu saldo actual:* ${finalPoints} Coins`
+      );
+
+      cart.forEach(item => removeFromCart(item.id));
+      closeCart();
+      window.open(`https://wa.me/${adminWhatsApp}?text=${message}`, "_blank");
+    } catch (error: any) {
+      alert(`Error al procesar el pedido: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -87,7 +195,7 @@ export default function CartDrawer() {
               <div key={item.id} className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col gap-3 shadow-sm hover:border-red-100 transition-colors">
                 <div className="flex gap-3 items-start">
                   <div className="relative w-16 h-16 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100">
-                    <Image src={item.image} alt={item.name} fill className="object-contain p-2" />
+                    <Image src={item.image || "/placeholder.jpg"} alt={item.name} fill className="object-contain p-2" />
                   </div>
                   <div className="flex-1 min-w-0 pt-1">
                     <h3 className="text-sm font-bold text-slate-800 truncate">{item.name}</h3>
@@ -116,7 +224,7 @@ export default function CartDrawer() {
               </div>
             ))}
 
-            {/* SUGERENCIAS / VENTA CRUZADA CORREGIDA */}
+            {/* SUGERENCIAS / VENTA CRUZADA */}
             {suggestedProducts.length > 0 && (
               <div className="mt-6 pt-4 border-t border-dashed border-slate-200">
                 <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">¿Te falta algo para completar tu pedido? 🔥</p>
@@ -125,7 +233,7 @@ export default function CartDrawer() {
                     <div key={sug.id} className="flex items-center justify-between bg-amber-50/50 border border-amber-100 p-2.5 rounded-xl">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-amber-200">
-                          <Image src={sug.image} alt={sug.name} fill className="object-contain p-1" />
+                          <Image src={sug.image || "/placeholder.jpg"} alt={sug.name} fill className="object-contain p-1" />
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-slate-800 truncate">{sug.name}</p>
@@ -150,24 +258,82 @@ export default function CartDrawer() {
         {cart.length > 0 && (
           <div className="mt-2 pt-4 shrink-0 bg-white border-t border-slate-100 space-y-4">
             
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center shadow-inner">
-              <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Total a Pagar</span>
-              <div className="flex items-start text-red-600 font-black">
-                <span className="text-lg mt-0.5 mr-1">S/</span>
-                <span className="text-4xl tracking-tighter leading-none">{total.toFixed(2)}</span>
+            {/* 🪙 BANNER VISUAL DE PAMELA COINS */}
+            <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-yellow-500/15 border border-amber-500/40 rounded-2xl p-3 flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-base animate-bounce shrink-0 shadow-inner">
+                  🪙
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-wide">¡Ganas Pamela Coins!</p>
+                  <p className="text-[9px] text-slate-600 font-medium leading-tight">Acumula puntos para descuentos</p>
+                </div>
               </div>
+              <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-2 py-1 rounded-lg shadow-sm">
+                +{coinsEarned} Coins
+              </span>
             </div>
 
-            <WhatsAppCheckout cartItems={cart} totalAmount={total} onClose={closeCart} />
+            {/* FORMULARIO DE CHECKOUT Y CANJE */}
+            <form onSubmit={handleCheckout} className="space-y-3">
+              
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setOrderType("DELIVERY")} className={`py-1.5 rounded-xl text-[11px] font-bold transition border cursor-pointer ${orderType === "DELIVERY" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-slate-50 text-slate-600 border-slate-200"}`}>🛵 Delivery</button>
+                <button type="button" onClick={() => setOrderType("RECOJO")} className={`py-1.5 rounded-xl text-[11px] font-bold transition border cursor-pointer ${orderType === "RECOJO" ? "bg-red-600 text-white border-red-600 shadow-sm" : "bg-slate-50 text-slate-600 border-slate-200"}`}>🏪 Recojo Tienda</button>
+              </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setShowCheckout(true)} className="py-3 rounded-xl bg-slate-900 hover:bg-black text-white font-black text-xs transition-all cursor-pointer shadow-md active:scale-95 text-center">
-                Pagar en Web
-              </button>
-              <button onClick={handleContinueShopping} className="py-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs transition-all cursor-pointer border border-red-100 text-center active:scale-95">
-                + Agregar más
-              </button>
-            </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre (Ej. María)" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:border-red-600" required />
+                </div>
+                <div>
+                  <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} onBlur={handlePhoneBlur} placeholder="Celular / Yape" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:border-red-600" required />
+                </div>
+              </div>
+
+              {clientPoints > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 space-y-1.5">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="font-black text-amber-800">🪙 Saldo: {clientPoints} Coins</span>
+                    <span className="font-black text-emerald-600">Dto. S/ {(clientPoints / 100).toFixed(2)}</span>
+                  </div>
+                  <label className="flex items-center gap-1.5 cursor-pointer border-t border-amber-200/60 pt-1">
+                    <input type="checkbox" checked={useCoins} onChange={(e) => setUseCoins(e.target.checked)} className="accent-amber-500 w-3.5 h-3.5 rounded cursor-pointer" />
+                    <span className="text-[10px] font-bold text-amber-900">Canjear monedas en esta orden</span>
+                  </label>
+                </div>
+              )}
+
+              {orderType === "DELIVERY" && (
+                <div>
+                  <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Dirección de Envío" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:border-red-600" required />
+                </div>
+              )}
+
+              {/* Resumen Final de Costos */}
+              <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl space-y-1 text-[10px]">
+                <div className="flex justify-between text-slate-600"><span>Subtotal:</span><span>S/ {cartTotal.toFixed(2)}</span></div>
+                {orderType === "DELIVERY" && <div className="flex justify-between text-slate-600"><span>Delivery:</span><span>S/ {deliveryFee.toFixed(2)}</span></div>}
+                {useCoins && <div className="flex justify-between text-amber-600 font-bold"><span>Descuento Coins:</span><span>-S/ {discountFromCoins.toFixed(2)}</span></div>}
+                <div className="flex justify-between font-black text-slate-900 pt-1 border-t border-slate-200 text-xs mt-1"><span>TOTAL A PAGAR:</span><span className="text-red-600">S/ {finalTotal.toFixed(2)}</span></div>
+              </div>
+
+              {/* BOTONES DE PAGO */}
+              <div className="pt-2 flex flex-col gap-2">
+                <button type="submit" disabled={loading} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl transition shadow-lg cursor-pointer text-xs active:scale-95 flex items-center justify-center gap-2">
+                  {loading ? "Procesando..." : "Confirmar por WhatsApp 📱"}
+                </button>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setShowCheckout(true)} className="w-full py-2 bg-slate-900 hover:bg-black text-white font-bold rounded-xl transition cursor-pointer text-[10px] active:scale-95 text-center">
+                    Pagar en Web 💳
+                  </button>
+                  <button type="button" onClick={handleContinueShopping} className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition cursor-pointer border border-red-100 text-[10px] active:scale-95 text-center">
+                    + Agregar más
+                  </button>
+                </div>
+              </div>
+            </form>
 
             {showCheckout && (
               <CheckoutModal cartItems={cart} onSuccess={() => { cart.forEach(item => removeFromCart(item.id)); }} onClose={() => { setShowCheckout(false); closeCart(); }} />
