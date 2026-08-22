@@ -32,8 +32,9 @@ export default function AdminPage() {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [promos, setPromos] = useState<any[]>([]);
 
-  // 🔥 NUEVOS ESTADOS PARA CRM Y PAMELA COINS
+  // 🔥 ESTADOS PARA CRM Y DASHBOARD DE PAMELA COINS
   const [customers, setCustomers] = useState<any[]>([]);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [editPoints, setEditPoints] = useState<number>(0);
   
@@ -172,10 +173,10 @@ export default function AdminPage() {
       setPromos(pList);
     });
 
-    // 🔥 NUEVO LISTENER DE CRM PARA PAMELA COINS
+    // 🔥 LISTENER EN TIEMPO REAL PARA PAMELA COINS & CLIENTES
     const unsubscribeCustomers = onSnapshot(collection(db, "customers"), (snapshot) => {
       const cList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
-      cList.sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0)); // Mayor a menor
+      cList.sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
       setCustomers(cList);
     });
 
@@ -616,7 +617,7 @@ export default function AdminPage() {
   const handlePrintTicket = (order: any) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      alert("Por favor permite las ventanas emergentes.");
+      alert("Por favor permite las ventanas emergentes para generar el ticket.");
       return;
     }
     
@@ -629,7 +630,7 @@ export default function AdminPage() {
             body { 
               font-family: 'Courier New', Courier, monospace; 
               font-size: 12px; 
-              width: 58mm; /* Ancho de ticketera pequeña */
+              width: 58mm;
               margin: 0; 
               padding: 10px;
               color: #000;
@@ -752,25 +753,17 @@ export default function AdminPage() {
   const todaySalesTotal = todaySalesOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const todayTicketAverage = todaySalesOrders.length > 0 ? (todaySalesTotal / todaySalesOrders.length) : 0;
 
-  // 🔥 CÁLCULOS DEL DASHBOARD DE PAMELA COINS
+  // 🔥 CÁLCULOS EXACTOS DEL DASHBOARD DE PAMELA COINS
   const totalPamelaCoins = customers.reduce((sum, c) => sum + (Number(c.points) || 0), 0);
   const totalCoinsValue = totalPamelaCoins / 100; // 100 Coins = S/ 1.00
+  const topVIPCustomers = [...customers].slice(0, 3); // Podio de los 3 clientes con más puntos
 
-  // Se extraen los clientes antiguos de las órdenes como backup visual
-  const clientsMap = new Map();
-  orders?.forEach(o => {
-    if (o.client) {
-      const phone = o.phone || "Sin teléfono";
-      if (!clientsMap.has(phone)) {
-        clientsMap.set(phone, { name: o.client, phone, address: o.address || "No especificada", totalOrders: 1, spent: Number(o.total) || 0 });
-      } else {
-        const c = clientsMap.get(phone);
-        c.totalOrders += 1;
-        c.spent += Number(o.total) || 0;
-      }
-    }
+  const filteredCustomers = customers.filter(c => {
+    const term = customerSearchTerm.toLowerCase();
+    const name = String(c.name || "").toLowerCase();
+    const phone = String(c.phone || "").toLowerCase();
+    return name.includes(term) || phone.includes(term);
   });
-  const clientsList = Array.from(clientsMap.values());
 
   const expiredProductsList = products.filter(p => {
     if (!p.expiryDate) return false;
@@ -896,19 +889,31 @@ export default function AdminPage() {
               )}
             </button>
 
+            {/* BOTÓN PROMINENTE DE PAMELA COINS & CLIENTES CRM */}
+            <button
+              onClick={(e) => { e.stopPropagation(); setActiveTab("clientes"); setIsSidebarExpanded(false); }}
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                activeTab === "clientes" 
+                  ? "bg-gradient-to-r from-amber-500 to-yellow-600 text-black font-black shadow-lg shadow-amber-500/20" 
+                  : "text-amber-400/90 hover:bg-zinc-900 hover:text-amber-300"
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🪙</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Pamela Coins CRM</span>}
+              </span>
+              {customers.length > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${activeTab === "clientes" ? "bg-black text-amber-400" : "bg-amber-500/20 text-amber-400 border border-amber-500/40"}`}>
+                  {customers.length}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("caja"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "caja" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
             >
               <span className="text-sm shrink-0">📊</span>{isSidebarExpanded && <span className="whitespace-nowrap">Caja & Reportes</span>}
-            </button>
-
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("clientes"); setIsSidebarExpanded(false); }}
-              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "clientes" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
-            >
-              <span className="flex items-center gap-3"><span className="text-sm shrink-0">👥</span>{isSidebarExpanded && <span className="whitespace-nowrap">Clientes CRM</span>}</span>
-              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({customers.length})</span>}
             </button>
 
             <button
@@ -993,18 +998,16 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS MÓVILES (Celulares) */}
+        {/* PESTAÑAS MÓVILES */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "productos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
           <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
-          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("categorias"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
-          <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Facturas</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>
             Pedidos {pendingCount > 0 && `(${pendingCount})`}
           </button>
+          <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-amber-500 text-black font-black" : "bg-zinc-900 text-amber-400"}`}>🪙 Pamela Coins</button>
+          <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Facturas</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
-          <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Clientes</button>
-          <button onClick={() => setActiveTab("marketing")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
         </div>
 
         {/* 📦 INVENTARIO */}
@@ -1027,7 +1030,7 @@ export default function AdminPage() {
               >
                 <span>⏳ Control de Vencimientos</span>
                 {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
-                  <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[9px] font-black">
+                  <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[8px] font-black">
                     {expiredProductsList.length + expiringSoonProductsList.length}
                   </span>
                 )}
@@ -1392,7 +1395,6 @@ export default function AdminPage() {
                 <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
               </div>
 
-              {/* Tarjeta métrica de Pendientes con efecto llamativo intermitente */}
               <div className={`border rounded-xl p-3 space-y-1 transition-all ${
                 pendingCount > 0 
                   ? "bg-amber-500/10 border-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse" 
@@ -1418,7 +1420,6 @@ export default function AdminPage() {
 
             <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
               <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {/* Pestaña Pendientes con animación sutil y color llamativo */}
                 <button 
                   onClick={() => setOrderStatusTab("PENDIENTE")}
                   className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all ${
@@ -1435,36 +1436,11 @@ export default function AdminPage() {
                   </span>
                 </button>
 
-                <button 
-                  onClick={() => setOrderStatusTab("PREPARANDO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PREPARANDO" ? "bg-yellow-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  🍳 Preparando ({preparingCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("EN_CAMINO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "EN_CAMINO" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  🛵 En Camino ({shippingCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("ENTREGADO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  ✓ Entregados ({deliveredCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("RECHAZADO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  ✕ Rechazados ({rejectedCount})
-                </button>
-                <button 
-                  onClick={() => setOrderStatusTab("NO_RECOGIDO")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
-                >
-                  🏪 No Recogidos ({uncollectedCount})
-                </button>
+                <button onClick={() => setOrderStatusTab("PREPARANDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PREPARANDO" ? "bg-yellow-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🍳 Preparando ({preparingCount})</button>
+                <button onClick={() => setOrderStatusTab("EN_CAMINO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "EN_CAMINO" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🛵 En Camino ({shippingCount})</button>
+                <button onClick={() => setOrderStatusTab("ENTREGADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✓ Entregados ({deliveredCount})</button>
+                <button onClick={() => setOrderStatusTab("RECHAZADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✕ Rechazados ({rejectedCount})</button>
+                <button onClick={() => setOrderStatusTab("NO_RECOGIDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🏪 No Recogidos ({uncollectedCount})</button>
               </div>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
@@ -1625,63 +1601,143 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 👥 CLIENTES CRM Y PAMELA COINS */}
+        {/* 🪙 DASHBOARD COMPLETO DE PAMELA COINS Y CRM DE CLIENTES */}
         {activeTab === "clientes" && (
-          <div className="space-y-4">
+          <div className="space-y-5 animate-in fade-in duration-300">
             
-            {/* 📊 DASHBOARD DE PAMELA COINS AÑADIDO AQUI */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-zinc-900/80 border border-amber-500/30 rounded-xl p-4 space-y-1 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-                <span className="text-[10px] font-bold text-amber-400/80 uppercase">Total Monedas Emitidas</span>
-                <div className="text-xl font-black text-amber-400 flex items-center gap-2">
-                  <span className="text-2xl animate-bounce">🪙</span> {totalPamelaCoins} Coins
+            {/* 1. CABECERA CON INSIGNIA */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gradient-to-r from-amber-500/10 via-zinc-900 to-zinc-900 border border-amber-500/30 p-4 rounded-2xl shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl animate-bounce shadow-inner">
+                  🪙
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-white flex items-center gap-2">
+                    Dashboard de Fidelización: Pamela Coins
+                    <span className="bg-amber-500 text-slate-950 text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider">Activo</span>
+                  </h2>
+                  <p className="text-xs text-zinc-400">Controla la emisión de puntos, la reserva monetaria y el ranking de clientes leales.</p>
                 </div>
               </div>
-              <div className="bg-zinc-900/80 border border-emerald-500/30 rounded-xl p-4 space-y-1">
-                <span className="text-[10px] font-bold text-emerald-400/80 uppercase">Equivalente en Descuentos</span>
-                <div className="text-xl font-black text-emerald-400">S/ {totalCoinsValue.toFixed(2)}</div>
-              </div>
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase">Clientes Registrados</span>
-                <div className="text-xl font-black text-blue-400">👥 {customers.length}</div>
+
+              <div className="bg-zinc-950 border border-zinc-800 px-3 py-1.5 rounded-xl text-right">
+                <span className="text-[9px] text-zinc-500 font-bold block uppercase">Regla de canje</span>
+                <span className="text-xs font-black text-amber-400">100 Coins = S/ 1.00 Dcto.</span>
               </div>
             </div>
 
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
-              <div className="border-b border-zinc-800 pb-3">
-                <h2 className="text-sm font-black text-white">👥 Listado General de Clientes Frecuentes</h2>
-                <p className="text-[10px] text-zinc-400">Administra los puntos de fidelización de tus clientes.</p>
+            {/* 2. TARJETAS DE INDICADORES / KPIS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-zinc-900/90 border border-amber-500/40 rounded-2xl p-4 space-y-1 shadow-[0_0_20px_rgba(245,158,11,0.08)]">
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Monedas en Circulación</span>
+                <div className="text-2xl font-black text-amber-400 flex items-baseline gap-1">
+                  {totalPamelaCoins} <span className="text-xs font-bold text-zinc-400">Coins</span>
+                </div>
+                <p className="text-[9px] text-zinc-500">Acumuladas por tus clientes</p>
+              </div>
+
+              <div className="bg-zinc-900/90 border border-emerald-500/40 rounded-2xl p-4 space-y-1 shadow-[0_0_20px_rgba(16,185,129,0.08)]">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">Reserva de Descuento</span>
+                <div className="text-2xl font-black text-emerald-400">
+                  S/ {totalCoinsValue.toFixed(2)}
+                </div>
+                <p className="text-[9px] text-zinc-500">Equivalente total a redimir</p>
+              </div>
+
+              <div className="bg-zinc-900/90 border border-blue-500/40 rounded-2xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">Billeteras Activas</span>
+                <div className="text-2xl font-black text-blue-400">
+                  {customers.length} <span className="text-xs font-bold text-zinc-400">Vecinos</span>
+                </div>
+                <p className="text-[9px] text-zinc-500">Con saldo en Pamela Coins</p>
+              </div>
+
+              <div className="bg-zinc-900/90 border border-purple-500/40 rounded-2xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">Premio por Compra</span>
+                <div className="text-2xl font-black text-purple-400">
+                  10x <span className="text-xs font-bold text-zinc-400">Coins / S/ 1.00</span>
+                </div>
+                <p className="text-[9px] text-zinc-500">Multiplicador automático</p>
+              </div>
+            </div>
+
+            {/* 3. PODIO DE CLIENTES VIP (TOP 3) */}
+            {topVIPCustomers.length > 0 && (
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 space-y-3">
+                <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                  🏆 Podio de Clientes VIP con más Pamela Coins
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {topVIPCustomers.map((vip, index) => {
+                    const badges = ["🥇 Oro", "🥈 Plata", "🥉 Bronce"];
+                    const colors = ["border-amber-500/60 bg-amber-500/10", "border-slate-400/60 bg-slate-400/10", "border-amber-700/60 bg-amber-700/10"];
+                    return (
+                      <div key={vip.id} className={`border rounded-xl p-3 flex items-center justify-between gap-2 ${colors[index]}`}>
+                        <div>
+                          <span className="text-[9px] font-black uppercase text-amber-400 block">{badges[index]}</span>
+                          <h4 className="font-bold text-white text-xs truncate">{vip.name || "Cliente"}</h4>
+                          <p className="text-[10px] text-zinc-400 font-mono">📱 {vip.phone}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-black text-white block">{vip.points || 0}</span>
+                          <span className="text-[9px] font-bold text-emerald-400">S/ {((vip.points || 0) / 100).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 4. LISTADO GENERAL Y BUSCADOR */}
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-black text-white">Directorio Completo de Billeteras</h3>
+                  <p className="text-[10px] text-zinc-400">Modifica saldos manualmente o premia a tus clientes habituales.</p>
+                </div>
+
+                <input
+                  type="text"
+                  value={customerSearchTerm}
+                  onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                  placeholder="Buscar por celular o nombre..."
+                  className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 w-full sm:w-64"
+                />
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {customers.map((c: any) => (
-                  <div key={c.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3 relative overflow-hidden">
-                    <div className="absolute -right-4 -top-4 text-6xl opacity-5">🪙</div>
-                    <div className="flex justify-between items-start relative z-10">
-                      <div>
-                        <h3 className="font-bold text-white text-sm">{c.name || "Sin nombre"}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-[500px] overflow-y-auto pr-1">
+                {filteredCustomers.map((c: any) => (
+                  <div key={c.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 space-y-2.5 relative overflow-hidden group hover:border-amber-500/40 transition">
+                    <div className="flex justify-between items-start">
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-white text-xs truncate">{c.name || "Sin nombre registrado"}</h4>
                         <p className="text-[11px] text-zinc-400 font-mono mt-0.5">📱 {c.phone}</p>
                       </div>
-                      <span className="bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded text-[11px] font-black border border-amber-500/30 shadow-inner">
+                      <span className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-lg text-[11px] font-black border border-amber-500/30 shrink-0">
                         {c.points || 0} Coins
                       </span>
                     </div>
-                    <div className="pt-3 border-t border-zinc-900 relative z-10 space-y-2">
-                      <p className="text-[10px] text-zinc-500 truncate">🏠 {c.address || "Sin dirección"}</p>
-                      <button 
-                        onClick={() => { setEditingCustomer(c); setEditPoints(c.points || 0); }}
-                        className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold py-2 rounded-lg text-[10px] border border-zinc-800 transition cursor-pointer"
-                      >
-                        ✏️ Editar Puntos Manualmente
-                      </button>
+
+                    <div className="text-[10px] text-zinc-500 space-y-0.5 border-t border-zinc-900 pt-2">
+                      <p className="truncate">🏠 {c.address || "No registrada"}</p>
+                      <p className="text-emerald-400/90 font-semibold">Descuento: S/ {((Number(c.points) || 0) / 100).toFixed(2)}</p>
                     </div>
+
+                    <button 
+                      onClick={() => { setEditingCustomer(c); setEditPoints(c.points || 0); }}
+                      className="w-full bg-zinc-900 hover:bg-amber-500 hover:text-black text-zinc-300 font-bold py-2 rounded-lg text-[10px] border border-zinc-800 transition cursor-pointer"
+                    >
+                      ✏️ Editar Pamela Coins
+                    </button>
                   </div>
                 ))}
-                {customers.length === 0 && (
-                  <p className="text-zinc-500 py-10 col-span-full">Aún no hay clientes registrados con Pamela Coins.</p>
+                {filteredCustomers.length === 0 && (
+                  <p className="text-zinc-500 text-center py-12 col-span-full">No se encontraron clientes con Pamela Coins.</p>
                 )}
               </div>
             </div>
+
           </div>
         )}
 
