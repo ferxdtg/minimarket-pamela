@@ -1035,7 +1035,7 @@ export default function AdminPage() {
               >
                 <span>⏳ Control de Vencimientos</span>
                 {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
-                  <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[9px] font-black">
+                  <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[8px] font-black">
                     {expiredProductsList.length + expiringSoonProductsList.length}
                   </span>
                 )}
@@ -1516,11 +1516,27 @@ export default function AdminPage() {
                         </div>
                       </div>
 
+                      {/* 👇 NUEVO DISEÑO DE LA TARJETA DEL CARRITO (MOSTRANDO COINS Y DESCUENTO) 👇 */}
                       <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
-                        <p className="text-zinc-300">{order.items}</p>
-                        <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900">
+                        <p className="text-zinc-300 leading-relaxed">{order.items}</p>
+                        
+                        {/* 🪙 Si el cliente usó monedas para tener descuento, se muestra aquí */}
+                        {(Number(order.discount) > 0) && (
+                          <div className="flex justify-between text-[9px] text-amber-500 font-bold pt-1">
+                            <span>Dcto. Pamela Coins:</span>
+                            <span>-S/ {Number(order.discount).toFixed(2)}</span>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between font-black text-white pt-1 border-t border-zinc-900 items-end">
                           <span>TOTAL</span>
-                          <span className="text-red-400">S/ {(Number(order.total) || 0).toFixed(2)}</span>
+                          <div className="text-right">
+                            <span className="text-red-400 block text-sm">S/ {(Number(order.total) || 0).toFixed(2)}</span>
+                            {/* 🪙 Muestra las monedas que acaba de ganar en esta compra (1 sol = 1 coin) */}
+                            <span className="text-[8px] text-amber-500 font-bold block bg-amber-500/10 px-1.5 py-0.5 rounded mt-0.5 border border-amber-500/20">
+                              +{Math.floor(Number(order.total))} Coins ganadas
+                            </span>
+                          </div>
                         </div>
                       </div>
 
