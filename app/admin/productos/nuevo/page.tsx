@@ -7,12 +7,12 @@ import Image from "next/image";
 import OrderAlerts from "@/components/OrderAlerts";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos">("inventario");
+  // 🔥 Pedidos es ahora la pestaña principal al abrir el panel
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos">("pedidos");
   const [inventorySubTab, setInventorySubTab] = useState<"productos" | "vencimientos" | "categorias">("productos");
   
   const [isInventoryDropdownOpen, setIsInventoryDropdownOpen] = useState(false);
 
-  // Estados logísticos ampliados para el seguimiento visual
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "PREPARANDO" | "EN_CAMINO" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
 
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -173,10 +173,9 @@ export default function AdminPage() {
       setPromos(pList);
     });
 
-    // 🔥 LISTENER EN TIEMPO REAL PARA PAMELA COINS & CLIENTES
     const unsubscribeCustomers = onSnapshot(collection(db, "customers"), (snapshot) => {
       const cList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
-      cList.sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
+      cList.sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0)); // Mayor a menor
       setCustomers(cList);
     });
 
@@ -753,10 +752,10 @@ export default function AdminPage() {
   const todaySalesTotal = todaySalesOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const todayTicketAverage = todaySalesOrders.length > 0 ? (todaySalesTotal / todaySalesOrders.length) : 0;
 
-  // 🔥 CÁLCULOS EXACTOS DEL DASHBOARD DE PAMELA COINS
+  // 🔥 CÁLCULOS EXACTOS DEL DASHBOARD DE PAMELA COINS (100 Coins = 1 Sol descuento)
   const totalPamelaCoins = customers.reduce((sum, c) => sum + (Number(c.points) || 0), 0);
   const totalCoinsValue = totalPamelaCoins / 100; // 100 Coins = S/ 1.00
-  const topVIPCustomers = [...customers].slice(0, 3); // Podio de los 3 clientes con más puntos
+  const topVIPCustomers = [...customers].slice(0, 3);
 
   const filteredCustomers = customers.filter(c => {
     const term = customerSearchTerm.toLowerCase();
@@ -788,7 +787,7 @@ export default function AdminPage() {
       {/* 👇 ALERTA INVISIBLE QUE SUENA CON NUEVOS PEDIDOS 👇 */}
       <OrderAlerts />
       
-      {/* SIDEBAR */}
+      {/* SIDEBAR ORDENADO (Desktop) */}
       <aside 
         onMouseEnter={() => setIsSidebarExpanded(true)}
         onMouseLeave={() => setIsSidebarExpanded(false)}
@@ -809,6 +808,29 @@ export default function AdminPage() {
           </div>
 
           <nav className="space-y-1">
+            {/* 1. PEDIDOS */}
+            <button
+              onClick={(e) => { e.stopPropagation(); setActiveTab("pedidos"); setIsSidebarExpanded(false); }}
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
+                activeTab === "pedidos" 
+                  ? "bg-red-600 text-white shadow-lg shadow-red-900/35" 
+                  : pendingCount > 0 
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 hover:bg-amber-500/30" 
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <span className="text-sm shrink-0">🛒</span>
+                {isSidebarExpanded && <span className="whitespace-nowrap">Pedidos</span>}
+              </span>
+              {pendingCount > 0 && (
+                <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black animate-bounce">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+
+            {/* 2. INVENTARIO Y STOCK */}
             <div className="space-y-1">
               <button
                 onClick={(e) => { 
@@ -859,37 +881,7 @@ export default function AdminPage() {
               )}
             </div>
 
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
-              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "proveedores" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
-            >
-              <span className="flex items-center gap-3"><span className="text-sm shrink-0">🧾</span>{isSidebarExpanded && <span className="whitespace-nowrap">Facturas & Compras</span>}</span>
-              {suppliers.length > 0 && <span className="bg-emerald-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black">{suppliers.length}</span>}
-            </button>
-
-            {/* BOTÓN PEDIDOS CON EFECTO LLAMATIVO SI HAY PENDIENTES */}
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveTab("pedidos"); setIsSidebarExpanded(false); }}
-              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
-                activeTab === "pedidos" 
-                  ? "bg-red-600 text-white" 
-                  : pendingCount > 0 
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 hover:bg-amber-500/30" 
-                    : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
-              }`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-sm shrink-0">🛒</span>
-                {isSidebarExpanded && <span className="whitespace-nowrap">Pedidos</span>}
-              </span>
-              {pendingCount > 0 && (
-                <span className="bg-amber-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black animate-bounce">
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-
-            {/* BOTÓN PROMINENTE DE PAMELA COINS & CLIENTES CRM */}
+            {/* 3. PAMELA COINS CRM */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("clientes"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
@@ -909,6 +901,16 @@ export default function AdminPage() {
               )}
             </button>
 
+            {/* 4. FACTURAS */}
+            <button
+              onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
+              className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "proveedores" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
+            >
+              <span className="flex items-center gap-3"><span className="text-sm shrink-0">🧾</span>{isSidebarExpanded && <span className="whitespace-nowrap">Facturas & Compras</span>}</span>
+              {suppliers.length > 0 && <span className="bg-emerald-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black">{suppliers.length}</span>}
+            </button>
+
+            {/* 5. CAJA */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("caja"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "caja" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
@@ -916,6 +918,7 @@ export default function AdminPage() {
               <span className="text-sm shrink-0">📊</span>{isSidebarExpanded && <span className="whitespace-nowrap">Caja & Reportes</span>}
             </button>
 
+            {/* 6. MARKETING */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("marketing"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "marketing" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
@@ -998,16 +1001,18 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS MÓVILES */}
+        {/* PESTAÑAS MÓVILES ORDENADAS */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
-          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "productos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
-          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>
             Pedidos {pendingCount > 0 && `(${pendingCount})`}
           </button>
+          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("productos"); setFilterOrphanOnly(false); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "productos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Stock</button>
+          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("vencimientos"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "vencimientos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Vencimientos</button>
+          <button onClick={() => { setActiveTab("inventario"); setInventorySubTab("categorias"); }} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "inventario" && inventorySubTab === "categorias" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Categorías</button>
           <button onClick={() => setActiveTab("clientes")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "clientes" ? "bg-amber-500 text-black font-black" : "bg-zinc-900 text-amber-400"}`}>🪙 Pamela Coins</button>
           <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Facturas</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
+          <button onClick={() => setActiveTab("marketing")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
         </div>
 
         {/* 📦 INVENTARIO */}
@@ -1030,7 +1035,7 @@ export default function AdminPage() {
               >
                 <span>⏳ Control de Vencimientos</span>
                 {(expiredProductsList.length > 0 || expiringSoonProductsList.length > 0) && (
-                  <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[8px] font-black">
+                  <span className="bg-red-500 text-white px-1.5 py-0.2 rounded-full text-[9px] font-black">
                     {expiredProductsList.length + expiringSoonProductsList.length}
                   </span>
                 )}
@@ -1395,6 +1400,7 @@ export default function AdminPage() {
                 <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
               </div>
 
+              {/* Tarjeta métrica de Pendientes con efecto llamativo intermitente */}
               <div className={`border rounded-xl p-3 space-y-1 transition-all ${
                 pendingCount > 0 
                   ? "bg-amber-500/10 border-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse" 
@@ -1420,6 +1426,7 @@ export default function AdminPage() {
 
             <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
               <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {/* Pestaña Pendientes con animación sutil y color llamativo */}
                 <button 
                   onClick={() => setOrderStatusTab("PENDIENTE")}
                   className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all ${
@@ -1655,9 +1662,9 @@ export default function AdminPage() {
               <div className="bg-zinc-900/90 border border-purple-500/40 rounded-2xl p-4 space-y-1">
                 <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">Premio por Compra</span>
                 <div className="text-2xl font-black text-purple-400">
-                  10x <span className="text-xs font-bold text-zinc-400">Coins / S/ 1.00</span>
+                  1x <span className="text-xs font-bold text-zinc-400">Coins / S/ 1.00</span>
                 </div>
-                <p className="text-[9px] text-zinc-500">Multiplicador automático</p>
+                <p className="text-[9px] text-zinc-500">Por S/ 100 de compra = S/ 1 de Dcto.</p>
               </div>
             </div>
 
