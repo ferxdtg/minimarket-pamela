@@ -31,6 +31,11 @@ export default function AdminPage() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [promos, setPromos] = useState<any[]>([]);
+
+  // 🔥 NUEVOS ESTADOS PARA CRM Y PAMELA COINS
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
+  const [editPoints, setEditPoints] = useState<number>(0);
   
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -167,12 +172,20 @@ export default function AdminPage() {
       setPromos(pList);
     });
 
+    // 🔥 NUEVO LISTENER DE CRM PARA PAMELA COINS
+    const unsubscribeCustomers = onSnapshot(collection(db, "customers"), (snapshot) => {
+      const cList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
+      cList.sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0)); // Mayor a menor
+      setCustomers(cList);
+    });
+
     return () => {
       unsubscribeProducts();
       unsubscribeOrders();
       unsubscribeSuppliers();
       unsubscribeCategories();
       unsubscribePromos();
+      unsubscribeCustomers();
     };
   }, []);
 
@@ -616,7 +629,7 @@ export default function AdminPage() {
             body { 
               font-family: 'Courier New', Courier, monospace; 
               font-size: 12px; 
-              width: 58mm;
+              width: 58mm; /* Ancho de ticketera pequeña */
               margin: 0; 
               padding: 10px;
               color: #000;
@@ -739,6 +752,11 @@ export default function AdminPage() {
   const todaySalesTotal = todaySalesOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const todayTicketAverage = todaySalesOrders.length > 0 ? (todaySalesTotal / todaySalesOrders.length) : 0;
 
+  // 🔥 CÁLCULOS DEL DASHBOARD DE PAMELA COINS
+  const totalPamelaCoins = customers.reduce((sum, c) => sum + (Number(c.points) || 0), 0);
+  const totalCoinsValue = totalPamelaCoins / 100; // 100 Coins = S/ 1.00
+
+  // Se extraen los clientes antiguos de las órdenes como backup visual
   const clientsMap = new Map();
   orders?.forEach(o => {
     if (o.client) {
@@ -774,7 +792,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white text-xs">
       
-      {/* 👇 EL VIGILANTE DE PEDIDOS 24/7 👇 */}
+      {/* 👇 ALERTA INVISIBLE QUE SUENA CON NUEVOS PEDIDOS 👇 */}
       <OrderAlerts />
       
       {/* SIDEBAR */}
@@ -890,7 +908,7 @@ export default function AdminPage() {
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "clientes" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
             >
               <span className="flex items-center gap-3"><span className="text-sm shrink-0">👥</span>{isSidebarExpanded && <span className="whitespace-nowrap">Clientes CRM</span>}</span>
-              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({clientsList.length})</span>}
+              {isSidebarExpanded && <span className="text-[9px] text-zinc-500 shrink-0">({customers.length})</span>}
             </button>
 
             <button
@@ -1374,6 +1392,7 @@ export default function AdminPage() {
                 <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
               </div>
 
+              {/* Tarjeta métrica de Pendientes con efecto llamativo intermitente */}
               <div className={`border rounded-xl p-3 space-y-1 transition-all ${
                 pendingCount > 0 
                   ? "bg-amber-500/10 border-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse" 
@@ -1399,6 +1418,7 @@ export default function AdminPage() {
 
             <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
               <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {/* Pestaña Pendientes con animación sutil y color llamativo */}
                 <button 
                   onClick={() => setOrderStatusTab("PENDIENTE")}
                   className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all ${
@@ -1415,11 +1435,36 @@ export default function AdminPage() {
                   </span>
                 </button>
 
-                <button onClick={() => setOrderStatusTab("PREPARANDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PREPARANDO" ? "bg-yellow-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🍳 Preparando ({preparingCount})</button>
-                <button onClick={() => setOrderStatusTab("EN_CAMINO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "EN_CAMINO" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🛵 En Camino ({shippingCount})</button>
-                <button onClick={() => setOrderStatusTab("ENTREGADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✓ Entregados ({deliveredCount})</button>
-                <button onClick={() => setOrderStatusTab("RECHAZADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✕ Rechazados ({rejectedCount})</button>
-                <button onClick={() => setOrderStatusTab("NO_RECOGIDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🏪 No Recogidos ({uncollectedCount})</button>
+                <button 
+                  onClick={() => setOrderStatusTab("PREPARANDO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PREPARANDO" ? "bg-yellow-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🍳 Preparando ({preparingCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("EN_CAMINO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "EN_CAMINO" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🛵 En Camino ({shippingCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("ENTREGADO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ✓ Entregados ({deliveredCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("RECHAZADO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  ✕ Rechazados ({rejectedCount})
+                </button>
+                <button 
+                  onClick={() => setOrderStatusTab("NO_RECOGIDO")}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}
+                >
+                  🏪 No Recogidos ({uncollectedCount})
+                </button>
               </div>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
@@ -1466,13 +1511,26 @@ export default function AdminPage() {
                           <h3 className="text-xs font-black text-white mt-1">{order.client}</h3>
                           <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
                         </div>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase ${
-                          isPending 
-                            ? "bg-amber-500/20 text-amber-300 border-amber-500 animate-pulse font-black" 
-                            : "bg-zinc-950 text-zinc-300 border-zinc-800"
-                        }`}>
-                          {order.status}
-                        </span>
+                        
+                        {/* 👇 TICKET Y ESTADO ALINEADOS COMO UN BLOQUE PERFECTO 👇 */}
+                        <div className="flex flex-col items-end gap-1.5 w-28 shrink-0">
+                          <div className={`w-full text-center text-[9px] font-bold px-2 py-1 rounded border uppercase ${
+                            isPending 
+                              ? "bg-amber-500/20 text-amber-300 border-amber-500 animate-pulse font-black" 
+                              : "bg-zinc-950 text-zinc-300 border-zinc-800"
+                          }`}>
+                            {order.status}
+                          </div>
+                          
+                          <button 
+                            type="button" 
+                            onClick={() => handlePrintTicket(order)} 
+                            className="w-full py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-[9px] rounded flex items-center justify-center gap-1 transition cursor-pointer border border-zinc-700 shadow-sm"
+                            title="Imprimir formato Ticketera 58mm"
+                          >
+                            🖨️ Ticket
+                          </button>
+                        </div>
                       </div>
 
                       <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
@@ -1483,17 +1541,8 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      {/* 👇 NUEVO BOTÓN DE IMPRESIÓN 👇 */}
-                      <button 
-                        type="button" 
-                        onClick={() => handlePrintTicket(order)} 
-                        className="w-full py-1.5 mt-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-[10px] rounded flex items-center justify-center gap-2 transition cursor-pointer border border-zinc-700"
-                      >
-                        🖨️ Imprimir Ticket (Voucher)
-                      </button>
-
                       {/* Botones de control progresivo de estados */}
-                      <div className="space-y-1.5 mt-1.5">
+                      <div className="space-y-1.5">
                         {order.status === "PENDIENTE" && (
                           <div className="space-y-1.5">
                             <button 
@@ -1576,25 +1625,62 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 👥 CLIENTES CRM */}
+        {/* 👥 CLIENTES CRM Y PAMELA COINS */}
         {activeTab === "clientes" && (
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
-            <h2 className="text-xs font-black text-white">👥 Clientes Frecuentes ({clientsList.length})</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {clientsList.map((c: any, i) => (
-                <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 space-y-1">
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-bold text-white">{c.name}</h3>
-                    <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[9px] font-bold">{c.totalOrders} compras</span>
-                  </div>
-                  <p className="text-zinc-400">📱 {c.phone}</p>
-                  <p className="text-zinc-400 truncate">🏠 {c.address}</p>
-                  <p className="text-emerald-400 font-black pt-1 border-t border-zinc-900 flex justify-between">
-                    <span>Total gastado:</span>
-                    <span>S/ {c.spent.toFixed(2)}</span>
-                  </p>
+          <div className="space-y-4">
+            
+            {/* 📊 DASHBOARD DE PAMELA COINS AÑADIDO AQUI */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-zinc-900/80 border border-amber-500/30 rounded-xl p-4 space-y-1 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+                <span className="text-[10px] font-bold text-amber-400/80 uppercase">Total Monedas Emitidas</span>
+                <div className="text-xl font-black text-amber-400 flex items-center gap-2">
+                  <span className="text-2xl animate-bounce">🪙</span> {totalPamelaCoins} Coins
                 </div>
-              ))}
+              </div>
+              <div className="bg-zinc-900/80 border border-emerald-500/30 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-emerald-400/80 uppercase">Equivalente en Descuentos</span>
+                <div className="text-xl font-black text-emerald-400">S/ {totalCoinsValue.toFixed(2)}</div>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase">Clientes Registrados</span>
+                <div className="text-xl font-black text-blue-400">👥 {customers.length}</div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-4">
+              <div className="border-b border-zinc-800 pb-3">
+                <h2 className="text-sm font-black text-white">👥 Listado General de Clientes Frecuentes</h2>
+                <p className="text-[10px] text-zinc-400">Administra los puntos de fidelización de tus clientes.</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {customers.map((c: any) => (
+                  <div key={c.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3 relative overflow-hidden">
+                    <div className="absolute -right-4 -top-4 text-6xl opacity-5">🪙</div>
+                    <div className="flex justify-between items-start relative z-10">
+                      <div>
+                        <h3 className="font-bold text-white text-sm">{c.name || "Sin nombre"}</h3>
+                        <p className="text-[11px] text-zinc-400 font-mono mt-0.5">📱 {c.phone}</p>
+                      </div>
+                      <span className="bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded text-[11px] font-black border border-amber-500/30 shadow-inner">
+                        {c.points || 0} Coins
+                      </span>
+                    </div>
+                    <div className="pt-3 border-t border-zinc-900 relative z-10 space-y-2">
+                      <p className="text-[10px] text-zinc-500 truncate">🏠 {c.address || "Sin dirección"}</p>
+                      <button 
+                        onClick={() => { setEditingCustomer(c); setEditPoints(c.points || 0); }}
+                        className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold py-2 rounded-lg text-[10px] border border-zinc-800 transition cursor-pointer"
+                      >
+                        ✏️ Editar Puntos Manualmente
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {customers.length === 0 && (
+                  <p className="text-zinc-500 py-10 col-span-full">Aún no hay clientes registrados con Pamela Coins.</p>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1964,6 +2050,48 @@ export default function AdminPage() {
         )}
 
       </main>
+
+      {/* 🔥 MODAL PARA EDITAR PAMELA COINS */}
+      {editingCustomer && (
+        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4 text-xs text-white shadow-2xl">
+            <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+              <h3 className="text-sm font-black">Modificar Pamela Coins 🪙</h3>
+              <button type="button" onClick={() => setEditingCustomer(null)} className="text-zinc-400 hover:text-white font-black text-sm cursor-pointer">✕</button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await updateDoc(doc(db, "customers", editingCustomer.id), { points: Number(editPoints) });
+                setEditingCustomer(null);
+                alert("¡Monedas actualizadas correctamente!");
+              } catch(err:any) { alert(`Error al actualizar: ${err.message}`); }
+            }} className="space-y-4">
+              <p className="text-[11px] text-zinc-400">Cliente: <span className="font-bold text-white">{editingCustomer.name || "Sin nombre"} ({editingCustomer.phone})</span></p>
+              
+              <div className="space-y-1">
+                <label className="block text-zinc-400 font-bold uppercase text-[10px]">Saldo de Monedas Actual</label>
+                <input 
+                  type="number" 
+                  value={editPoints} 
+                  onChange={e => setEditPoints(Number(e.target.value))} 
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-amber-400 font-black text-2xl text-center focus:outline-none focus:border-amber-500 shadow-inner" 
+                  required 
+                />
+              </div>
+              <p className="text-[10px] text-emerald-500 font-bold text-center bg-emerald-950/30 py-1.5 rounded-lg border border-emerald-900/50">
+                💰 Equivale a S/ {(editPoints / 100).toFixed(2)} de descuento
+              </p>
+              
+              <div className="flex gap-2 pt-3 border-t border-zinc-800">
+                <button type="button" onClick={() => setEditingCustomer(null)} className="flex-1 py-3 rounded-xl bg-zinc-800 font-bold text-zinc-300 cursor-pointer transition hover:bg-zinc-700">Cancelar</button>
+                <button type="submit" className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 font-black text-black shadow-lg cursor-pointer transition">Guardar Coins</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
