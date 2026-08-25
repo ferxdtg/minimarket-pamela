@@ -45,14 +45,15 @@ export default function Hero() {
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-red-200/60 rounded-full blur-[100px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-5%] w-96 h-96 bg-amber-200/50 rounded-full blur-[100px] pointer-events-none"></div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 relative z-10 grid md:grid-cols-2 gap-10 items-center">
+      {/* 🔥 INYECCIÓN: Ajuste de padding top (pt-10 md:pt-14) para pegar el contenido arriba */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-16 md:pt-14 md:pb-24 relative z-10 grid md:grid-cols-2 gap-10 items-center">
         
         {/* TEXTOS Y BOTONES (IZQUIERDA) */}
-        <div className="text-center md:text-left space-y-6">
+        <div className="text-center md:text-left space-y-5">
           
-          {/* 🔥 BADGE DINÁMICO E INTELIGENTE - CON MÁS MARGEN ABAJO (mb-8 md:mb-10) PARA SUBIRLO */}
+          {/* 🔥 BADGE DINÁMICO E INTELIGENTE - Sin margen inferior exagerado */}
           {!storeStatus.loading && (
-            <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-[0_2px_10px_rgba(0,0,0,0.04)] border mb-8 md:mb-10 ${storeStatus.isOpen ? 'bg-white border-emerald-100 text-slate-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+            <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-[0_2px_10px_rgba(0,0,0,0.04)] border ${storeStatus.isOpen ? 'bg-white border-emerald-100 text-slate-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
               <span className="relative flex h-2.5 w-2.5">
                 {storeStatus.isOpen && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
                 <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${storeStatus.isOpen ? 'bg-emerald-500' : 'bg-red-600'}`}></span>
@@ -76,7 +77,7 @@ export default function Hero() {
             Abarrotes, lácteos, bebidas y limpieza. Pide rápido, paga seguro y recibe todo fresco en la puerta de tu hogar.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 justify-center md:justify-start pt-4">
+          <div className="flex flex-col sm:flex-row items-center gap-3 justify-center md:justify-start pt-2">
             <button 
               onClick={() => handleAction("todos")}
               className="w-full sm:w-auto px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black transition-all duration-300 shadow-[0_8px_20px_rgba(220,38,38,0.25)] hover:shadow-[0_12px_25px_rgba(220,38,38,0.35)] hover:-translate-y-1 active:scale-95 cursor-pointer"
