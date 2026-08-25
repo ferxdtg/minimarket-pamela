@@ -1,6 +1,36 @@
 "use client";
 
+import { useState, useEffect } from "react";
+
 export default function Hero() {
+  const [storeStatus, setStoreStatus] = useState({ isOpen: true, timeStr: "", loading: true });
+
+  // 🕒 LÓGICA DE HORA EXACTA (LIMA, PERÚ)
+  useEffect(() => {
+    const updateTime = () => {
+      const limaTimeStr = new Date().toLocaleString("en-US", { timeZone: "America/Lima" });
+      const limaDate = new Date(limaTimeStr);
+      
+      const hours = limaDate.getHours();
+      // Abierto desde las 06:00 hasta las 23:59
+      const isOpen = hours >= 6 && hours < 24; 
+
+      const formatter = new Intl.DateTimeFormat('es-PE', {
+        hour: 'numeric', minute: '2-digit', hour12: true
+      });
+      
+      setStoreStatus({ 
+        isOpen, 
+        timeStr: formatter.format(limaDate), 
+        loading: false 
+      });
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 60000); // Actualiza cada minuto
+    return () => clearInterval(interval);
+  }, []);
+
   const handleAction = (category: string) => {
     window.dispatchEvent(new CustomEvent("filter_category", { detail: category }));
     
@@ -20,14 +50,20 @@ export default function Hero() {
         {/* TEXTOS Y BOTONES (IZQUIERDA) */}
         <div className="text-center md:text-left space-y-6">
           
-          {/* Badge "Abierto Ahora" Fresco y Confiable */}
-          <div className="inline-flex items-center gap-2 bg-white px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm text-slate-700 shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-slate-100">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <span>Abierto ahora • Delivery express</span>
-          </div>
+          {/* 🔥 BADGE DINÁMICO E INTELIGENTE */}
+          {!storeStatus.loading && (
+            <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-[0_2px_10px_rgba(0,0,0,0.04)] border ${storeStatus.isOpen ? 'bg-white border-emerald-100 text-slate-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+              <span className="relative flex h-2.5 w-2.5">
+                {storeStatus.isOpen && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${storeStatus.isOpen ? 'bg-emerald-500' : 'bg-red-600'}`}></span>
+              </span>
+              <span>
+                {storeStatus.isOpen 
+                  ? `Abierto ahora • Lima ${storeStatus.timeStr}` 
+                  : `Cerrado • Abre a las 06:00 a.m.`}
+              </span>
+            </div>
+          )}
 
           <h1 className="text-5xl sm:text-6xl md:text-7xl font-black text-slate-900 tracking-tighter leading-[1.05]">
             Tu súper, <br />

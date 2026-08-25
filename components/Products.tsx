@@ -59,8 +59,8 @@ export default function Products() {
   });
 
   return (
-    <section id="productos-section" className="py-12 px-4 sm:px-6 max-w-7xl mx-auto min-h-screen">
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
+    <section id="productos-section" className="py-12 px-2 sm:px-6 max-w-7xl mx-auto min-h-screen">
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6 px-2 sm:px-0">
         <SectionTitle
           title={
             searchQuery
@@ -87,20 +87,19 @@ export default function Products() {
       </div>
 
       {loading ? (
-        // 🚀 SKELETONS LUMINOSOS Y LIMPIOS
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
+        // 🔥 INYECCIÓN: grid-cols-2 en móviles para los esqueletos
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6 px-1 sm:px-0">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-white border border-slate-100 rounded-[2rem] p-5 flex flex-col h-full animate-pulse shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-              <div className="w-full aspect-square bg-slate-100 rounded-2xl mb-4"></div>
-              <div className="w-3/4 h-5 bg-slate-200 rounded-full mb-3"></div>
-              <div className="w-1/2 h-4 bg-slate-100 rounded-full mb-6"></div>
-              <div className="w-full h-12 bg-slate-100 rounded-2xl mt-auto"></div>
+            <div key={i} className="bg-white border border-slate-100 rounded-2xl sm:rounded-[2rem] p-3 sm:p-5 flex flex-col h-full animate-pulse shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+              <div className="w-full aspect-square bg-slate-100 rounded-xl sm:rounded-2xl mb-4"></div>
+              <div className="w-3/4 h-4 sm:h-5 bg-slate-200 rounded-full mb-3"></div>
+              <div className="w-1/2 h-3 sm:h-4 bg-slate-100 rounded-full mb-6"></div>
+              <div className="w-full h-10 sm:h-12 bg-slate-100 rounded-xl sm:rounded-2xl mt-auto"></div>
             </div>
           ))}
         </div>
       ) : filteredProducts.length === 0 ? (
-        // 🚀 ESTADO VACÍO LUMINOSO
-        <div className="text-center py-24 bg-white rounded-[3rem] border border-dashed border-slate-200 shadow-sm">
+        <div className="text-center py-24 bg-white rounded-[3rem] border border-dashed border-slate-200 shadow-sm mx-2 sm:mx-0">
           <div className="text-6xl mb-4 opacity-50">🛒</div>
           <p className="text-xl font-black text-slate-800 tracking-tight">No encontramos lo que buscas.</p>
           <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">Quizás escribiste mal el nombre o este producto está agotado temporalmente.</p>
@@ -112,7 +111,8 @@ export default function Products() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
+        // 🔥 INYECCIÓN: grid-cols-2 en móviles para el catálogo real
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6 px-1 sm:px-0">
           {filteredProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
