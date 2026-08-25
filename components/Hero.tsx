@@ -50,9 +50,9 @@ export default function Hero() {
         {/* TEXTOS Y BOTONES (IZQUIERDA) */}
         <div className="text-center md:text-left space-y-6">
           
-          {/* 🔥 BADGE DINÁMICO E INTELIGENTE */}
+          {/* 🔥 BADGE DINÁMICO E INTELIGENTE - CON MÁS MARGEN ABAJO (mb-8 md:mb-10) PARA SUBIRLO */}
           {!storeStatus.loading && (
-            <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-[0_2px_10px_rgba(0,0,0,0.04)] border ${storeStatus.isOpen ? 'bg-white border-emerald-100 text-slate-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+            <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-[0_2px_10px_rgba(0,0,0,0.04)] border mb-8 md:mb-10 ${storeStatus.isOpen ? 'bg-white border-emerald-100 text-slate-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
               <span className="relative flex h-2.5 w-2.5">
                 {storeStatus.isOpen && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
                 <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${storeStatus.isOpen ? 'bg-emerald-500' : 'bg-red-600'}`}></span>
