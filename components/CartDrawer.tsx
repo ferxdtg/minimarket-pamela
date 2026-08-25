@@ -155,15 +155,21 @@ export default function CartDrawer() {
         createdAt: new Date().toISOString()
       });
 
-      // 🔥 D. ENVIAR A WHATSAPP CON DIRECCIÓN DE LA TIENDA
+      // 🔥 D. ENVIAR A WHATSAPP CON MAPA VISUAL
       const adminWhatsApp = "51950323959"; 
       
-      const addressDisplay = orderType === "DELIVERY" 
-        ? clientAddress 
-        : "🏪 Recojo en Tienda\n📍 *Ubicación del local:* Esta es bodega bazar pamela ubicada en la calle 48 634, comas.";
+      // La URL exacta de Google Maps que generará la previsualización en WhatsApp
+      const googleMapsUrl = "https://www.google.com/maps?svid=CAwSHRIbCgNwdnESFENnMHZaeTh4TVhGeGNuUnJaMTgzGAo&um=1&ie=UTF-8&fb=1&gl=pe&sa=X&ftid=0x9105d1c7300a146d:0xc39811e45f5331ce";
+
+      let addressDisplay = "";
+      if (orderType === "DELIVERY") {
+        addressDisplay = clientAddress;
+      } else {
+        addressDisplay = `🏪 Recojo en Tienda\n📍 *Ubicación del local:* Esta es bodega bazar pamela ubicada en la calle 48 634, comas.\n\n🗺️ *Ver Mapa:* \n${googleMapsUrl}`;
+      }
 
       const message = encodeURIComponent(
-        `*🛒 ¡NUEVO PEDIDO - MINIMARKET PAMELA!*\n----------------------------------\n👤 *Cliente:* ${clientName}\n📱 *Teléfono:* ${clientPhone}\n🏠 *Dirección:* ${addressDisplay}\n🛵 *Tipo:* ${orderType}\n\n📦 *PRODUCTOS:*\n${cart.map((i) => `- ${i.quantity}x ${i.name} (S/ ${(i.price * i.quantity).toFixed(2)})`).join("\n")}\n\n----------------------------------\n💳 *Subtotal:* S/ ${cartTotal.toFixed(2)}\n${deliveryFee > 0 ? `🛵 *Delivery:* S/ ${deliveryFee.toFixed(2)}\n` : ""}${useCoins ? `🪙 *Descuento Pamela Coins:* -S/ ${discountFromCoins.toFixed(2)}\n` : ""}💰 *TOTAL A PAGAR:* *S/ ${finalTotal.toFixed(2)}*\n----------------------------------\n✨ *Puntos ganados hoy:* +${coinsEarned} Pamela Coins\n🪙 *Tu saldo actual:* ${finalPoints} Coins`
+        `*🛒 ¡NUEVO PEDIDO - MINIMARKET PAMELA!*\n----------------------------------\n👤 *Cliente:* ${clientName}\n📱 *Teléfono:* ${clientPhone}\n🏠 *Dirección:* \n${addressDisplay}\n\n🛵 *Tipo:* ${orderType}\n\n📦 *PRODUCTOS:*\n${cart.map((i) => `- ${i.quantity}x ${i.name} (S/ ${(i.price * i.quantity).toFixed(2)})`).join("\n")}\n\n----------------------------------\n💳 *Subtotal:* S/ ${cartTotal.toFixed(2)}\n${deliveryFee > 0 ? `🛵 *Delivery:* S/ ${deliveryFee.toFixed(2)}\n` : ""}${useCoins ? `🪙 *Descuento Pamela Coins:* -S/ ${discountFromCoins.toFixed(2)}\n` : ""}💰 *TOTAL A PAGAR:* *S/ ${finalTotal.toFixed(2)}*\n----------------------------------\n✨ *Puntos ganados hoy:* +${coinsEarned} Pamela Coins\n🪙 *Tu saldo actual:* ${finalPoints} Coins`
       );
 
       cart.forEach(item => removeFromCart(item.id));
