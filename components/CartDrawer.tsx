@@ -30,13 +30,11 @@ export default function CartDrawer() {
 
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // 🔥 CÁLCULOS REALISTAS DE NEGOCIO (1% Cashback)
+  // CÁLCULOS
   const deliveryFee = orderType === "DELIVERY" ? 5.00 : 0.00;
   const discountFromCoins = useCoins ? Math.min(cartTotal + deliveryFee, clientPoints / 100) : 0;
   const finalTotal = Math.max(0, cartTotal + deliveryFee - discountFromCoins);
-  
-  // 1 Sol gastado = 1 Pamela Coin (100 Coins = S/ 1.00)
-  const coinsEarned = Math.floor(finalTotal);
+  const coinsEarned = Math.floor(finalTotal * 10);
 
   useEffect(() => {
     async function fetchSuggestions() {
@@ -89,7 +87,6 @@ export default function CartDrawer() {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          // Esto guardará un link exacto de Google Maps en el campo de dirección
           setClientAddress(`📍 https://maps.google.com/?q=${latitude},${longitude}`);
         },
         (error) => {
@@ -158,10 +155,15 @@ export default function CartDrawer() {
         createdAt: new Date().toISOString()
       });
 
-      // D. Enviar a WhatsApp estructurado
+      // 🔥 D. ENVIAR A WHATSAPP CON DIRECCIÓN DE LA TIENDA
       const adminWhatsApp = "51950323959"; 
+      
+      const addressDisplay = orderType === "DELIVERY" 
+        ? clientAddress 
+        : "🏪 Recojo en Tienda\n📍 *Ubicación del local:* Esta es bodega bazar pamela ubicada en la calle 48 634, comas.";
+
       const message = encodeURIComponent(
-        `*🛒 ¡NUEVO PEDIDO - MINIMARKET PAMELA!*\n----------------------------------\n👤 *Cliente:* ${clientName}\n📱 *Teléfono:* ${clientPhone}\n🏠 *Dirección:* ${orderType === "DELIVERY" ? clientAddress : "🏪 Recojo en Tienda"}\n🛵 *Tipo:* ${orderType}\n\n📦 *PRODUCTOS:*\n${cart.map((i) => `- ${i.quantity}x ${i.name} (S/ ${(i.price * i.quantity).toFixed(2)})`).join("\n")}\n\n----------------------------------\n💳 *Subtotal:* S/ ${cartTotal.toFixed(2)}\n${deliveryFee > 0 ? `🛵 *Delivery:* S/ ${deliveryFee.toFixed(2)}\n` : ""}${useCoins ? `🪙 *Descuento Pamela Coins:* -S/ ${discountFromCoins.toFixed(2)}\n` : ""}💰 *TOTAL A PAGAR:* *S/ ${finalTotal.toFixed(2)}*\n----------------------------------\n✨ *Puntos ganados hoy:* +${coinsEarned} Pamela Coins\n🪙 *Tu saldo actual:* ${finalPoints} Coins`
+        `*🛒 ¡NUEVO PEDIDO - MINIMARKET PAMELA!*\n----------------------------------\n👤 *Cliente:* ${clientName}\n📱 *Teléfono:* ${clientPhone}\n🏠 *Dirección:* ${addressDisplay}\n🛵 *Tipo:* ${orderType}\n\n📦 *PRODUCTOS:*\n${cart.map((i) => `- ${i.quantity}x ${i.name} (S/ ${(i.price * i.quantity).toFixed(2)})`).join("\n")}\n\n----------------------------------\n💳 *Subtotal:* S/ ${cartTotal.toFixed(2)}\n${deliveryFee > 0 ? `🛵 *Delivery:* S/ ${deliveryFee.toFixed(2)}\n` : ""}${useCoins ? `🪙 *Descuento Pamela Coins:* -S/ ${discountFromCoins.toFixed(2)}\n` : ""}💰 *TOTAL A PAGAR:* *S/ ${finalTotal.toFixed(2)}*\n----------------------------------\n✨ *Puntos ganados hoy:* +${coinsEarned} Pamela Coins\n🪙 *Tu saldo actual:* ${finalPoints} Coins`
       );
 
       cart.forEach(item => removeFromCart(item.id));
@@ -284,13 +286,13 @@ export default function CartDrawer() {
               </div>
             </div>
 
-            {/* 🔥 BANNER VISUAL DE PAMELA COINS ACTUALIZADO (S/ 1 = 1 Coin) */}
+            {/* BANNER VISUAL DE PAMELA COINS */}
             <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-yellow-500/15 border border-amber-500/40 rounded-xl p-2.5 flex items-center justify-between shadow-sm">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-sm animate-bounce shrink-0 shadow-inner">🪙</div>
                 <div>
                   <p className="text-[10px] font-black text-amber-600 uppercase tracking-wide">¡Ganas Pamela Coins!</p>
-                  <p className="text-[9px] text-slate-600 font-medium leading-tight">1 Coin por S/ 1. ¡100 Coins = S/ 1.00 Dcto!</p>
+                  <p className="text-[9px] text-slate-600 font-medium leading-tight">Acumula puntos para descuentos</p>
                 </div>
               </div>
               <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-2 py-1 rounded-lg shadow-sm">+{coinsEarned} Coins</span>
