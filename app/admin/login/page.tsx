@@ -24,7 +24,7 @@ export default function AdminLoginPage() {
   // ============================================================================
   const playSciFiSound = (type: 'type' | 'hover' | 'success' | 'error' | 'lockdown' | 'vaultOpen') => {
     try {
-      if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioCtxRef.current) return;
       const ctx = audioCtxRef.current;
       if (ctx.state === 'suspended') ctx.resume();
 
@@ -66,33 +66,33 @@ export default function AdminLoginPage() {
         osc.start(now); osc.stop(now + 1.0);
       }
       else if (type === 'vaultOpen') {
-        // 1. BOOM SUB-BAJO (El peso de la compuerta soltándose)
+        // 1. BOOM SUB-BAJO (Compuerta pesada)
         const subOsc = ctx.createOscillator(); const subGain = ctx.createGain();
-        subOsc.type = 'sine'; subOsc.frequency.setValueAtTime(60, now); subOsc.frequency.exponentialRampToValueAtTime(10, now + 1.5);
-        subGain.gain.setValueAtTime(1, now); subGain.gain.exponentialRampToValueAtTime(0.01, now + 2);
+        subOsc.type = 'sine'; subOsc.frequency.setValueAtTime(100, now); subOsc.frequency.exponentialRampToValueAtTime(20, now + 1.5);
+        subGain.gain.setValueAtTime(1, now); subGain.gain.exponentialRampToValueAtTime(0.01, now + 2.5);
         subOsc.connect(subGain); subGain.connect(ctx.destination);
-        subOsc.start(now); subOsc.stop(now + 2);
+        subOsc.start(now); subOsc.stop(now + 2.5);
 
         // 2. CLANK METÁLICO (Pestillos retractándose)
         const clankOsc = ctx.createOscillator(); const clankGain = ctx.createGain();
-        clankOsc.type = 'square'; clankOsc.frequency.setValueAtTime(800, now); clankOsc.frequency.exponentialRampToValueAtTime(100, now + 0.2);
-        clankGain.gain.setValueAtTime(0.4, now); clankGain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        clankOsc.type = 'square'; clankOsc.frequency.setValueAtTime(600, now); clankOsc.frequency.exponentialRampToValueAtTime(50, now + 0.3);
+        clankGain.gain.setValueAtTime(0.5, now); clankGain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
         clankOsc.connect(clankGain); clankGain.connect(ctx.destination);
-        clankOsc.start(now); clankOsc.stop(now + 0.3);
+        clankOsc.start(now); clankOsc.stop(now + 0.4);
 
-        // 3. ENGRANAJES METÁLICOS PESADOS (Efecto Tremolo de Motor)
+        // 3. ENGRANAJES METÁLICOS (Tremolo)
         const gearOsc = ctx.createOscillator(); const gearGain = ctx.createGain(); const gearLFO = ctx.createOscillator();
-        gearOsc.type = 'sawtooth'; gearOsc.frequency.setValueAtTime(40, now); gearOsc.frequency.linearRampToValueAtTime(20, now + 2.5);
-        gearLFO.type = 'sine'; gearLFO.frequency.setValueAtTime(18, now); gearLFO.frequency.linearRampToValueAtTime(2, now + 2.5);
+        gearOsc.type = 'sawtooth'; gearOsc.frequency.setValueAtTime(60, now); gearOsc.frequency.linearRampToValueAtTime(30, now + 2.5);
+        gearLFO.type = 'sine'; gearLFO.frequency.setValueAtTime(20, now); gearLFO.frequency.linearRampToValueAtTime(2, now + 2.5);
         const amNode = ctx.createGain();
         gearLFO.connect(amNode.gain); gearOsc.connect(amNode); amNode.connect(gearGain); gearGain.connect(ctx.destination);
-        gearGain.gain.setValueAtTime(0, now); gearGain.gain.linearRampToValueAtTime(0.6, now + 0.2); gearGain.gain.linearRampToValueAtTime(0, now + 2.5);
+        gearGain.gain.setValueAtTime(0, now); gearGain.gain.linearRampToValueAtTime(0.8, now + 0.3); gearGain.gain.linearRampToValueAtTime(0, now + 2.5);
         gearOsc.start(now); gearLFO.start(now); gearOsc.stop(now + 2.5); gearLFO.stop(now + 2.5);
 
-        // 4. FUGA DE PRESIÓN HIDRÁULICA (Aire escapando)
+        // 4. PRESIÓN HIDRÁULICA (Hiss)
         const hissOsc = ctx.createOscillator(); const hissGain = ctx.createGain();
-        hissOsc.type = 'square'; hissOsc.frequency.setValueAtTime(8000, now);
-        hissGain.gain.setValueAtTime(0, now); hissGain.gain.linearRampToValueAtTime(0.05, now + 0.5); hissGain.gain.exponentialRampToValueAtTime(0.01, now + 2.5);
+        hissOsc.type = 'square'; hissOsc.frequency.setValueAtTime(6000, now);
+        hissGain.gain.setValueAtTime(0, now); hissGain.gain.linearRampToValueAtTime(0.08, now + 0.5); hissGain.gain.exponentialRampToValueAtTime(0.01, now + 2.5);
         hissOsc.connect(hissGain); hissGain.connect(ctx.destination);
         hissOsc.start(now); hissOsc.stop(now + 2.5);
       }
@@ -106,7 +106,7 @@ export default function AdminLoginPage() {
     setPersistence(auth, browserSessionPersistence).catch(() => {});
   }, []);
 
-  // 💻 TERMINAL DE INICIO Y GEOLOCALIZACIÓN
+  // 💻 TERMINAL DE INICIO
   useEffect(() => {
     const logs = [
       "> INICIALIZANDO NÚCLEO MINIMARKET PAMELA v5.0...",
@@ -130,6 +130,18 @@ export default function AdminLoginPage() {
     e.preventDefault();
     if (isLockdown) return;
 
+    // 🔥 TRUCO ANTI-BLOQUEO: Desbloqueamos el audio en el mismo milisegundo del click
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+    // Sonido silencioso para engañar a Chrome/Safari
+    const silentOsc = audioCtxRef.current.createOscillator();
+    silentOsc.connect(audioCtxRef.current.destination);
+    silentOsc.start(); silentOsc.stop(audioCtxRef.current.currentTime + 0.01);
+
     setStatus('loading');
     setMessage('VERIFICANDO HUELLA DIGITAL Y CIFRANDO CONEXIÓN...');
 
@@ -149,9 +161,9 @@ export default function AdminLoginPage() {
         // Efecto Zoom-Through hacia adentro del panel
         setTimeout(() => {
           router.replace('/admin/productos/nuevo');
-        }, 3600); // Sincronizado exacto con el fin de la animación de la rueda
+        }, 3400); 
 
-      }, 1000);
+      }, 1200);
 
     } catch (error) {
       const newAttempts = failedAttempts + 1;
@@ -180,9 +192,6 @@ export default function AdminLoginPage() {
     id: i, left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`, delay: `${Math.random() * 5}s`, duration: `${5 + Math.random() * 10}s`
   }));
 
-  // ============================================================================
-  // 🚨 RENDERIZADO DEL MODO LOCKDOWN
-  // ============================================================================
   if (isLockdown) {
     return (
       <div className="relative min-h-screen bg-red-950 flex flex-col items-center justify-center p-4 overflow-hidden font-mono animate-[shake_0.5s_ease-in-out_infinite]">
@@ -196,9 +205,6 @@ export default function AdminLoginPage() {
     );
   }
 
-  // ============================================================================
-  // 🌌 RENDERIZADO PRINCIPAL
-  // ============================================================================
   return (
     <div className={`relative min-h-screen bg-[#020202] flex items-center justify-center p-4 overflow-hidden selection:bg-red-600 selection:text-white font-mono ${status === 'vault' ? 'animate-[shake_0.3s_ease-in-out]' : ''}`}>
       
@@ -210,23 +216,23 @@ export default function AdminLoginPage() {
         @keyframes dataStream { 0% { background-position: 0 0; } 100% { background-position: 0 1000px; } }
         @keyframes glitch { 0% { clip-path: inset(10% 0 80% 0); transform: translate(-2px, 2px); } 20% { clip-path: inset(80% 0 5% 0); transform: translate(2px, -2px); } 100% { clip-path: inset(40% 0 30% 0); transform: translate(2px, -2px); } }
         
-        /* 🔥 ANIMACIONES DE LA BÓVEDA DEL BANCO */
+        /* 🔥 ANIMACIONES CORREGIDAS DE LA BÓVEDA DEL BANCO */
         @keyframes fadeOutUI { to { opacity: 0; transform: scale(0.9) translateY(40px); filter: blur(20px); pointer-events: none; } }
         @keyframes fadeInVault { from { opacity: 0; transform: scale(0.1) rotate(-45deg); } to { opacity: 1; transform: scale(1) rotate(0deg); } }
         
-        /* La rueda gira con fricción pesada y de golpe se suelta */
+        /* Gira la rueda mecánicamente */
         @keyframes heavySpinUnlock { 
           0% { transform: rotate(0deg); } 
-          15% { transform: rotate(-10deg); } /* Toma impulso */
-          80% { transform: rotate(1080deg); } /* Gira rápido */
+          15% { transform: rotate(-15deg); } 
+          80% { transform: rotate(1080deg); } 
           100% { transform: rotate(1080deg); } 
         }
         
-        /* La cámara es absorbida por la bóveda */
+        /* Zoom Extremo hacia el panel */
         @keyframes zoomThroughVault { 
           0% { transform: scale(1); filter: blur(0px); opacity: 1; } 
-          10% { transform: scale(0.9); filter: blur(0px); opacity: 1; } /* La puerta se desengancha hacia atrás */
-          100% { transform: scale(100); filter: blur(10px); opacity: 0; } /* Atravesamos el metal a hipervelocidad */
+          10% { transform: scale(0.9); filter: blur(0px); opacity: 1; } 
+          100% { transform: scale(150); filter: blur(10px); opacity: 0; } 
         }
         @keyframes flashWhite { 0% { opacity: 0; } 100% { opacity: 1; } }
 
@@ -253,11 +259,8 @@ export default function AdminLoginPage() {
         </div>
       </div>
 
-      {/* 🚀 INTERFAZ DE LOGIN (Desaparece con el FadeOutUI) */}
-      <div 
-        className="relative z-20 w-full max-w-lg"
-        style={{ animation: status === 'vault' ? 'fadeOutUI 0.8s ease-in forwards' : 'none' }}
-      >
+      {/* 🚀 INTERFAZ DE LOGIN */}
+      <div className="relative z-20 w-full max-w-lg" style={{ animation: status === 'vault' ? 'fadeOutUI 0.8s ease-in forwards' : 'none' }}>
         <div className="bg-[#0a0a0c]/80 backdrop-blur-3xl border border-red-900/30 rounded-[2rem] shadow-[0_0_80px_rgba(220,38,38,0.15),inset_0_0_40px_rgba(220,38,38,0.05)] pt-16 pb-12 px-8 sm:px-12 relative overflow-hidden">
           
           <div className="absolute left-0 right-0 h-[2px] bg-red-500 shadow-[0_0_20px_rgba(220,38,38,1)] pointer-events-none z-50" style={{ animation: 'scan 4s cubic-bezier(0.4, 0, 0.2, 1) infinite' }} />
@@ -316,20 +319,16 @@ export default function AdminLoginPage() {
       {status === 'vault' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
           
-          {/* Destello de luz cegadora al final */}
-          <div className="absolute inset-0 bg-white z-50 pointer-events-none" style={{ animation: 'flashWhite 0.5s ease-in 3.2s forwards' }} />
+          {/* 🔥 SOLUCIÓN: Agregado opacity-0 al inicio para que no oculte la bóveda */}
+          <div className="absolute inset-0 bg-white z-50 pointer-events-none opacity-0" style={{ animation: 'flashWhite 0.4s ease-in 2.8s forwards' }} />
           
           {/* Contenedor que "atraviesa" la cámara hacia el panel */}
-          <div className="relative flex flex-col items-center justify-center w-full h-full" style={{ animation: 'fadeInVault 0.5s ease-out forwards, zoomThroughVault 1.5s cubic-bezier(0.5, 0, 0.1, 1) 2.2s forwards' }}>
+          <div className="relative flex flex-col items-center justify-center w-full h-full opacity-0" style={{ animation: 'fadeInVault 0.5s ease-out forwards, zoomThroughVault 1.5s cubic-bezier(0.5, 0, 0.1, 1) 1.8s forwards' }}>
             
             {/* ⚙️ BÓVEDA PESADA DE BANCO HECHA 100% CON CÓDIGO VECTORIAL (SVG) */}
             <div className="relative w-[350px] h-[350px] md:w-[500px] md:h-[500px]">
-              <svg 
-                className="w-full h-full drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)]" 
-                viewBox="0 0 200 200" 
-              >
+              <svg className="w-full h-full drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)]" viewBox="0 0 200 200">
                 <defs>
-                  {/* Gradientes Metálicos Realistas */}
                   <radialGradient id="metalGrad" cx="50%" cy="50%" r="50%">
                     <stop offset="0%" stopColor="#d4d4d8" />
                     <stop offset="60%" stopColor="#52525b" />
@@ -340,20 +339,17 @@ export default function AdminLoginPage() {
                     <stop offset="50%" stopColor="#3f3f46" />
                     <stop offset="100%" stopColor="#09090b" />
                   </linearGradient>
-                  {/* Sombras internas simulando profundidad */}
                   <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
                     <feDropShadow dx="2" dy="5" stdDeviation="4" floodColor="#000" floodOpacity="0.8"/>
                   </filter>
                 </defs>
 
-                {/* MARCO ESTÁTICO EXTERIOR (Pared de acero) */}
+                {/* MARCO ESTÁTICO EXTERIOR */}
                 <circle cx="100" cy="100" r="95" fill="url(#metalGrad)" filter="url(#shadow)"/>
                 <circle cx="100" cy="100" r="85" fill="#09090b" stroke="#3f3f46" strokeWidth="3" filter="url(#shadow)"/>
 
-                {/* ⚙️ RUEDA ROTATIVA INTERNA Y MANUBRIOS */}
-                <g style={{ transformOrigin: 'center', animation: 'heavySpinUnlock 2.2s cubic-bezier(0.6, -0.2, 0.2, 1.2) 0.1s forwards' }}>
-                  
-                  {/* Base de la compuerta */}
+                {/* ⚙️ RUEDA ROTATIVA INTERNA */}
+                <g style={{ transformOrigin: '100px 100px', animation: 'heavySpinUnlock 1.8s cubic-bezier(0.6, -0.2, 0.2, 1.2) 0.1s forwards' }}>
                   <circle cx="100" cy="100" r="78" fill="url(#metalGrad)" filter="url(#shadow)"/>
                   
                   {/* 8 Vigas / Manubrios pesados */}
@@ -364,7 +360,7 @@ export default function AdminLoginPage() {
                     <line x1="42" y1="158" x2="158" y2="42" />
                   </g>
 
-                  {/* Anillo de seguridad secundario */}
+                  {/* Anillo de seguridad */}
                   <circle cx="100" cy="100" r="48" fill="none" stroke="#27272a" strokeWidth="10" filter="url(#shadow)"/>
                   <circle cx="100" cy="100" r="38" fill="url(#metalGrad)" stroke="#18181b" strokeWidth="4" filter="url(#shadow)"/>
                   
@@ -374,14 +370,14 @@ export default function AdminLoginPage() {
                   <circle cx="74" cy="100" r="3" fill="#000"/>
                   <circle cx="126" cy="100" r="3" fill="#000"/>
 
-                  {/* Cerradura Principal (Núcleo Láser) */}
+                  {/* Cerradura Principal */}
                   <circle cx="100" cy="100" r="16" fill="#000" stroke="#ef4444" strokeWidth="3"/>
                   <circle cx="100" cy="100" r="6" fill="#ef4444" className="animate-pulse" style={{ filter: 'drop-shadow(0 0 10px red)' }}/>
                 </g>
               </svg>
             </div>
 
-            <div className="absolute top-[85%] text-center" style={{ animation: 'fadeOutUI 0.3s ease-in 2.0s forwards' }}>
+            <div className="absolute top-[85%] text-center opacity-0" style={{ animation: 'fadeInVault 0.2s ease-out 0.2s forwards, fadeOutUI 0.3s ease-in 1.6s forwards' }}>
               <p className="text-red-500 font-black text-xl md:text-3xl tracking-[0.5em] animate-pulse drop-shadow-[0_0_15px_rgba(220,38,38,1)]">
                 ABRIENDO NÚCLEO...
               </p>
