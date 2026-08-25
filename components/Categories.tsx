@@ -17,7 +17,7 @@ export default function Categories() {
   };
 
   return (
-    <section className="py-12 sm:py-20 px-4 sm:px-6 max-w-7xl mx-auto">
+    <section className="py-12 sm:py-20 px-4 sm:px-6 w-full max-w-7xl mx-auto overflow-hidden">
       <div className="flex items-end justify-between mb-8 sm:mb-12">
         <div>
           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">
@@ -36,12 +36,13 @@ export default function Categories() {
         </button>
       </div>
 
-      <div className="flex overflow-x-auto pb-8 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-5 snap-x custom-scrollbar">
+      {/* 🔥 Scroll corregido: Eliminamos los márgenes negativos peligrosos */}
+      <div className="flex overflow-x-auto pb-8 gap-4 sm:gap-5 snap-x custom-scrollbar w-full">
         {categories.map((category) => (
           <div
             key={category.id}
             onClick={() => handleCategoryClick(category.id)}
-            className="min-w-[140px] sm:min-w-0 snap-start cursor-pointer group bg-white rounded-[2rem] p-5 text-center border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_40px_rgba(220,38,38,0.08)] hover:border-red-100 transition-all duration-300 hover:-translate-y-1 active:scale-95"
+            className="min-w-[140px] sm:min-w-[160px] snap-start cursor-pointer group bg-white rounded-[2rem] p-5 text-center border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_40px_rgba(220,38,38,0.08)] hover:border-red-100 transition-all duration-300 hover:-translate-y-1 active:scale-95 shrink-0"
           >
             <div className={`w-16 h-16 mx-auto ${category.bg} border rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm`}>
               {category.icon}
