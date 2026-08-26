@@ -167,7 +167,8 @@ export default function AdminPage() {
       console.error("Error al escuchar categorías:", error);
     });
 
-    const unsubscribePromos = onSnapshot(collection(db, "promotions"), (snapshot) => {
+    // 🔥 AHORA ESCUCHA A "promos" PARA CONECTARSE CON LA TIENDA PRINCIPAL
+    const unsubscribePromos = onSnapshot(collection(db, "promos"), (snapshot) => {
       const pList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
       pList.sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
       setPromos(pList);
@@ -577,11 +578,12 @@ export default function AdminPage() {
     }
   };
 
+  // 🔥 AHORA SE GUARDA EN "promos" PARA CONECTAR CON LA WEB
   const handleCreatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPromoTitle) return;
     try {
-      await addDoc(collection(db, "promotions"), {
+      await addDoc(collection(db, "promos"), {
         title: newPromoTitle,
         description: newPromoDesc || "",
         discount: newPromoDiscount || "OFERTA",
@@ -597,7 +599,7 @@ export default function AdminPage() {
 
   const handleTogglePromo = async (id: string, currentState: boolean) => {
     try { 
-      await updateDoc(doc(db, "promotions", id), { active: !currentState }); 
+      await updateDoc(doc(db, "promos", id), { active: !currentState }); 
     } catch (error: any) { 
       alert(`Error: ${error.message}`); 
     }
@@ -606,7 +608,7 @@ export default function AdminPage() {
   const handleDeletePromo = async (id: string) => {
     if (!window.confirm("¿Estás seguro de eliminar esta campaña?")) return;
     try { 
-      await deleteDoc(doc(db, "promotions", id)); 
+      await deleteDoc(doc(db, "promos", id)); 
     } catch (error: any) { 
       alert(`Error: ${error.message}`); 
     }
