@@ -40,15 +40,25 @@ export default function TrackingPage() {
     }
   };
 
-  // 📍 Definimos los pasos y estados
+  // 📍 Definimos los pasos numéricos
   const getStepIndex = (status: string) => {
     switch (status?.toUpperCase()) {
       case "PENDIENTE": return 1;
       case "PREPARANDO": return 2;
-      case "EN_CAMINO": return 3;
-      case "ENTREGADO": return 4;
+      case "EN_CAMINO": return 3; // Para Recojo, esto significa "Listo"
+      case "ENTREGADO": return 4; // Para Recojo, esto significa "Recogido"
       default: return 0; // Para RECHAZADO o NO_RECOGIDO
     }
+  };
+
+  // 🗣️ Traductor de estados según el tipo de orden
+  const getDisplayStatus = (status: string, type: string) => {
+    if (type === "RECOJO") {
+      if (status === "EN_CAMINO") return "LISTO EN TIENDA";
+      if (status === "ENTREGADO") return "RECOGIDO";
+      if (status === "NO_RECOGIDO") return "NO RECOGIDO";
+    }
+    return status;
   };
 
   const currentStep = order ? getStepIndex(order.status) : 0;
@@ -61,7 +71,7 @@ export default function TrackingPage() {
         {/* CABECERA VIBRANTE */}
         <div className="text-center space-y-3">
           <span className="bg-red-50 text-red-600 border border-red-100 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-sm">
-            Radar en Vivo 📡
+            {order ? (order.type === "RECOJO" ? "Recojo en Tienda 🏪" : "Delivery Express 🛵") : "Radar en Vivo 📡"}
           </span>
           <h1 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
             Rastrea tu Pedido
@@ -125,20 +135,28 @@ export default function TrackingPage() {
 
             {/* ESTADOS DE ERROR (Rechazado / No Recogido) */}
             {isErrorState ? (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center space-y-2">
+              <div className={`border rounded-2xl p-6 text-center space-y-2 ${order.status === "RECHAZADO" ? "bg-red-50 border-red-200" : "bg-purple-50 border-purple-200"}`}>
                 <div className="text-4xl mb-2">⚠️</div>
-                <h4 className="text-lg font-black text-red-700 uppercase tracking-tight">Pedido {order.status}</h4>
-                <p className="text-sm text-red-600 font-medium">Tuvimos un inconveniente con tu orden. Por favor, comunícate con nosotros para solucionarlo.</p>
+                <h4 className={`text-lg font-black uppercase tracking-tight ${order.status === "RECHAZADO" ? "text-red-700" : "text-purple-700"}`}>
+                  Pedido {getDisplayStatus(order.status, order.type)}
+                </h4>
+                <p className={`text-sm font-medium ${order.status === "RECHAZADO" ? "text-red-600" : "text-purple-600"}`}>
+                  Tuvimos un inconveniente con tu orden. Por favor, comunícate con nosotros para solucionarlo.
+                </p>
               </div>
             ) : (
               /* BARRA DE PROGRESO DE 4 PASOS */
               <div className="space-y-8 py-2 relative">
                 
+                <p className="text-xs font-black text-slate-700 uppercase tracking-wider text-center">
+                  Estado Actual: <span className="text-red-600 font-black">{getDisplayStatus(order.status, order.type)}</span>
+                </p>
+
                 {/* Línea conectora de fondo */}
-                <div className="absolute top-[4.5rem] left-[12%] right-[12%] h-1 bg-slate-100 rounded-full -z-10"></div>
+                <div className="absolute top-[6.5rem] left-[12%] right-[12%] h-1 bg-slate-100 rounded-full -z-10"></div>
                 
                 {/* Línea conectora activa (Llena el progreso) */}
-                <div className={`absolute top-[4.5rem] left-[12%] h-1 bg-red-600 rounded-full transition-all duration-1000 ease-out -z-10`} style={{ width: `${(currentStep - 1) * 33.33}%` }}></div>
+                <div className={`absolute top-[6.5rem] left-[12%] h-1 bg-red-600 rounded-full transition-all duration-1000 ease-out -z-10`} style={{ width: `${(currentStep - 1) * 33.33}%` }}></div>
 
                 <div className="flex justify-between relative z-0">
                   {/* Paso 1: Recibido */}
@@ -146,7 +164,7 @@ export default function TrackingPage() {
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-full flex items-center justify-center text-lg sm:text-xl transition-all duration-500 ${currentStep >= 1 ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] scale-110' : 'bg-white text-slate-300 border-2 border-slate-100'}`}>
                       📝
                     </div>
-                    <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-wide ${currentStep >= 1 ? 'text-slate-900' : 'text-slate-400'}`}>Recibido</p>
+                    <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-wide leading-tight ${currentStep >= 1 ? 'text-slate-900' : 'text-slate-400'}`}>Recibido</p>
                   </div>
 
                   {/* Paso 2: Preparando */}
@@ -154,25 +172,27 @@ export default function TrackingPage() {
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-full flex items-center justify-center text-lg sm:text-xl transition-all duration-500 delay-150 ${currentStep >= 2 ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] scale-110' : 'bg-white text-slate-300 border-2 border-slate-100'}`}>
                       🍳
                     </div>
-                    <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-wide ${currentStep >= 2 ? 'text-slate-900' : 'text-slate-400'}`}>Preparando</p>
+                    <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-wide leading-tight ${currentStep >= 2 ? 'text-slate-900' : 'text-slate-400'}`}>Preparando</p>
                   </div>
 
-                  {/* Paso 3: En Camino / En Local */}
+                  {/* Paso 3: En Camino / Listo en Tienda */}
                   <div className="text-center w-1/4 space-y-3">
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-full flex items-center justify-center text-lg sm:text-xl transition-all duration-500 delay-300 ${currentStep >= 3 ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] scale-110' : 'bg-white text-slate-300 border-2 border-slate-100'}`}>
                       {order.type === "DELIVERY" ? "🛵" : "🏪"}
                     </div>
-                    <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-wide ${currentStep >= 3 ? 'text-slate-900' : 'text-slate-400'}`}>
-                      {order.type === "DELIVERY" ? "En Camino" : "Listo"}
+                    <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-wide leading-tight ${currentStep >= 3 ? 'text-slate-900' : 'text-slate-400'}`}>
+                      {order.type === "DELIVERY" ? "En Camino" : "Listo en Tienda"}
                     </p>
                   </div>
 
-                  {/* Paso 4: Entregado */}
+                  {/* Paso 4: Entregado / Recogido */}
                   <div className="text-center w-1/4 space-y-3">
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 mx-auto rounded-full flex items-center justify-center text-lg sm:text-xl transition-all duration-500 delay-500 ${currentStep >= 4 ? 'bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)] scale-110' : 'bg-white text-slate-300 border-2 border-slate-100'}`}>
-                      🎉
+                      {order.type === "DELIVERY" ? "🎉" : "🛍️"}
                     </div>
-                    <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-wide ${currentStep >= 4 ? 'text-emerald-600' : 'text-slate-400'}`}>Entregado</p>
+                    <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-wide leading-tight ${currentStep >= 4 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {order.type === "DELIVERY" ? "Entregado" : "Recogido"}
+                    </p>
                   </div>
                 </div>
               </div>
