@@ -78,7 +78,6 @@ export default function Products() {
   const filteredProducts = products.filter((product) => {
     const catMatch = selectedCategory === "todos" || product.category?.toLowerCase() === selectedCategory;
 
-    // Si no hay búsqueda, solo filtramos por categoría
     if (!searchQuery) return catMatch;
 
     const queryNormalized = normalizeText(searchQuery);
@@ -86,16 +85,18 @@ export default function Products() {
     const prodCat = normalizeText(product.category || "");
     const prodSku = normalizeText(product.sku || "");
 
-    // 1️⃣ Búsqueda Tradicional (Nombre, SKU o Categoría literal)
+    // 1️⃣ Búsqueda Tradicional
     let matchesSearch = prodName.includes(queryNormalized) || prodSku.includes(queryNormalized) || prodCat.includes(queryNormalized);
 
-    // 2️⃣ Búsqueda Inteligente (Intención del usuario)
+    // 2️⃣ Búsqueda Inteligente (Filtro ciego con limpieza de diccionario)
     if (!matchesSearch) {
-      const searchWords = queryNormalized.split(" "); // Separamos por palabras (ej: "algo para fiesta")
+      const searchWords = queryNormalized.split(" ");
       for (const word of searchWords) {
         if (smartKeywords[word]) {
-          // Si la palabra clave existe en nuestro cerebro, buscamos si el producto coincide con algún sinónimo
-          const isRelated = smartKeywords[word].some(synonym => prodName.includes(synonym) || prodCat.includes(synonym));
+          const isRelated = smartKeywords[word].some(synonym => {
+            const synNorm = normalizeText(synonym);
+            return prodName.includes(synNorm) || prodCat.includes(synNorm);
+          });
           if (isRelated) {
             matchesSearch = true;
             break;
