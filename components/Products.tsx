@@ -6,6 +6,22 @@ import { collection, onSnapshot } from "firebase/firestore";
 import ProductCard from "./ProductCard";
 import SectionTitle from "./SectionTitle";
 
+// 🧮 ALGORITMO ANTI-ERRORES ORTOGRÁFICOS (Distancia de Levenshtein)
+const getLevenshteinDistance = (a: string, b: string) => {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) matrix[i][j] = matrix[i - 1][j - 1];
+      else matrix[i][j] = Math.min(matrix[i - 1][j - 1], matrix[i][j - 1], matrix[i - 1][j]) + 1;
+    }
+  }
+  return matrix[a.length][b.length];
+};
+
 export default function Products() {
   const [products, setProducts] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("todos");
@@ -86,29 +102,43 @@ export default function Products() {
     const prodCat = normalizeText(product.category || "");
     const prodSku = normalizeText(product.sku || "");
 
-    // 1️⃣ Búsqueda Tradicional (Nombre, SKU o Categoría literal)
+    // 1️⃣ Búsqueda Tradicional Literal (Coincidencia exacta)
     let matchesSearch = prodName.includes(queryNormalized) || prodSku.includes(queryNormalized) || prodCat.includes(queryNormalized);
 
-    // 2️⃣ Búsqueda Inteligente (Cruce de diccionario)
-    // Si la búsqueda literal falló, buscamos si la palabra es una intención (ej: "desayuno")
+    // 2️⃣ Búsqueda Inteligente (Cruce de diccionario y Errores Ortográficos)
     if (!matchesSearch) {
-      const searchWords = queryNormalized.split(" ");
+      const searchWords = queryNormalized.split(" ").filter(w => w.length > 0);
+      const prodWords = prodName.split(" ").concat(prodCat.split(" ")).filter(w => w.length > 0);
       
       for (const word of searchWords) {
-        // ¿Existe la palabra "desayuno" en nuestro diccionario?
+        
+        // A. Intenciones (Si escribe "desayuno", busca los sinónimos)
         if (smartKeywords[word]) {
-          // Revisamos todos los sinónimos asociados a "desayuno" (leche, cafe, pan...)
           const isRelated = smartKeywords[word].some(synonym => {
             const synNorm = normalizeText(synonym);
-            // Comparamos el sinónimo ("leche") con el nombre del producto ("Leche Gloria")
             return prodName.includes(synNorm) || prodCat.includes(synNorm);
           });
-          
           if (isRelated) {
             matchesSearch = true;
             break;
           }
         }
+
+        // B. Tolerancia a Errores Ortográficos (Fuzzy Match)
+        // Ejemplo: Si escribe "aloz", lo comparará con "arroz" y verá que solo hay 2 letras de diferencia
+        if (!matchesSearch && word.length >= 3) {
+          // Si la palabra tiene 4 o más letras, perdonamos 2 errores (ej: lichi -> leche). Si tiene 3, perdonamos 1.
+          const maxDistance = word.length >= 4 ? 2 : 1; 
+          
+          for (const pWord of prodWords) {
+            if (pWord.length >= 3 && getLevenshteinDistance(word, pWord) <= maxDistance) {
+              matchesSearch = true;
+              break;
+            }
+          }
+        }
+
+        if (matchesSearch) break; // Si ya hizo match, dejamos de procesar esta palabra
       }
     }
 
