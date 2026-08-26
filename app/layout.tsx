@@ -1,29 +1,27 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { CartProvider } from "@/lib/CartContext";
 import { CartUIProvider } from "@/lib/CartUIContext";
-
 import CartDrawer from "@/components/CartDrawer";
 import CartNotificationWrapper from "@/components/CartNotificationWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets:["latin"],
+  subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-  variable:"--font-geist-mono",
-  subsets:["latin"],
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
-// 🚀 METADATA PRO: SEO Y TARJETAS PARA WHATSAPP / REDES SOCIALES
-export const metadata = {
-  title: "Pamela Market - Delivery Express",
-  description: "Tu súper, sin salir de casa.",
-  manifest: "/manifest.json",
-  themeColor: "#dc2626",
+// 🔥 1. METADATA PWA (App Instalable)
+export const metadata: Metadata = {
+  title: "Pamela Market",
+  description: "Minimarket online",
+  manifest: "/manifest.json", // Enlace automático al manifest que creamos
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -31,21 +29,28 @@ export const metadata = {
   },
 };
 
+// 🔥 2. COLOR DE LA BARRA DEL CELULAR
+export const viewport: Viewport = {
+  themeColor: "#DC2626", // Barra de estado roja en el móvil
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
-  children:React.ReactNode;
+  children: React.ReactNode;
 }>) {
   return (
     <html lang="es">
-      <body className="min-h-screen">
+      <body className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}>
+        {/* Proveedores de estado */}
         <CartProvider>
           <CartUIProvider>
             
+            {/* Contenido principal de la web */}
             {children}
 
-            {/* Modales globales de la tienda */}
-
+            {/* Elementos globales */}
+            <CartDrawer />
             <CartNotificationWrapper />
             
           </CartUIProvider>
