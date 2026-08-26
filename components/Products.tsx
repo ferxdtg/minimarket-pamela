@@ -52,7 +52,7 @@ export default function Products() {
 
   if (!mounted) return null;
 
-  // 🧠 CEREBRO SEMÁNTICO: Diccionario de intenciones de búsqueda
+  // 🧠 CEREBRO SEMÁNTICO (Diccionario Intenciones vs Sinónimos)
   const smartKeywords: Record<string, string[]> = {
     "desayuno": ["avena", "cereal", "leche", "cafe", "café", "pan", "mantequilla", "mermelada", "yogur", "yogurt", "queso", "huevo"],
     "limpiar": ["lejia", "lejía", "poett", "sapolio", "escoba", "trapeador", "detergente", "piso", "limpiador", "cloro", "desinfectante"],
@@ -78,6 +78,7 @@ export default function Products() {
   const filteredProducts = products.filter((product) => {
     const catMatch = selectedCategory === "todos" || product.category?.toLowerCase() === selectedCategory;
 
+    // Si no hay búsqueda, solo filtramos por categoría
     if (!searchQuery) return catMatch;
 
     const queryNormalized = normalizeText(searchQuery);
@@ -85,18 +86,24 @@ export default function Products() {
     const prodCat = normalizeText(product.category || "");
     const prodSku = normalizeText(product.sku || "");
 
-    // 1️⃣ Búsqueda Tradicional
+    // 1️⃣ Búsqueda Tradicional (Nombre, SKU o Categoría literal)
     let matchesSearch = prodName.includes(queryNormalized) || prodSku.includes(queryNormalized) || prodCat.includes(queryNormalized);
 
-    // 2️⃣ Búsqueda Inteligente (Filtro ciego con limpieza de diccionario)
+    // 2️⃣ Búsqueda Inteligente (Cruce de diccionario)
+    // Si la búsqueda literal falló, buscamos si la palabra es una intención (ej: "desayuno")
     if (!matchesSearch) {
       const searchWords = queryNormalized.split(" ");
+      
       for (const word of searchWords) {
+        // ¿Existe la palabra "desayuno" en nuestro diccionario?
         if (smartKeywords[word]) {
+          // Revisamos todos los sinónimos asociados a "desayuno" (leche, cafe, pan...)
           const isRelated = smartKeywords[word].some(synonym => {
             const synNorm = normalizeText(synonym);
+            // Comparamos el sinónimo ("leche") con el nombre del producto ("Leche Gloria")
             return prodName.includes(synNorm) || prodCat.includes(synNorm);
           });
+          
           if (isRelated) {
             matchesSearch = true;
             break;
