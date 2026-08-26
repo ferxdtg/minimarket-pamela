@@ -52,10 +52,59 @@ export default function Products() {
 
   if (!mounted) return null;
 
+  // 🧠 CEREBRO SEMÁNTICO: Diccionario de intenciones de búsqueda
+  const smartKeywords: Record<string, string[]> = {
+    "desayuno": ["avena", "cereal", "leche", "cafe", "café", "pan", "mantequilla", "mermelada", "yogur", "yogurt", "queso", "huevo"],
+    "limpiar": ["lejia", "lejía", "poett", "sapolio", "escoba", "trapeador", "detergente", "piso", "limpiador", "cloro", "desinfectante"],
+    "piso": ["lejia", "lejía", "poett", "sapolio", "escoba", "trapeador", "detergente", "cera"],
+    "sed": ["agua", "gaseosa", "coca", "inca", "jugo", "rehidratante", "cerveza", "helado", "refresco", "bebida"],
+    "calor": ["agua", "gaseosa", "helado", "cerveza", "hielo", "jugo", "marciano"],
+    "antojo": ["galleta", "chocolate", "piqueo", "snack", "dulce", "caramelo", "papas", "chizitos", "doritos"],
+    "pelicula": ["cancha", "popcorn", "gaseosa", "snack", "piqueo", "chocolate", "doritos", "papas"],
+    "dulce": ["galleta", "chocolate", "caramelo", "azucar", "azúcar", "manjar", "mermelada"],
+    "fiesta": ["cerveza", "piqueo", "snack", "ron", "pisco", "hielo", "gaseosa", "vodka", "vino", "cigarro"],
+    "reunion": ["cerveza", "piqueo", "snack", "ron", "pisco", "hielo", "gaseosa", "vodka", "vino"],
+    "almuerzo": ["arroz", "aceite", "fideos", "pasta", "atun", "atún", "sal", "sazonador", "sopa", "menestra", "lenteja", "frijol"],
+    "cena": ["arroz", "aceite", "fideos", "pasta", "atun", "atún", "sopa", "huevo", "leche"],
+    "mascota": ["perro", "gato", "ricocan", "ricocat", "pedigree", "comida", "arena", "paté", "mimaskot"],
+    "bebe": ["pañal", "pañales", "leche", "formula", "toallitas", "shampoo", "talco"],
+    "baño": ["papel", "higienico", "jabon", "jabón", "shampoo", "acondicionador", "pasta", "cepillo", "colinos"],
+  };
+
+  // 🧹 Función para limpiar tildes y mayúsculas
+  const normalizeText = (text: string) => 
+    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
   const filteredProducts = products.filter((product) => {
-    const matchesCategory = selectedCategory === "todos" || product.category?.toLowerCase() === selectedCategory;
-    const matchesSearch = product.name?.toLowerCase().includes(searchQuery) || product.sku?.toLowerCase().includes(searchQuery);
-    return matchesCategory && matchesSearch;
+    const catMatch = selectedCategory === "todos" || product.category?.toLowerCase() === selectedCategory;
+
+    // Si no hay búsqueda, solo filtramos por categoría
+    if (!searchQuery) return catMatch;
+
+    const queryNormalized = normalizeText(searchQuery);
+    const prodName = normalizeText(product.name || "");
+    const prodCat = normalizeText(product.category || "");
+    const prodSku = normalizeText(product.sku || "");
+
+    // 1️⃣ Búsqueda Tradicional (Nombre, SKU o Categoría literal)
+    let matchesSearch = prodName.includes(queryNormalized) || prodSku.includes(queryNormalized) || prodCat.includes(queryNormalized);
+
+    // 2️⃣ Búsqueda Inteligente (Intención del usuario)
+    if (!matchesSearch) {
+      const searchWords = queryNormalized.split(" "); // Separamos por palabras (ej: "algo para fiesta")
+      for (const word of searchWords) {
+        if (smartKeywords[word]) {
+          // Si la palabra clave existe en nuestro cerebro, buscamos si el producto coincide con algún sinónimo
+          const isRelated = smartKeywords[word].some(synonym => prodName.includes(synonym) || prodCat.includes(synonym));
+          if (isRelated) {
+            matchesSearch = true;
+            break;
+          }
+        }
+      }
+    }
+
+    return catMatch && matchesSearch;
   });
 
   return (
@@ -87,7 +136,6 @@ export default function Products() {
       </div>
 
       {loading ? (
-        // 🔥 INYECCIÓN: grid-cols-2 en móviles para los esqueletos
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6 px-1 sm:px-0">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="bg-white border border-slate-100 rounded-2xl sm:rounded-[2rem] p-3 sm:p-5 flex flex-col h-full animate-pulse shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
@@ -102,7 +150,7 @@ export default function Products() {
         <div className="text-center py-24 bg-white rounded-[3rem] border border-dashed border-slate-200 shadow-sm mx-2 sm:mx-0">
           <div className="text-6xl mb-4 opacity-50">🛒</div>
           <p className="text-xl font-black text-slate-800 tracking-tight">No encontramos lo que buscas.</p>
-          <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">Quizás escribiste mal el nombre o este producto está agotado temporalmente.</p>
+          <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">Prueba buscando por categoría o usando otras palabras.</p>
           <button 
             onClick={() => { setSelectedCategory("todos"); setSearchQuery(""); }}
             className="mt-6 px-8 py-3 bg-slate-900 text-white font-black rounded-full hover:bg-black transition-colors cursor-pointer active:scale-95 shadow-lg"
@@ -111,7 +159,6 @@ export default function Products() {
           </button>
         </div>
       ) : (
-        // 🔥 INYECCIÓN: grid-cols-2 en móviles para el catálogo real
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6 px-1 sm:px-0">
           {filteredProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
