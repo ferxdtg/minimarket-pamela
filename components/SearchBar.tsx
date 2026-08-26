@@ -5,6 +5,45 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import Image from "next/image";
 
+// 🧮 ALGORITMO ANTI-ERRORES ORTOGRÁFICOS
+const getLevenshteinDistance = (a: string, b: string) => {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) matrix[i][j] = matrix[i - 1][j - 1];
+      else matrix[i][j] = Math.min(matrix[i - 1][j - 1], matrix[i][j - 1], matrix[i - 1][j]) + 1;
+    }
+  }
+  return matrix[a.length][b.length];
+};
+
+// 🧠 CEREBRO SEMÁNTICO (Diccionario de Intenciones)
+const smartKeywords: Record<string, string[]> = {
+  "desayuno": ["avena", "cereal", "leche", "cafe", "café", "pan", "mantequilla", "mermelada", "yogur", "yogurt", "queso", "huevo"],
+  "limpiar": ["lejia", "lejía", "poett", "sapolio", "escoba", "trapeador", "detergente", "piso", "limpiador", "cloro", "desinfectante"],
+  "piso": ["lejia", "lejía", "poett", "sapolio", "escoba", "trapeador", "detergente", "cera"],
+  "sed": ["agua", "gaseosa", "coca", "inca", "jugo", "rehidratante", "cerveza", "helado", "refresco", "bebida"],
+  "calor": ["agua", "gaseosa", "helado", "cerveza", "hielo", "jugo", "marciano"],
+  "antojo": ["galleta", "chocolate", "piqueo", "snack", "dulce", "caramelo", "papas", "chizitos", "doritos"],
+  "pelicula": ["cancha", "popcorn", "gaseosa", "snack", "piqueo", "chocolate", "doritos", "papas"],
+  "dulce": ["galleta", "chocolate", "caramelo", "azucar", "azúcar", "manjar", "mermelada"],
+  "fiesta": ["cerveza", "piqueo", "snack", "ron", "pisco", "hielo", "gaseosa", "vodka", "vino", "cigarro"],
+  "reunion": ["cerveza", "piqueo", "snack", "ron", "pisco", "hielo", "gaseosa", "vodka", "vino"],
+  "almuerzo": ["arroz", "aceite", "fideos", "pasta", "atun", "atún", "sal", "sazonador", "sopa", "menestra", "lenteja", "frijol"],
+  "cena": ["arroz", "aceite", "fideos", "pasta", "atun", "atún", "sopa", "huevo", "leche"],
+  "mascota": ["perro", "gato", "ricocan", "ricocat", "pedigree", "comida", "arena", "paté", "mimaskot"],
+  "bebe": ["pañal", "pañales", "leche", "formula", "toallitas", "shampoo", "talco"],
+  "baño": ["papel", "higienico", "jabon", "jabón", "shampoo", "acondicionador", "pasta", "cepillo", "colinos"],
+};
+
+// 🧹 Limpieza de tildes
+const normalizeText = (text: string) => 
+  text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 export default function SearchBar() {
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<any[]>([]);
@@ -12,7 +51,7 @@ export default function SearchBar() {
   const [isOpen, setIsOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // 1. Cargar catálogo de Firestore en tiempo real
+  // 1. Cargar catálogo
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
       const list = snapshot.docs.map((doc) => ({
@@ -24,7 +63,7 @@ export default function SearchBar() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Cerrar si se hace clic fuera del buscador
+  // 2. Cerrar al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -39,7 +78,7 @@ export default function SearchBar() {
     };
   }, []);
 
-  // 3. Filtrar sugerencias (Inteligente y flexible)
+  // 3. Filtrar sugerencias (AHORA CON IA Y ANTI-ERRORES)
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
@@ -48,15 +87,59 @@ export default function SearchBar() {
       setFilteredProducts([]);
       setIsOpen(false);
     } else {
-      const results = products.filter((p) =>
-        p.name?.toLowerCase().includes(value.toLowerCase().trim())
-      );
+      const queryNormalized = normalizeText(value.trim());
+
+      const results = products.filter((p) => {
+        const prodName = normalizeText(p.name || "");
+        const prodCat = normalizeText(p.category || "");
+        const prodSku = normalizeText(p.sku || "");
+
+        // A. Búsqueda Tradicional Literal
+        let isMatch = prodName.includes(queryNormalized) || prodSku.includes(queryNormalized) || prodCat.includes(queryNormalized);
+
+        // B. Búsqueda Inteligente (Diccionario y Tolerancia a Errores)
+        if (!isMatch) {
+          const searchWords = queryNormalized.split(" ").filter(w => w.length > 0);
+          const prodWords = prodName.split(" ").concat(prodCat.split(" ")).filter(w => w.length > 0);
+
+          for (const word of searchWords) {
+            // Diccionario Semántico (ej: "desayuno" -> busca leche, cafe...)
+            if (smartKeywords[word]) {
+              const isRelated = smartKeywords[word].some(synonym => {
+                const synNorm = normalizeText(synonym);
+                return prodName.includes(synNorm) || prodCat.includes(synNorm);
+              });
+              if (isRelated) {
+                isMatch = true;
+                break;
+              }
+            }
+
+            // Corrector Ortográfico (Fuzzy Match)
+            // Si escribe "aloz" en vez de "arroz"
+            if (!isMatch && word.length >= 3) {
+              const maxDistance = word.length >= 4 ? 2 : 1; 
+              for (const pWord of prodWords) {
+                if (pWord.length >= 3 && getLevenshteinDistance(word, pWord) <= maxDistance) {
+                  isMatch = true;
+                  break;
+                }
+              }
+            }
+
+            if (isMatch) break;
+          }
+        }
+
+        return isMatch;
+      });
+
       setFilteredProducts(results);
       setIsOpen(true);
     }
   };
 
-  // 4. Traslado directo al producto o al catálogo
+  // 4. Traslado directo
   const handleSelectProduct = (productId: string) => {
     setIsOpen(false);
     setQuery("");
@@ -79,7 +162,7 @@ export default function SearchBar() {
   };
 
   return (
-    <div ref={searchRef} className="relative w-full max-w-md">
+    <div ref={searchRef} className="relative w-full max-w-md z-[99999]">
       <div className="relative">
         <input
           type="text"
