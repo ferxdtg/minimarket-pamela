@@ -12,7 +12,6 @@ export default function Navbar() {
   const { openCart } = useCartUI() as any;
   const { cart } = useCart();
   
-  // 🚀 ESTADOS DINÁMICOS DESDE EL CMS
   const [settings, setSettings] = useState({
     storeName: "Pamela Market",
     logoUrl: ""
@@ -20,7 +19,6 @@ export default function Navbar() {
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // 🚀 ESCUCHAR EN TIEMPO REAL LA CONFIGURACIÓN DEL LOGO/NOMBRE
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "settings", "store"), (docSnap) => {
       if (docSnap.exists()) {
@@ -41,7 +39,7 @@ export default function Navbar() {
       <header className="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 shadow-sm transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-0 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
           
-          {/* LOGO DINÁMICO */}
+          {/* LOGO */}
           <div className="flex items-center gap-3 cursor-pointer min-w-0 group" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-red-600 flex items-center justify-center shadow-sm text-white shrink-0 group-hover:scale-105 transition-transform duration-300 overflow-hidden">
               {settings.logoUrl ? (
@@ -67,7 +65,7 @@ export default function Navbar() {
             <SearchBar />
           </div>
 
-          {/* CONTENEDOR DERECHO (Solo visible en Desktop) */}
+          {/* CONTENEDOR DERECHO (Escritorio) */}
           <div className="hidden md:flex items-center gap-3 shrink-0">
             <a
               href="/admin/login"
@@ -77,7 +75,6 @@ export default function Navbar() {
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.78.929l-.15.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             </a>
 
-            {/* BOTÓN DE CARRITO ESCRITORIO */}
             <button
               onClick={() => {
                 if (typeof openCart === 'function') openCart();
@@ -105,40 +102,40 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* 📱 NAVEGACIÓN INFERIOR (SOLO CELULARES) - EXPERIENCIA APP NATIVA */}
-      <div className="md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur border-t border-slate-200 z-50 flex justify-between items-center h-16 px-6 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      {/* 📱 NAVEGACIÓN INFERIOR COMPACTA (SOLO CELULARES) - SIN ESTORBAR WHATSAPP */}
+      <div className="md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur border-t border-slate-200 z-40 flex justify-around items-center h-14 px-4 shadow-[0_-4px_15px_rgba(0,0,0,0.04)]">
         
-        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center gap-1 text-slate-400 hover:text-red-600 transition-colors active:scale-95">
-          <span className="text-xl">🏠</span>
-          <span className="text-[9px] font-bold">Inicio</span>
+        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 py-1 px-2">
+          <span className="text-lg">🏠</span>
+          <span className="text-[9px] font-bold tracking-tight">Inicio</span>
         </button>
         
         <button onClick={() => {
           const section = document.getElementById("productos-section");
           if (section) section.scrollIntoView({ behavior: "smooth" });
-        }} className="flex flex-col items-center gap-1 text-slate-400 hover:text-red-600 transition-colors active:scale-95">
-          <span className="text-xl">🔍</span>
-          <span className="text-[9px] font-bold">Explorar</span>
+        }} className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 py-1 px-2">
+          <span className="text-lg">🔍</span>
+          <span className="text-[9px] font-bold tracking-tight">Explorar</span>
         </button>
 
-        <a href="/admin/login" className="flex flex-col items-center gap-1 text-slate-400 hover:text-red-600 transition-colors active:scale-95">
-          <span className="text-xl">⚙️</span>
-          <span className="text-[9px] font-bold">Admin</span>
+        <a href="/admin/login" className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 py-1 px-2">
+          <span className="text-lg">⚙️</span>
+          <span className="text-[9px] font-bold tracking-tight">Admin</span>
         </a>
 
         <button onClick={() => {
           if (typeof openCart === 'function') openCart();
           else window.dispatchEvent(new CustomEvent('open_cart'));
-        }} className="flex flex-col items-center gap-1 text-slate-400 hover:text-red-600 transition-colors active:scale-95 relative">
+        }} className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 relative py-1 px-2">
           <div className="relative">
-            <span className="text-xl">🛒</span>
+            <span className="text-lg">🛒</span>
             {totalItems > 0 && (
               <span className="absolute -top-1 -right-2 bg-red-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-black animate-bounce shadow-md">
                 {totalItems}
               </span>
             )}
           </div>
-          <span className="text-[9px] font-bold">Carrito</span>
+          <span className="text-[9px] font-bold tracking-tight">Carrito</span>
         </button>
 
       </div>
