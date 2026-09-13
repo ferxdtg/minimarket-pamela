@@ -6,7 +6,7 @@ export default function FloatingWhatsApp() {
       href="https://wa.me/51950323959?text=Hola%20Minimarket%20Pamela,%20necesito%20hacer%20un%20pedido%20%F0%9F%9B%92"
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-6 right-6 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full p-3.5 sm:p-4 shadow-[0_4px_20px_rgba(37,211,102,0.4)] hover:shadow-[0_6px_25px_rgba(37,211,102,0.6)] hover:-translate-y-1 transition-all duration-300 z-40 group flex items-center justify-center cursor-pointer"
+      className="fixed bottom-20 sm:bottom-6 right-6 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-full p-3.5 sm:p-4 shadow-[0_4px_20px_rgba(37,211,102,0.4)] hover:shadow-[0_6px_25px_rgba(37,211,102,0.6)] hover:-translate-y-1 transition-all duration-300 z-40 group flex items-center justify-center cursor-pointer"
       title="Pedir por WhatsApp"
     >
       {/* Icono de WhatsApp SVG */}
