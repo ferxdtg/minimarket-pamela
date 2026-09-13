@@ -45,10 +45,11 @@ export default function Hero() {
       <div className="absolute top-0 left-[-10%] w-[600px] h-[600px] bg-red-600/10 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse" style={{ animationDuration: '4s' }}></div>
       <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 grid md:grid-cols-2 gap-12 items-center">
+      {/* 🚀 MODIFICACIÓN UX: Grilla ajustada [1.2fr_0.8fr] para eliminar el espacio muerto central */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 grid md:grid-cols-[1.1fr_0.9fr] lg:grid-cols-[1.2fr_0.8fr] gap-8 lg:gap-12 items-center">
         
         {/* TEXTOS Y BOTONES (IZQUIERDA) */}
-        <div className="text-center md:text-left space-y-6 md:pr-8">
+        <div className="text-center md:text-left space-y-6 md:pr-4 lg:pr-8">
           
           {/* 🔥 BADGE DINÁMICO E INTELIGENTE */}
           <div className="h-10 flex items-center justify-center md:justify-start">
@@ -67,19 +68,19 @@ export default function Hero() {
             )}
           </div>
 
-          {/* TÍTULO PRINCIPAL */}
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-slate-900 tracking-tighter leading-[1.05] animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
+          {/* TÍTULO PRINCIPAL Y TEXTO EXPANDIDO */}
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-slate-900 tracking-tighter leading-[1.05] animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100 max-w-2xl mx-auto md:mx-0">
             Tu súper, <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-orange-500 drop-shadow-sm">
               sin salir de casa.
             </span>
           </h1>
           
-          <p className="text-slate-500 text-base sm:text-lg max-w-lg mx-auto md:mx-0 font-medium leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+          <p className="text-slate-500 text-base sm:text-lg max-w-xl mx-auto md:mx-0 font-medium leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
             Abarrotes, lácteos, bebidas y limpieza. Pide rápido, paga seguro y recibe todo fresco en la puerta de tu hogar.
           </p>
 
-          {/* 🚀 BOTONES ULTRA LIMPIOS */}
+          {/* 🚀 BOTONES ULTRA LIMPIOS Y CON JERARQUÍA */}
           <div className="flex flex-col sm:flex-row items-center gap-4 justify-center md:justify-start pt-4 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
             
             <button 
@@ -90,11 +91,12 @@ export default function Hero() {
               <span className="text-lg transition-transform group-hover:translate-x-1">🛵</span>
             </button>
 
+            {/* MODIFICACIÓN: Botón secundario suavizado para no robar protagonismo */}
             <button 
               onClick={() => handleAction("ofertas")}
-              className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-slate-50 text-slate-800 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all duration-300 border border-slate-200 shadow-sm hover:shadow-md active:scale-95 text-center cursor-pointer flex items-center justify-center gap-3"
+              className="w-full sm:w-auto px-8 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all duration-300 active:scale-95 text-center cursor-pointer flex items-center justify-center gap-3"
             >
-              Ver ofertas <span className="text-lg">🔥</span>
+              Ver ofertas <span className="text-lg opacity-80">🔥</span>
             </button>
 
           </div>
@@ -107,9 +109,9 @@ export default function Hero() {
 
         </div>
 
-        {/* TARJETA FLOTANTE (DERECHA) - EFECTO CRISTAL */}
-        <div className="hidden md:flex justify-end relative perspective-1000 animate-in fade-in slide-in-from-right-8 duration-1000 delay-300">
-          <div className="relative w-full max-w-sm bg-white/70 backdrop-blur-2xl border border-white p-8 rounded-[3rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] transform rotate-2 hover:rotate-0 hover:-translate-y-2 transition-all duration-500 cursor-pointer group"
+        {/* TARJETA FLOTANTE (DERECHA) */}
+        <div className="hidden md:flex justify-end relative perspective-1000 animate-in fade-in slide-in-from-right-8 duration-1000 delay-300 w-full">
+          <div className="relative w-full max-w-[340px] lg:max-w-sm bg-white/70 backdrop-blur-2xl border border-white p-8 rounded-[3rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] transform rotate-2 hover:rotate-0 hover:-translate-y-2 transition-all duration-500 cursor-pointer group ml-auto"
                onClick={() => handleAction("ofertas")}>
             
             <div className="absolute -top-5 -right-5 bg-gradient-to-br from-amber-400 to-orange-500 text-white text-xs font-black px-4 py-2 rounded-full shadow-[0_4px_15px_rgba(245,158,11,0.4)] transform rotate-12 group-hover:rotate-6 transition-transform">
