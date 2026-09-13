@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 import OrderAlerts from "@/components/OrderAlerts";
 
 export default function AdminPage() {
   // 🔥 Pedidos es ahora la pestaña principal al abrir el panel
-  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos">("pedidos");
+  const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos" | "apariencia">("pedidos");
   const [inventorySubTab, setInventorySubTab] = useState<"productos" | "vencimientos" | "categorias">("productos");
   
   const [isInventoryDropdownOpen, setIsInventoryDropdownOpen] = useState(false);
@@ -37,6 +37,19 @@ export default function AdminPage() {
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [editPoints, setEditPoints] = useState<number>(0);
+
+  // 🎨 ESTADOS PARA APARIENCIA DE LA TIENDA (CMS)
+  const [storeSettings, setStoreSettings] = useState({
+    heroTitle: "Tu súper, sin salir de casa.",
+    heroSubtitle: "Abarrotes, lácteos, bebidas y limpieza. Pide rápido, paga seguro y recibe todo fresco en la puerta de tu hogar.",
+    promoCardTitle: "Canasta Básica",
+    promoCardDesc: "Lleva todo lo que necesitas para la semana con descuentos exclusivos.",
+    promoCardBadge: "¡Promo del día! 🔥",
+    promoCardImage: "",
+    facebookUrl: "",
+    instagramUrl: "",
+    tiktokUrl: ""
+  });
   
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -167,7 +180,6 @@ export default function AdminPage() {
       console.error("Error al escuchar categorías:", error);
     });
 
-    // 🔥 AHORA ESCUCHA A "promos" PARA CONECTARSE CON LA TIENDA PRINCIPAL
     const unsubscribePromos = onSnapshot(collection(db, "promos"), (snapshot) => {
       const pList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
       pList.sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
@@ -180,6 +192,13 @@ export default function AdminPage() {
       setCustomers(cList);
     });
 
+    // 🚀 OYENTE PARA LA CONFIGURACIÓN DE LA TIENDA
+    const unsubscribeSettings = onSnapshot(doc(db, "settings", "store"), (docSnap) => {
+      if (docSnap.exists()) {
+        setStoreSettings(prev => ({ ...prev, ...docSnap.data() }));
+      }
+    });
+
     return () => {
       unsubscribeProducts();
       unsubscribeOrders();
@@ -187,6 +206,7 @@ export default function AdminPage() {
       unsubscribeCategories();
       unsubscribePromos();
       unsubscribeCustomers();
+      unsubscribeSettings();
     };
   }, []);
 
@@ -578,7 +598,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🔥 AHORA SE GUARDA EN "promos" PARA CONECTAR CON LA WEB
   const handleCreatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPromoTitle) return;
@@ -614,7 +633,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🖨️ FUNCIÓN PARA GENERAR TICKET TÉRMICO
   const handlePrintTicket = (order: any) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
@@ -754,9 +772,8 @@ export default function AdminPage() {
   const todaySalesTotal = todaySalesOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const todayTicketAverage = todaySalesOrders.length > 0 ? (todaySalesTotal / todaySalesOrders.length) : 0;
 
-  // 🔥 CÁLCULOS EXACTOS DEL DASHBOARD DE PAMELA COINS (100 Coins = 1 Sol descuento)
   const totalPamelaCoins = customers.reduce((sum, c) => sum + (Number(c.points) || 0), 0);
-  const totalCoinsValue = totalPamelaCoins / 100; // 100 Coins = S/ 1.00
+  const totalCoinsValue = totalPamelaCoins / 100;
   const topVIPCustomers = [...customers].slice(0, 3);
 
   const filteredCustomers = customers.filter(c => {
@@ -786,7 +803,6 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white text-xs">
       
-      {/* 👇 ALERTA INVISIBLE QUE SUENA CON NUEVOS PEDIDOS 👇 */}
       <OrderAlerts />
       
       {/* SIDEBAR ORDENADO (Desktop) */}
@@ -927,6 +943,14 @@ export default function AdminPage() {
             >
               <span className="text-sm shrink-0">🎯</span>{isSidebarExpanded && <span className="whitespace-nowrap">Marketing & Promos</span>}
             </button>
+
+            {/* 🚀 7. APARIENCIA DE TIENDA */}
+            <button
+              onClick={(e) => { e.stopPropagation(); setActiveTab("apariencia"); setIsSidebarExpanded(false); }}
+              className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "apariencia" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
+            >
+              <span className="text-sm shrink-0">🎨</span>{isSidebarExpanded && <span className="whitespace-nowrap">Apariencia Web</span>}
+            </button>
           </nav>
         </div>
 
@@ -1015,6 +1039,7 @@ export default function AdminPage() {
           <button onClick={() => setActiveTab("proveedores")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "proveedores" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Facturas</button>
           <button onClick={() => setActiveTab("caja")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "caja" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Caja</button>
           <button onClick={() => setActiveTab("marketing")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "marketing" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Promos</button>
+          <button onClick={() => setActiveTab("apariencia")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "apariencia" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>🎨 Apariencia</button>
         </div>
 
         {/* 📦 INVENTARIO */}
@@ -1497,7 +1522,6 @@ export default function AdminPage() {
                           <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
                         </div>
                         
-                        {/* 👇 TICKET Y ESTADO ALINEADOS COMO UN BLOQUE PERFECTO 👇 */}
                         <div className="flex flex-col items-end gap-1.5 w-28 shrink-0">
                           <div className={`w-full text-center text-[9px] font-bold px-2 py-1 rounded border uppercase ${
                             isPending 
@@ -1518,11 +1542,9 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      {/* 👇 NUEVO DISEÑO DE LA TARJETA DEL CARRITO (MOSTRANDO COINS Y DESCUENTO) 👇 */}
                       <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
                         <p className="text-zinc-300 leading-relaxed">{order.items}</p>
                         
-                        {/* 🪙 Si el cliente usó monedas para tener descuento, se muestra aquí */}
                         {(Number(order.discount) > 0) && (
                           <div className="flex justify-between text-[9px] text-amber-500 font-bold pt-1">
                             <span>Dcto. Pamela Coins:</span>
@@ -1534,7 +1556,6 @@ export default function AdminPage() {
                           <span>TOTAL</span>
                           <div className="text-right">
                             <span className="text-red-400 block text-sm">S/ {(Number(order.total) || 0).toFixed(2)}</span>
-                            {/* 🪙 Muestra las monedas que acaba de ganar en esta compra (1 sol = 1 coin) */}
                             <span className="text-[8px] text-amber-500 font-bold block bg-amber-500/10 px-1.5 py-0.5 rounded mt-0.5 border border-amber-500/20">
                               +{Math.floor(Number(order.total))} Coins ganadas
                             </span>
@@ -1542,7 +1563,6 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      {/* Botones de control progresivo de estados */}
                       <div className="space-y-1.5">
                         {order.status === "PENDIENTE" && (
                           <div className="space-y-1.5">
@@ -1629,8 +1649,6 @@ export default function AdminPage() {
         {/* 🪙 DASHBOARD COMPLETO DE PAMELA COINS Y CRM DE CLIENTES */}
         {activeTab === "clientes" && (
           <div className="space-y-5 animate-in fade-in duration-300">
-            
-            {/* 1. CABECERA CON INSIGNIA */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gradient-to-r from-amber-500/10 via-zinc-900 to-zinc-900 border border-amber-500/30 p-4 rounded-2xl shadow-xl">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl animate-bounce shadow-inner">
@@ -1651,7 +1669,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 2. TARJETAS DE INDICADORES / KPIS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="bg-zinc-900/90 border border-amber-500/40 rounded-2xl p-4 space-y-1 shadow-[0_0_20px_rgba(245,158,11,0.08)]">
                 <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Monedas en Circulación</span>
@@ -1686,7 +1703,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 3. PODIO DE CLIENTES VIP (TOP 3) */}
             {topVIPCustomers.length > 0 && (
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 space-y-3">
                 <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
@@ -1714,7 +1730,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* 4. LISTADO GENERAL Y BUSCADOR */}
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-3">
                 <div>
@@ -1762,7 +1777,6 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
-
           </div>
         )}
 
@@ -2070,6 +2084,98 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 🚀 NUEVA PESTAÑA: APARIENCIA DE LA TIENDA (CMS) */}
+        {activeTab === "apariencia" && (
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 sm:p-8 shadow-xl space-y-6 animate-in fade-in">
+            <div>
+              <h2 className="text-lg font-black text-white">🎨 Apariencia y Contenido de la Tienda</h2>
+              <p className="text-xs text-zinc-400">Modifica los textos principales, banners y redes sociales de tu página en vivo sin programar.</p>
+            </div>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await setDoc(doc(db, "settings", "store"), storeSettings, { merge: true });
+                alert("¡Configuración de la tienda guardada en vivo!");
+              } catch (err: any) { alert("Error al guardar: " + err.message); }
+            }} className="space-y-6">
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* TEXTOS DEL HERO */}
+                <div className="space-y-4 bg-zinc-950 p-5 rounded-xl border border-zinc-800 shadow-inner">
+                  <h3 className="font-black text-emerald-400 uppercase tracking-widest text-[10px]">1. Textos Principales (Inicio)</h3>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Título Principal</label>
+                    <input type="text" value={storeSettings.heroTitle} onChange={e => setStoreSettings({...storeSettings, heroTitle: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Subtítulo</label>
+                    <textarea value={storeSettings.heroSubtitle} onChange={e => setStoreSettings({...storeSettings, heroSubtitle: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs h-20" />
+                  </div>
+                </div>
+
+                {/* TARJETA CANASTA BÁSICA */}
+                <div className="space-y-4 bg-zinc-950 p-5 rounded-xl border border-zinc-800 shadow-inner">
+                  <h3 className="font-black text-amber-400 uppercase tracking-widest text-[10px]">2. Tarjeta Promocional Derecha</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Título de Tarjeta</label>
+                      <input type="text" value={storeSettings.promoCardTitle} onChange={e => setStoreSettings({...storeSettings, promoCardTitle: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Etiqueta / Badge</label>
+                      <input type="text" value={storeSettings.promoCardBadge} onChange={e => setStoreSettings({...storeSettings, promoCardBadge: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Descripción Corta</label>
+                    <input type="text" value={storeSettings.promoCardDesc} onChange={e => setStoreSettings({...storeSettings, promoCardDesc: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Imagen de la Tarjeta (Reemplaza el emoji)</label>
+                    <div className="flex items-center gap-3">
+                      <label className="bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded cursor-pointer text-xs font-bold transition">
+                        Subir Imagen
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) compressImage(file, (base64) => setStoreSettings({...storeSettings, promoCardImage: base64}));
+                        }} />
+                      </label>
+                      {storeSettings.promoCardImage && <span className="text-emerald-400 font-bold text-[10px]">✓ Imagen cargada</span>}
+                      {storeSettings.promoCardImage && <button type="button" onClick={() => setStoreSettings({...storeSettings, promoCardImage: ""})} className="text-red-400 text-[10px] font-bold cursor-pointer">Quitar</button>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* REDES SOCIALES */}
+                <div className="space-y-4 bg-zinc-950 p-5 rounded-xl border border-zinc-800 shadow-inner lg:col-span-2">
+                  <h3 className="font-black text-blue-400 uppercase tracking-widest text-[10px]">3. Redes Sociales (Aparecerán en el Pie de página)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Facebook URL</label>
+                      <input type="url" placeholder="https://facebook.com/..." value={storeSettings.facebookUrl} onChange={e => setStoreSettings({...storeSettings, facebookUrl: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Instagram URL</label>
+                      <input type="url" placeholder="https://instagram.com/..." value={storeSettings.instagramUrl} onChange={e => setStoreSettings({...storeSettings, instagramUrl: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-1 text-[10px]">TikTok URL</label>
+                      <input type="url" placeholder="https://tiktok.com/..." value={storeSettings.tiktokUrl} onChange={e => setStoreSettings({...storeSettings, tiktokUrl: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs" />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <button type="submit" className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl transition cursor-pointer shadow-lg text-sm">
+                Guardar y Publicar en Vivo 🚀
+              </button>
+            </form>
           </div>
         )}
 
