@@ -8,7 +8,7 @@ export default function Categories() {
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🚀 CONEXIÓN EN TIEMPO REAL CON FIREBASE
+  // 🚀 CONEXIÓN EN TIEMPO REAL CON FIREBASE INTACTA
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "categories"), (snapshot) => {
       const catList = snapshot.docs.map(doc => ({
@@ -33,91 +33,100 @@ export default function Categories() {
     return () => unsubscribe();
   }, []);
 
-  // 🎯 FILTRO AL HACER CLIC
+  // 🎯 FILTRO AL HACER CLIC INTACTO
   const handleCategoryClick = (categoryName: string) => {
     window.dispatchEvent(new CustomEvent("filter_category", { detail: categoryName }));
     const section = document.getElementById("productos-section");
     if (section) section.scrollIntoView({ behavior: "smooth" });
   };
 
-  // 🎨 ASIGNADOR AUTOMÁTICO DE DISEÑO SEGÚN EL NOMBRE
+  // 🎨 ASIGNADOR AUTOMÁTICO ADAPTADO PARA EL "ARO" ESTILO INSTAGRAM
   const getCategoryVisuals = (name: string) => {
     const lower = name.toLowerCase();
     
     if (lower.includes("oferta") || lower.includes("promo")) 
-      return { icon: "🔥", desc: "Súper promos", bg: "bg-red-50 text-red-600 border-red-100" };
+      return { icon: "🔥", desc: "Súper promos", bg: "from-red-500 to-orange-400", text: "group-hover:text-red-600" };
     if (lower.includes("abarrote") || lower.includes("despensa")) 
-      return { icon: "🍚", desc: "Lo esencial", bg: "bg-amber-50 text-amber-600 border-amber-100" };
+      return { icon: "🍚", desc: "Lo esencial", bg: "from-amber-400 to-orange-400", text: "group-hover:text-amber-600" };
     if (lower.includes("bebida") || lower.includes("licor") || lower.includes("lácteo")) 
-      return { icon: "🥤", desc: "Refrescos y más", bg: "bg-blue-50 text-blue-600 border-blue-100" };
+      return { icon: "🥤", desc: "Refrescos y más", bg: "from-blue-400 to-cyan-400", text: "group-hover:text-blue-600" };
     if (lower.includes("snack") || lower.includes("galleta") || lower.includes("dulce")) 
-      return { icon: "🍪", desc: "Para el antojo", bg: "bg-orange-50 text-orange-600 border-orange-100" };
+      return { icon: "🍪", desc: "Para el antojo", bg: "from-orange-400 to-amber-400", text: "group-hover:text-orange-600" };
     if (lower.includes("limpieza") || lower.includes("hogar")) 
-      return { icon: "🧼", desc: "Hogar impecable", bg: "bg-teal-50 text-teal-600 border-teal-100" };
+      return { icon: "🧼", desc: "Hogar impecable", bg: "from-teal-400 to-emerald-400", text: "group-hover:text-teal-600" };
     if (lower.includes("bebe") || lower.includes("bebé") || lower.includes("niño")) 
-      return { icon: "🍼", desc: "Para los peques", bg: "bg-pink-50 text-pink-600 border-pink-100" };
+      return { icon: "🍼", desc: "Para los peques", bg: "from-pink-400 to-rose-400", text: "group-hover:text-pink-600" };
     if (lower.includes("mascota") || lower.includes("perro") || lower.includes("gato")) 
-      return { icon: "🐶", desc: "Engreídos", bg: "bg-stone-50 text-stone-600 border-stone-100" };
+      return { icon: "🐶", desc: "Engreídos", bg: "from-stone-400 to-gray-400", text: "group-hover:text-stone-600" };
     if (lower.includes("cuidado") || lower.includes("personal") || lower.includes("salud")) 
-      return { icon: "🧴", desc: "Salud y belleza", bg: "bg-purple-50 text-purple-600 border-purple-100" };
+      return { icon: "🧴", desc: "Salud y belleza", bg: "from-purple-400 to-fuchsia-400", text: "group-hover:text-purple-600" };
     if (lower.includes("juguete")) 
-      return { icon: "🧸", desc: "Diversión", bg: "bg-indigo-50 text-indigo-600 border-indigo-100" };
+      return { icon: "🧸", desc: "Diversión", bg: "from-indigo-400 to-violet-400", text: "group-hover:text-indigo-600" };
     
     // Categoría genérica si no coincide con ninguna palabra clave
-    return { icon: "🛍️", desc: "Variedad", bg: "bg-slate-50 text-slate-600 border-slate-200" };
+    return { icon: "🛍️", desc: "Variedad", bg: "from-slate-400 to-gray-400", text: "group-hover:text-slate-600" };
   };
 
   return (
-    <section className="py-12 sm:py-20 px-4 sm:px-6 w-full max-w-7xl mx-auto overflow-hidden">
-      <div className="flex items-end justify-between mb-8 sm:mb-12">
-        <div>
-          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">
+    <section className="py-6 bg-white w-full overflow-hidden border-b border-gray-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        
+        <div className="flex items-end justify-between mb-4">
+          <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight">
             ¿Qué buscas hoy?
           </h2>
-          <p className="mt-2 text-sm sm:text-base text-slate-500 font-medium">
-            Explora nuestros pasillos digitales
-          </p>
+          <button
+            onClick={() => handleCategoryClick("todos")}
+            className="hidden md:flex items-center gap-1 text-red-600 font-bold text-xs hover:bg-red-50 px-3 py-1.5 rounded-full transition-all cursor-pointer"
+          >
+            Ver todo <span>→</span>
+          </button>
         </div>
-        
-        <button
-          onClick={() => handleCategoryClick("todos")}
-          className="hidden md:flex items-center gap-2 text-red-600 font-bold hover:bg-red-50 px-5 py-2.5 rounded-full transition-all cursor-pointer"
-        >
-          Ver todo el catálogo <span>→</span>
-        </button>
-      </div>
 
-      {/* 🔥 Scroll corregido (Sin distorsión) y Cargando... */}
-      {loading ? (
-        <div className="flex justify-center py-10">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-        </div>
-      ) : (
-        <div className="flex overflow-x-auto pb-8 gap-4 sm:gap-5 snap-x custom-scrollbar w-full">
-          {categories.map((cat) => {
-            const visuals = getCategoryVisuals(cat.name);
-
-            return (
-              <div
-                key={cat.id}
-                onClick={() => handleCategoryClick(cat.name)}
-                className="min-w-[140px] sm:min-w-[160px] snap-start cursor-pointer group bg-white rounded-[2rem] p-5 text-center border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_40px_rgba(220,38,38,0.08)] hover:border-red-100 transition-all duration-300 hover:-translate-y-1 active:scale-95 shrink-0"
-              >
-                <div className={`w-16 h-16 mx-auto ${visuals.bg} border rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm`}>
-                  {visuals.icon}
+        {loading ? (
+          <div className="flex justify-center py-6">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+          </div>
+        ) : (
+          <div className="flex overflow-x-auto pb-2 gap-4 snap-x snap-mandatory hide-scrollbar w-full">
+            
+            {/* Botón de "Todos" fijo al inicio */}
+            <div 
+              onClick={() => handleCategoryClick("todos")}
+              className="flex flex-col items-center gap-1.5 snap-start cursor-pointer group shrink-0"
+            >
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-gray-100 to-gray-200 p-[2px] shadow-sm group-hover:scale-105 transition-transform duration-300">
+                <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-xl sm:text-2xl border border-gray-100">
+                  🏪
                 </div>
-                
-                <h3 className="mt-4 font-black text-slate-900 group-hover:text-red-600 transition-colors line-clamp-2 leading-tight">
-                  {cat.name}
-                </h3>
-                <p className="mt-1.5 text-[10px] sm:text-xs text-slate-500 font-medium leading-tight">
-                  {visuals.desc}
-                </p>
               </div>
-            );
-          })}
-        </div>
-      )}
+              <span className="text-[10px] sm:text-xs font-bold text-slate-600 group-hover:text-slate-900 line-clamp-1 text-center w-16 sm:w-20">Todos</span>
+            </div>
+
+            {/* Categorías mapeadas desde Firebase */}
+            {categories.map((cat) => {
+              const visuals = getCategoryVisuals(cat.name);
+
+              return (
+                <div
+                  key={cat.id}
+                  onClick={() => handleCategoryClick(cat.name)}
+                  className="flex flex-col items-center gap-1.5 snap-start cursor-pointer group shrink-0"
+                >
+                  <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr ${visuals.bg} p-[2px] shadow-sm group-hover:scale-105 group-hover:shadow-md transition-all duration-300`}>
+                    <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-2xl sm:text-3xl border-[2px] border-white">
+                      {visuals.icon}
+                    </div>
+                  </div>
+                  <span className={`text-[10px] sm:text-xs font-bold text-slate-600 transition-colors line-clamp-1 text-center w-16 sm:w-20 ${visuals.text}`}>
+                    {cat.name}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
