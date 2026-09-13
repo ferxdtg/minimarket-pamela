@@ -33,14 +33,12 @@ export default function Categories() {
     return () => unsubscribe();
   }, []);
 
-  // 🎯 FILTRO AL HACER CLIC INTACTO
   const handleCategoryClick = (categoryName: string) => {
     window.dispatchEvent(new CustomEvent("filter_category", { detail: categoryName }));
     const section = document.getElementById("productos-section");
     if (section) section.scrollIntoView({ behavior: "smooth" });
   };
 
-  // 🎨 ASIGNADOR AUTOMÁTICO ADAPTADO PARA EL "ARO" ESTILO INSTAGRAM
   const getCategoryVisuals = (name: string) => {
     const lower = name.toLowerCase();
     
@@ -63,7 +61,6 @@ export default function Categories() {
     if (lower.includes("juguete")) 
       return { icon: "🧸", desc: "Diversión", bg: "from-indigo-400 to-violet-400", text: "group-hover:text-indigo-600" };
     
-    // Categoría genérica si no coincide con ninguna palabra clave
     return { icon: "🛍️", desc: "Variedad", bg: "from-slate-400 to-gray-400", text: "group-hover:text-slate-600" };
   };
 
@@ -88,22 +85,20 @@ export default function Categories() {
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
           </div>
         ) : (
-          <div className="flex overflow-x-auto pb-2 gap-4 snap-x snap-mandatory hide-scrollbar w-full">
+          <div className="flex overflow-x-auto pb-2 gap-4 sm:gap-6 snap-x snap-mandatory hide-scrollbar w-full">
             
-            {/* Botón de "Todos" fijo al inicio */}
             <div 
               onClick={() => handleCategoryClick("todos")}
-              className="flex flex-col items-center gap-1.5 snap-start cursor-pointer group shrink-0"
+              className="flex flex-col items-center gap-2 snap-start cursor-pointer group shrink-0"
             >
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-gray-100 to-gray-200 p-[2px] shadow-sm group-hover:scale-105 transition-transform duration-300">
                 <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-xl sm:text-2xl border border-gray-100">
                   🏪
                 </div>
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-slate-600 group-hover:text-slate-900 line-clamp-1 text-center w-16 sm:w-20">Todos</span>
+              <span className="text-[10px] sm:text-xs font-bold text-slate-600 group-hover:text-slate-900 text-center w-20 sm:w-24 mt-1">Todos</span>
             </div>
 
-            {/* Categorías mapeadas desde Firebase */}
             {categories.map((cat) => {
               const visuals = getCategoryVisuals(cat.name);
 
@@ -111,14 +106,15 @@ export default function Categories() {
                 <div
                   key={cat.id}
                   onClick={() => handleCategoryClick(cat.name)}
-                  className="flex flex-col items-center gap-1.5 snap-start cursor-pointer group shrink-0"
+                  className="flex flex-col items-center gap-2 snap-start cursor-pointer group shrink-0"
                 >
                   <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr ${visuals.bg} p-[2px] shadow-sm group-hover:scale-105 group-hover:shadow-md transition-all duration-300`}>
                     <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-2xl sm:text-3xl border-[2px] border-white">
                       {visuals.icon}
                     </div>
                   </div>
-                  <span className={`text-[10px] sm:text-xs font-bold text-slate-600 transition-colors line-clamp-1 text-center w-16 sm:w-20 ${visuals.text}`}>
+                  {/* 🚀 AQUÍ ESTÁ LA MAGIA PARA QUE EL TEXTO NO SE CORTE (line-clamp-2 y leading-tight) */}
+                  <span className={`text-[10px] sm:text-[11px] font-bold text-slate-600 transition-colors line-clamp-2 leading-tight text-center w-20 sm:w-24 mt-1 ${visuals.text}`}>
                     {cat.name}
                   </span>
                 </div>
