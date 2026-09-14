@@ -6,6 +6,7 @@ import { CartProvider } from "@/lib/CartContext";
 import { CartUIProvider } from "@/lib/CartUIContext";
 import CartDrawer from "@/components/CartDrawer";
 import CartNotificationWrapper from "@/components/CartNotificationWrapper";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt"; // 👈 Importar aquí
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,6 +68,7 @@ export default function RootLayout({
             {children}
             <CartDrawer />
             <CartNotificationWrapper />
+            <PWAInstallPrompt /> {/* 👈 Renderizado global aquí */}
           </CartUIProvider>
         </CartProvider>
       </body>
