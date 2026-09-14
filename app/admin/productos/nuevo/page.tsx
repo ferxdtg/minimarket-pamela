@@ -7,14 +7,11 @@ import Image from "next/image";
 import OrderAlerts from "@/components/OrderAlerts";
 
 export default function AdminPage() {
-  // 🔥 Pedidos es ahora la pestaña principal al abrir el panel
   const [activeTab, setActiveTab] = useState<"inventario" | "pedidos" | "marketing" | "caja" | "clientes" | "proveedores" | "categorias" | "vencimientos" | "apariencia">("pedidos");
   const [inventorySubTab, setInventorySubTab] = useState<"productos" | "vencimientos" | "categorias">("productos");
   
   const [isInventoryDropdownOpen, setIsInventoryDropdownOpen] = useState(false);
-
   const [orderStatusTab, setOrderStatusTab] = useState<"PENDIENTE" | "PREPARANDO" | "EN_CAMINO" | "ENTREGADO" | "RECHAZADO" | "NO_RECOGIDO">("PENDIENTE");
-
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
   const [filtersByStatus, setFiltersByStatus] = useState({
@@ -32,13 +29,13 @@ export default function AdminPage() {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [promos, setPromos] = useState<any[]>([]);
 
-  // 🔥 ESTADOS PARA CRM Y DASHBOARD DE PAMELA COINS
+  // Estados CRM y Fidelización Pamela Coins
   const [customers, setCustomers] = useState<any[]>([]);
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [editPoints, setEditPoints] = useState<number>(0);
 
-  // 🎨 ESTADOS PARA APARIENCIA DE LA TIENDA (CMS)
+  // Estados CMS Apariencia Web
   const [storeSettings, setStoreSettings] = useState({
     storeName: "Pamela Market",
     logoUrl: "",
@@ -99,6 +96,17 @@ export default function AdminPage() {
   const [newCatName, setNewCatName] = useState("");
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [editCatName, setEditCatName] = useState("");
+
+  // Sanitizador contra inyecciones XSS en generación dinámica de documentos
+  const sanitize = (val: any): string => {
+    if (val === null || val === undefined) return "";
+    return String(val)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
 
   const getLimaDateStr = () => {
     try {
@@ -192,11 +200,10 @@ export default function AdminPage() {
 
     const unsubscribeCustomers = onSnapshot(collection(db, "customers"), (snapshot) => {
       const cList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
-      cList.sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0)); // Mayor a menor
+      cList.sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
       setCustomers(cList);
     });
 
-    // 🚀 OYENTE PARA LA CONFIGURACIÓN DE LA TIENDA
     const unsubscribeSettings = onSnapshot(doc(db, "settings", "store"), (docSnap) => {
       if (docSnap.exists()) {
         setStoreSettings(prev => ({ ...prev, ...docSnap.data() }));
@@ -365,10 +372,17 @@ export default function AdminPage() {
       alert("Por favor permite las ventanas emergentes para generar la etiqueta.");
       return;
     }
+
+    const safeName = sanitize(product.name);
+    const safeSku = sanitize(product.sku || "N/A");
+    const safeBatch = sanitize(product.batchCode || "GEN");
+    const safePrice = (Number(product.price) || 0).toFixed(2);
+
     printWindow.document.write(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Etiqueta - ${product.name}</title>
+          <title>Etiqueta - ${safeName}</title>
           <style>
             body { font-family: monospace; text-align: center; padding: 20px; }
             .label-box { border: 2px dashed #000; padding: 15px; display: inline-block; width: 250px; }
@@ -381,10 +395,10 @@ export default function AdminPage() {
         <body>
           <div class="label-box">
             <h3>MINIMARKET PAMELA</h3>
-            <p>${product.name}</p>
+            <p>${safeName}</p>
             <div class="barcode">||| | |||| || | ||</div>
-            <p>S/ ${(Number(product.price) || 0).toFixed(2)}</p>
-            <div class="sku">SKU: ${product.sku || 'N/A'} | Lote: ${product.batchCode || 'GEN'}</div>
+            <p>S/ ${safePrice}</p>
+            <div class="sku">SKU: ${safeSku} | Lote: ${safeBatch}</div>
           </div>
           <script>
             window.onload = function() { window.print(); window.close(); }
@@ -637,7 +651,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🖨️ FUNCIÓN PARA GENERAR TICKET TÉRMICO
   const handlePrintTicket = (order: any) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
@@ -645,10 +658,26 @@ export default function AdminPage() {
       return;
     }
     
+    const safeOrderId = sanitize(String(order.id).slice(0, 6).toUpperCase());
+    const safeClient = sanitize(order.client);
+    const safePhone = sanitize(order.phone);
+    const safeDate = sanitize(order.date);
+    const safeType = sanitize(order.type);
+    const safeAddress = sanitize(order.address);
+    const safeItems = String(order.items || "")
+      .split(", ")
+      .map((item: string) => `<div class="item-text">- ${sanitize(item)}</div>`)
+      .join("");
+
+    const subtotalVal = (Number(order.total) + Number(order.discount || 0)).toFixed(2);
+    const discountVal = Number(order.discount || 0).toFixed(2);
+    const totalVal = (Number(order.total) || 0).toFixed(2);
+
     printWindow.document.write(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Ticket #${String(order.id).slice(0,6).toUpperCase()}</title>
+          <title>Ticket #${safeOrderId}</title>
           <style>
             @page { margin: 0; }
             body { 
@@ -673,33 +702,33 @@ export default function AdminPage() {
           
           <div class="divider"></div>
           
-          <div><b>Cliente:</b> ${order.client}</div>
-          <div><b>Teléfono:</b> ${order.phone}</div>
-          <div><b>Fecha:</b> ${order.date}</div>
-          <div><b>Tipo:</b> ${order.type}</div>
-          ${order.type === 'DELIVERY' ? `<div><b>Dir:</b> ${order.address}</div>` : ''}
+          <div><b>Cliente:</b> ${safeClient}</div>
+          <div><b>Teléfono:</b> ${safePhone}</div>
+          <div><b>Fecha:</b> ${safeDate}</div>
+          <div><b>Tipo:</b> ${safeType}</div>
+          ${order.type === 'DELIVERY' ? `<div><b>Dir:</b> ${safeAddress}</div>` : ''}
           
           <div class="divider"></div>
           <div class="font-bold mb-1">PRODUCTOS:</div>
           
-          ${String(order.items).split(', ').map((item: string) => `<div class="item-text">- ${item}</div>`).join('')}
+          ${safeItems}
           
           <div class="divider"></div>
           
-          ${order.discount > 0 ? `
+          ${Number(order.discount) > 0 ? `
           <div class="flex-between">
             <span>Subtotal:</span>
-            <span>S/ ${(Number(order.total) + Number(order.discount)).toFixed(2)}</span>
+            <span>S/ ${subtotalVal}</span>
           </div>
           <div class="flex-between" style="color: #666;">
             <span>Dcto (Coins):</span>
-            <span>-S/ ${Number(order.discount).toFixed(2)}</span>
+            <span>-S/ ${discountVal}</span>
           </div>
           ` : ''}
           
           <div class="flex-between total-text">
             <span>TOTAL:</span>
-            <span>S/ ${Number(order.total).toFixed(2)}</span>
+            <span>S/ ${totalVal}</span>
           </div>
           
           <div class="divider" style="margin-top: 10px;"></div>
@@ -777,9 +806,8 @@ export default function AdminPage() {
   const todaySalesTotal = todaySalesOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const todayTicketAverage = todaySalesOrders.length > 0 ? (todaySalesTotal / todaySalesOrders.length) : 0;
 
-  // 🔥 CÁLCULOS EXACTOS DEL DASHBOARD DE PAMELA COINS (100 Coins = 1 Sol descuento)
   const totalPamelaCoins = customers.reduce((sum, c) => sum + (Number(c.points) || 0), 0);
-  const totalCoinsValue = totalPamelaCoins / 100; // 100 Coins = S/ 1.00
+  const totalCoinsValue = totalPamelaCoins / 100;
   const topVIPCustomers = [...customers].slice(0, 3);
 
   const filteredCustomers = customers.filter(c => {
@@ -809,10 +837,9 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#09090b] text-white flex font-sans selection:bg-red-600 selection:text-white text-xs">
       
-      {/* 👇 ALERTA INVISIBLE QUE SUENA CON NUEVOS PEDIDOS 👇 */}
       <OrderAlerts />
       
-      {/* SIDEBAR ORDENADO (Desktop) */}
+      {/* SIDEBAR DESKTOP */}
       <aside 
         onMouseEnter={() => setIsSidebarExpanded(true)}
         onMouseLeave={() => setIsSidebarExpanded(false)}
@@ -833,7 +860,6 @@ export default function AdminPage() {
           </div>
 
           <nav className="space-y-1">
-            {/* 1. PEDIDOS */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("pedidos"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
@@ -855,7 +881,6 @@ export default function AdminPage() {
               )}
             </button>
 
-            {/* 2. INVENTARIO Y STOCK */}
             <div className="space-y-1">
               <button
                 onClick={(e) => { 
@@ -906,7 +931,6 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* 3. PAMELA COINS CRM */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("clientes"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${
@@ -926,7 +950,6 @@ export default function AdminPage() {
               )}
             </button>
 
-            {/* 4. FACTURAS */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("proveedores"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "proveedores" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
@@ -935,7 +958,6 @@ export default function AdminPage() {
               {suppliers.length > 0 && <span className="bg-emerald-500 text-black px-1.5 py-0.2 rounded-full text-[9px] font-black">{suppliers.length}</span>}
             </button>
 
-            {/* 5. CAJA */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("caja"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "caja" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
@@ -943,7 +965,6 @@ export default function AdminPage() {
               <span className="text-sm shrink-0">📊</span>{isSidebarExpanded && <span className="whitespace-nowrap">Caja & Reportes</span>}
             </button>
 
-            {/* 6. MARKETING */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("marketing"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "marketing" ? "bg-red-600 text-white" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
@@ -951,7 +972,6 @@ export default function AdminPage() {
               <span className="text-sm shrink-0">🎯</span>{isSidebarExpanded && <span className="whitespace-nowrap">Marketing & Promos</span>}
             </button>
 
-            {/* 🚀 7. APARIENCIA DE TIENDA */}
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab("apariencia"); setIsSidebarExpanded(false); }}
               className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg font-bold transition cursor-pointer ${activeTab === "apariencia" ? "bg-red-600 text-white shadow-lg shadow-red-900/35" : "text-zinc-400 hover:bg-zinc-900 hover:text-white"}`}
@@ -977,10 +997,10 @@ export default function AdminPage() {
         </div>
       </aside>
 
-      {/* ÁREA DE CONTENIDO PRINCIPAL */}
+      {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 min-h-screen p-3 sm:p-6 space-y-4 overflow-y-auto">
         
-        {/* ENCABEZADO FIJO PRINCIPAL */}
+        {/* ENCABEZADO SUPERIOR */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 p-3 sm:p-4 rounded-xl shadow-lg">
           <div className="flex items-center gap-3 flex-wrap">
             <div>
@@ -1034,7 +1054,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* PESTAÑAS MÓVILES ORDENADAS */}
+        {/* PESTAÑAS MÓVILES */}
         <div className="flex md:hidden gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
           <button onClick={() => setActiveTab("pedidos")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "pedidos" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>
             Pedidos {pendingCount > 0 && `(${pendingCount})`}
@@ -1049,7 +1069,7 @@ export default function AdminPage() {
           <button onClick={() => setActiveTab("apariencia")} className={`px-2.5 py-1.5 rounded-lg font-bold shrink-0 ${activeTab === "apariencia" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>🎨 Apariencia</button>
         </div>
 
-        {/* 📦 INVENTARIO */}
+        {/* 📦 TAB INVENTARIO */}
         {activeTab === "inventario" && (
           <div className="space-y-4">
             <div className="flex gap-2 border-b border-zinc-800 pb-2">
@@ -1271,7 +1291,7 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => handlePrintBarcode(product)}
-                                  className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition"
+                                  className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition cursor-pointer"
                                   title="Generar Etiqueta PDF"
                                 >
                                   🏷️ Etiqueta
@@ -1281,7 +1301,7 @@ export default function AdminPage() {
                                   <button
                                     type="button"
                                     onClick={() => handleStockUpdate(product.id, currentStock, -1)}
-                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs cursor-pointer"
                                   >
                                     -
                                   </button>
@@ -1289,7 +1309,7 @@ export default function AdminPage() {
                                   <button
                                     type="button"
                                     onClick={() => handleStockUpdate(product.id, currentStock, 1)}
-                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs"
+                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs cursor-pointer"
                                   >
                                     +
                                   </button>
@@ -1298,7 +1318,7 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => openEditModal(product)}
-                                  className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs"
+                                  className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs cursor-pointer"
                                   title="Editar"
                                 >
                                   ✏️
@@ -1307,7 +1327,7 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteProduct(product.id, product.name)}
-                                  className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs"
+                                  className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs cursor-pointer"
                                   title="Eliminar"
                                 >
                                   🗑️
@@ -1349,7 +1369,7 @@ export default function AdminPage() {
                           <h4 className="font-bold text-white text-xs">{product.name}</h4>
                           <p className="text-[10px] text-red-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
                         </div>
-                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-red-600 text-white font-bold rounded text-xs">Retirar / Liquidar</button>
+                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-red-600 text-white font-bold rounded text-xs cursor-pointer">Retirar / Liquidar</button>
                       </div>
                     ))
                   )}
@@ -1366,7 +1386,7 @@ export default function AdminPage() {
                           <h4 className="font-bold text-white text-xs">{product.name}</h4>
                           <p className="text-[10px] text-yellow-300">SKU: {product.sku} • Vencimiento: {product.expiryDate} • Stock: {product.stock} un.</p>
                         </div>
-                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-yellow-600 text-black font-black rounded text-xs">Crear Oferta Flash 🔥</button>
+                        <button onClick={() => openEditModal(product)} className="px-3 py-1 bg-yellow-600 text-black font-black rounded text-xs cursor-pointer">Crear Oferta Flash 🔥</button>
                       </div>
                     ))
                   )}
@@ -1425,7 +1445,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🛒 VISTA 2: PEDIDOS */}
+        {/* 🛒 TAB PEDIDOS */}
         {activeTab === "pedidos" && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1434,7 +1454,6 @@ export default function AdminPage() {
                 <div className="text-base font-black text-emerald-400">S/ {totalSales.toFixed(2)}</div>
               </div>
 
-              {/* Tarjeta métrica de Pendientes con efecto llamativo intermitente */}
               <div className={`border rounded-xl p-3 space-y-1 transition-all ${
                 pendingCount > 0 
                   ? "bg-amber-500/10 border-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse" 
@@ -1460,10 +1479,9 @@ export default function AdminPage() {
 
             <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-xl space-y-2.5">
               <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {/* Pestaña Pendientes con animación sutil y color llamativo */}
                 <button 
                   onClick={() => setOrderStatusTab("PENDIENTE")}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all ${
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
                     orderStatusTab === "PENDIENTE" 
                       ? "bg-amber-500 text-black font-black shadow-[0_0_12px_rgba(245,158,11,0.5)]" 
                       : pendingCount > 0 
@@ -1477,19 +1495,19 @@ export default function AdminPage() {
                   </span>
                 </button>
 
-                <button onClick={() => setOrderStatusTab("PREPARANDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "PREPARANDO" ? "bg-yellow-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🍳 Preparando ({preparingCount})</button>
-                <button onClick={() => setOrderStatusTab("EN_CAMINO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "EN_CAMINO" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🛵 En Camino ({shippingCount})</button>
-                <button onClick={() => setOrderStatusTab("ENTREGADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✓ Entregados ({deliveredCount})</button>
-                <button onClick={() => setOrderStatusTab("RECHAZADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✕ Rechazados ({rejectedCount})</button>
-                <button onClick={() => setOrderStatusTab("NO_RECOGIDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🏪 No Recogidos ({uncollectedCount})</button>
+                <button onClick={() => setOrderStatusTab("PREPARANDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 cursor-pointer ${orderStatusTab === "PREPARANDO" ? "bg-yellow-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🍳 Preparando ({preparingCount})</button>
+                <button onClick={() => setOrderStatusTab("EN_CAMINO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 cursor-pointer ${orderStatusTab === "EN_CAMINO" ? "bg-blue-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🛵 En Camino ({shippingCount})</button>
+                <button onClick={() => setOrderStatusTab("ENTREGADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 cursor-pointer ${orderStatusTab === "ENTREGADO" ? "bg-emerald-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✓ Entregados ({deliveredCount})</button>
+                <button onClick={() => setOrderStatusTab("RECHAZADO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 cursor-pointer ${orderStatusTab === "RECHAZADO" ? "bg-red-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>✕ Rechazados ({rejectedCount})</button>
+                <button onClick={() => setOrderStatusTab("NO_RECOGIDO")} className={`px-3 py-1.5 rounded-lg font-bold text-xs shrink-0 cursor-pointer ${orderStatusTab === "NO_RECOGIDO" ? "bg-purple-600 text-white" : "bg-zinc-950 text-zinc-400 border border-zinc-800"}`}>🏪 No Recogidos ({uncollectedCount})</button>
               </div>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="text-zinc-400 font-bold">Tipo:</span>
-                  <button onClick={() => updateSubFilter("type", "TODOS")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Todos</button>
-                  <button onClick={() => updateSubFilter("type", "DELIVERY")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Delivery</button>
-                  <button onClick={() => updateSubFilter("type", "RECOJO")} className={`px-2 py-0.5 rounded ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Recojo</button>
+                  <button onClick={() => updateSubFilter("type", "TODOS")} className={`px-2 py-0.5 rounded cursor-pointer ${currentSubFilter.type === "TODOS" ? "bg-red-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Todos</button>
+                  <button onClick={() => updateSubFilter("type", "DELIVERY")} className={`px-2 py-0.5 rounded cursor-pointer ${currentSubFilter.type === "DELIVERY" ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Delivery</button>
+                  <button onClick={() => updateSubFilter("type", "RECOJO")} className={`px-2 py-0.5 rounded cursor-pointer ${currentSubFilter.type === "RECOJO" ? "bg-indigo-600 text-white" : "bg-zinc-900 text-zinc-400"}`}>Recojo</button>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -1498,7 +1516,7 @@ export default function AdminPage() {
                   <span>-</span>
                   <input type="date" value={currentSubFilter.endDate} onChange={e => updateSubFilter("endDate", e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-white text-[10px]" />
                   {(currentSubFilter.startDate || currentSubFilter.endDate) && (
-                    <button onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }} className="bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-bold">Limpiar</button>
+                    <button onClick={() => { updateSubFilter("startDate", ""); updateSubFilter("endDate", ""); }} className="bg-zinc-800 px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer">Limpiar</button>
                   )}
                 </div>
               </div>
@@ -1529,7 +1547,6 @@ export default function AdminPage() {
                           <p className="text-[10px] text-zinc-400">{order.phone} • {order.address}</p>
                         </div>
                         
-                        {/* 👇 TICKET Y ESTADO ALINEADOS COMO UN BLOQUE PERFECTO 👇 */}
                         <div className="flex flex-col items-end gap-1.5 w-28 shrink-0">
                           <div className={`w-full text-center text-[9px] font-bold px-2 py-1 rounded border uppercase ${
                             isPending 
@@ -1550,11 +1567,9 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      {/* 👇 NUEVO DISEÑO DE LA TARJETA DEL CARRITO (MOSTRANDO COINS Y DESCUENTO) 👇 */}
                       <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg space-y-1">
                         <p className="text-zinc-300 leading-relaxed">{order.items}</p>
                         
-                        {/* 🪙 Si el cliente usó monedas para tener descuento, se muestra aquí */}
                         {(Number(order.discount) > 0) && (
                           <div className="flex justify-between text-[9px] text-amber-500 font-bold pt-1">
                             <span>Dcto. Pamela Coins:</span>
@@ -1566,7 +1581,6 @@ export default function AdminPage() {
                           <span>TOTAL</span>
                           <div className="text-right">
                             <span className="text-red-400 block text-sm">S/ {(Number(order.total) || 0).toFixed(2)}</span>
-                            {/* 🪙 Muestra las monedas que acaba de ganar en esta compra (1 sol = 1 coin) */}
                             <span className="text-[8px] text-amber-500 font-bold block bg-amber-500/10 px-1.5 py-0.5 rounded mt-0.5 border border-amber-500/20">
                               +{Math.floor(Number(order.total))} Coins ganadas
                             </span>
@@ -1574,7 +1588,6 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      {/* Botones de control progresivo de estados */}
                       <div className="space-y-1.5">
                         {order.status === "PENDIENTE" && (
                           <div className="space-y-1.5">
@@ -1608,7 +1621,7 @@ export default function AdminPage() {
                         {order.status === "ENTREGADO" && <div className="py-1 bg-zinc-950 text-emerald-400 text-center font-bold text-[10px] rounded border border-emerald-900/30">Entregado ✓</div>}
                         
                         {order.status === "PENDIENTE" && order.type === "RECOJO" && (
-                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "NO_RECOGIDO")} className="w-full py-1 bg-zinc-950 text-zinc-400 border border-zinc-800 font-bold text-[9px] rounded">Marcar No Recogido</button>
+                          <button type="button" onClick={() => handleUpdateOrderStatus(order.id, "NO_RECOGIDO")} className="w-full py-1 bg-zinc-950 text-zinc-400 border border-zinc-800 font-bold text-[9px] rounded cursor-pointer">Marcar No Recogido</button>
                         )}
                       </div>
                     </div>
@@ -1619,7 +1632,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 📊 CAJA & REPORTES */}
+        {/* 📊 TAB CAJA & REPORTES */}
         {activeTab === "caja" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1658,11 +1671,9 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🪙 DASHBOARD COMPLETO DE PAMELA COINS Y CRM DE CLIENTES */}
+        {/* 🪙 TAB PAMELA COINS CRM */}
         {activeTab === "clientes" && (
           <div className="space-y-5 animate-in fade-in duration-300">
-            
-            {/* 1. CABECERA CON INSIGNIA */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gradient-to-r from-amber-500/10 via-zinc-900 to-zinc-900 border border-amber-500/30 p-4 rounded-2xl shadow-xl">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl animate-bounce shadow-inner">
@@ -1683,7 +1694,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 2. TARJETAS DE INDICADORES / KPIS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="bg-zinc-900/90 border border-amber-500/40 rounded-2xl p-4 space-y-1 shadow-[0_0_20px_rgba(245,158,11,0.08)]">
                 <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Monedas en Circulación</span>
@@ -1718,7 +1728,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 3. PODIO DE CLIENTES VIP (TOP 3) */}
             {topVIPCustomers.length > 0 && (
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 space-y-3">
                 <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
@@ -1746,7 +1755,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* 4. LISTADO GENERAL Y BUSCADOR */}
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800 pb-3">
                 <div>
@@ -1794,11 +1802,10 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
-
           </div>
         )}
 
-        {/* 🧾 FACTURAS Y REPOSICIÓN */}
+        {/* 🧾 TAB PROVEEDORES Y FACTURAS */}
         {activeTab === "proveedores" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 h-fit space-y-4 lg:col-span-1">
@@ -1868,7 +1875,7 @@ export default function AdminPage() {
                 <div className="border-t border-zinc-800 pt-3 space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-zinc-300 uppercase text-[10px]">Detalle de Ítems / Autocompletado</span>
-                    <button type="button" onClick={handleAddInvoiceItem} className="text-red-400 font-bold hover:underline">+ Agregar Ítem</button>
+                    <button type="button" onClick={handleAddInvoiceItem} className="text-red-400 font-bold hover:underline cursor-pointer">+ Agregar Ítem</button>
                   </div>
 
                   <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
@@ -1904,7 +1911,7 @@ export default function AdminPage() {
                             <option value="CAJA">Cajas</option>
                           </select>
                           {invoiceItems.length > 1 && (
-                            <button type="button" onClick={() => handleRemoveInvoiceItem(index)} className="text-red-400 font-bold px-1.5">✕</button>
+                            <button type="button" onClick={() => handleRemoveInvoiceItem(index)} className="text-red-400 font-bold px-1.5 cursor-pointer">✕</button>
                           )}
                         </div>
 
@@ -2040,7 +2047,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🎯 MARKETING TAB */}
+        {/* 🎯 TAB MARKETING */}
         {activeTab === "marketing" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-6 shadow-xl h-fit space-y-4">
@@ -2058,7 +2065,7 @@ export default function AdminPage() {
                   <label className="block text-zinc-400 font-bold mb-1 uppercase text-[10px]">Descuento / Badge</label>
                   <input type="text" value={newPromoDiscount} onChange={e => setNewPromoDiscount(e.target.value)} placeholder="-20% OFF" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white focus:outline-none focus:border-red-600" required />
                 </div>
-                <button type="submit" className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition">
+                <button type="submit" className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black transition cursor-pointer">
                   Lanzar Anuncio Web 🚀
                 </button>
               </form>
@@ -2105,7 +2112,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🚀 NUEVA PESTAÑA: APARIENCIA DE LA TIENDA (CMS) */}
+        {/* 🎨 TAB CMS APARIENCIA */}
         {activeTab === "apariencia" && (
           <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 sm:p-8 shadow-xl space-y-6 animate-in fade-in">
             <div>
@@ -2121,7 +2128,6 @@ export default function AdminPage() {
               } catch (err: any) { alert("Error al guardar: " + err.message); }
             }} className="space-y-6">
 
-              {/* 1. GENERAL Y LOGO */}
               <div className="space-y-4 bg-zinc-950 p-5 rounded-xl border border-zinc-800 shadow-inner">
                 <h3 className="font-black text-purple-400 uppercase tracking-widest text-[10px]">1. Identidad y Horarios</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2155,8 +2161,6 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* TEXTOS DEL HERO */}
                 <div className="space-y-4 bg-zinc-950 p-5 rounded-xl border border-zinc-800 shadow-inner">
                   <h3 className="font-black text-emerald-400 uppercase tracking-widest text-[10px]">2. Textos Principales (Inicio)</h3>
                   <div>
@@ -2169,7 +2173,6 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* TARJETA CANASTA BÁSICA */}
                 <div className="space-y-4 bg-zinc-950 p-5 rounded-xl border border-zinc-800 shadow-inner">
                   <h3 className="font-black text-amber-400 uppercase tracking-widest text-[10px]">3. Tarjeta Promocional Derecha</h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -2202,7 +2205,6 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* REDES SOCIALES */}
                 <div className="space-y-4 bg-zinc-950 p-5 rounded-xl border border-zinc-800 shadow-inner lg:col-span-2">
                   <h3 className="font-black text-blue-400 uppercase tracking-widest text-[10px]">4. Redes Sociales (Aparecerán en el Pie de página)</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2236,13 +2238,13 @@ export default function AdminPage() {
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
               <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
                 <h3 className="text-xs font-black">Modificar Categoría: "{editingCategory.name}"</h3>
-                <button type="button" onClick={() => setEditingCategory(null)} className="text-zinc-400 hover:text-white font-bold">✕</button>
+                <button type="button" onClick={() => setEditingCategory(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
               </div>
               <form onSubmit={handleUpdateCategory} className="space-y-3">
                 <div><label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nuevo Nombre</label><input type="text" value={editCatName} onChange={e => setEditCatName(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-red-600" required /></div>
                 <div className="flex gap-2 pt-2 border-t border-zinc-800">
-                  <button type="button" onClick={() => setEditingCategory(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300">Cancelar</button>
-                  <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white shadow-lg">Actualizar</button>
+                  <button type="button" onClick={() => setEditingCategory(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
+                  <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white shadow-lg cursor-pointer">Actualizar</button>
                 </div>
               </form>
             </div>
@@ -2255,7 +2257,7 @@ export default function AdminPage() {
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 w-full max-w-sm space-y-3 text-xs text-white">
               <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
                 <h3 className="text-xs font-black">Modificar Producto</h3>
-                <button type="button" onClick={() => setEditingProduct(null)} className="text-zinc-400 hover:text-white font-bold">✕</button>
+                <button type="button" onClick={() => setEditingProduct(null)} className="text-zinc-400 hover:text-white font-bold cursor-pointer">✕</button>
               </div>
               <form onSubmit={handleSaveEdit} className="space-y-2.5">
                 <div><label className="block text-zinc-400 font-bold mb-0.5 uppercase text-[9px]">Nombre</label><input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-white" required /></div>
@@ -2279,8 +2281,8 @@ export default function AdminPage() {
                   <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300"><input type="checkbox" checked={editForm.isFeatured} onChange={e => setEditForm({ ...editForm, isFeatured: e.target.checked })} className="accent-red-600 w-3.5 h-3.5" /> Destacado ⭐</label>
                 </div>
                 <div className="flex gap-2 pt-2 border-t border-zinc-800">
-                  <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300">Cancelar</button>
-                  <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white shadow-lg">Guardar Cambios</button>
+                  <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 py-2 rounded-lg bg-zinc-800 font-bold text-zinc-300 cursor-pointer">Cancelar</button>
+                  <button type="submit" className="flex-1 py-2 rounded-lg bg-red-600 font-bold text-white shadow-lg cursor-pointer">Guardar Cambios</button>
                 </div>
               </form>
             </div>
@@ -2289,7 +2291,7 @@ export default function AdminPage() {
 
       </main>
 
-      {/* 🔥 MODAL PARA EDITAR PAMELA COINS */}
+      {/* MODAL PAMELA COINS CON VALIDACIÓN ANTI-SALDOS NEGATIVOS */}
       {editingCustomer && (
         <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4 text-xs text-white shadow-2xl">
@@ -2299,11 +2301,12 @@ export default function AdminPage() {
             </div>
             <form onSubmit={async (e) => {
               e.preventDefault();
+              const safePoints = Math.max(0, parseInt(String(editPoints), 10) || 0);
               try {
-                await updateDoc(doc(db, "customers", editingCustomer.id), { points: Number(editPoints) });
+                await updateDoc(doc(db, "customers", editingCustomer.id), { points: safePoints });
                 setEditingCustomer(null);
                 alert("¡Monedas actualizadas correctamente!");
-              } catch(err:any) { alert(`Error al actualizar: ${err.message}`); }
+              } catch(err: any) { alert(`Error al actualizar: ${err.message}`); }
             }} className="space-y-4">
               <p className="text-[11px] text-zinc-400">Cliente: <span className="font-bold text-white">{editingCustomer.name || "Sin nombre"} ({editingCustomer.phone})</span></p>
               
@@ -2311,14 +2314,15 @@ export default function AdminPage() {
                 <label className="block text-zinc-400 font-bold uppercase text-[10px]">Saldo de Monedas Actual</label>
                 <input 
                   type="number" 
+                  min="0"
                   value={editPoints} 
-                  onChange={e => setEditPoints(Number(e.target.value))} 
+                  onChange={e => setEditPoints(Math.max(0, parseInt(e.target.value, 10) || 0))} 
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-amber-400 font-black text-2xl text-center focus:outline-none focus:border-amber-500 shadow-inner" 
                   required 
                 />
               </div>
               <p className="text-[10px] text-emerald-500 font-bold text-center bg-emerald-950/30 py-1.5 rounded-lg border border-emerald-900/50">
-                💰 Equivale a S/ {(editPoints / 100).toFixed(2)} de descuento
+                💰 Equivale a S/ {((Math.max(0, editPoints)) / 100).toFixed(2)} de descuento
               </p>
               
               <div className="flex gap-2 pt-3 border-t border-zinc-800">
