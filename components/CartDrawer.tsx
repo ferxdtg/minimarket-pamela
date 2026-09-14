@@ -30,11 +30,13 @@ export default function CartDrawer() {
 
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // CÁLCULOS
+  // CÁLCULOS MATEMÁTICOS UNIFICADOS
   const deliveryFee = orderType === "DELIVERY" ? 5.00 : 0.00;
   const discountFromCoins = useCoins ? Math.min(cartTotal + deliveryFee, clientPoints / 100) : 0;
   const finalTotal = Math.max(0, cartTotal + deliveryFee - discountFromCoins);
-  const coinsEarned = Math.floor(finalTotal * 10);
+  
+  // 🪙 REGLA EXACTA: 1 Sol de compra en productos = 1 Pamela Coin (Sincronizado con el Panel Admin)
+  const coinsEarned = Math.floor(cartTotal);
 
   useEffect(() => {
     async function fetchSuggestions() {
@@ -158,14 +160,13 @@ export default function CartDrawer() {
       // 🔥 D. ENVIAR A WHATSAPP CON MAPA VISUAL
       const adminWhatsApp = "51950323959"; 
       
-      // La URL exacta de Google Maps que generará la previsualización en WhatsApp
       const googleMapsUrl = "https://www.google.com/maps?svid=CAwSHRIbCgNwdnESFENnMHZaeTh4TVhGeGNuUnJaMTgzGAo&um=1&ie=UTF-8&fb=1&gl=pe&sa=X&ftid=0x9105d1c7300a146d:0xc39811e45f5331ce";
 
       let addressDisplay = "";
       if (orderType === "DELIVERY") {
         addressDisplay = clientAddress;
       } else {
-        addressDisplay = `🏪 Recojo en Tienda\n📍 *Ubicación del local:* Esta es bodega bazar pamela ubicada en la calle 48 634, comas.\n\n🗺️ *Ver Mapa:* \n${googleMapsUrl}`;
+        addressDisplay = `🏪 Recojo en Tienda\n📍 *Ubicación del local:* bodega bazar pamela ubicada en la calle 48 634, comas.\n\n🗺️ *Ver Mapa:* \n${googleMapsUrl}`;
       }
 
       const message = encodeURIComponent(
@@ -307,7 +308,6 @@ export default function CartDrawer() {
             {/* SECCIÓN DINÁMICA: Botón Animado VS Formulario */}
             {!showForm ? (
               <div className="pt-2 flex flex-col gap-2">
-                {/* BOTÓN CON ANIMACIÓN DE LUZ Y DESLIZAMIENTO */}
                 <button
                   type="button"
                   onClick={triggerCheckoutAnimation}
@@ -329,10 +329,8 @@ export default function CartDrawer() {
                 </div>
               </div>
             ) : (
-              /* FORMULARIO DESPLEGABLE CON LABELS CLAROS */
               <form onSubmit={handleCheckout} className="space-y-3 animate-in slide-in-from-bottom-6 fade-in duration-300 pb-2">
                 
-                {/* TABS ELEGANTES DE DELIVERY / RECOJO */}
                 <div className="flex bg-slate-100 p-1 rounded-xl">
                   <button type="button" onClick={() => setOrderType("DELIVERY")} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm cursor-pointer ${orderType === "DELIVERY" ? "bg-white text-red-600" : "text-slate-500 hover:text-slate-700 shadow-none"}`}>🛵 Delivery</button>
                   <button type="button" onClick={() => setOrderType("RECOJO")} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm cursor-pointer ${orderType === "RECOJO" ? "bg-white text-red-600" : "text-slate-500 hover:text-slate-700 shadow-none"}`}>🏪 Recojo Tienda</button>
@@ -362,7 +360,6 @@ export default function CartDrawer() {
                   </div>
                 )}
 
-                {/* DIRECCIÓN CON BOTÓN GPS */}
                 {orderType === "DELIVERY" && (
                   <div className="space-y-1 animate-in fade-in duration-300">
                     <label className="flex justify-between items-center text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">
@@ -375,7 +372,6 @@ export default function CartDrawer() {
                   </div>
                 )}
 
-                {/* Resumen Final Detallado */}
                 <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl space-y-1 text-[10px]">
                   <div className="flex justify-between text-slate-600"><span>Subtotal:</span><span>S/ {cartTotal.toFixed(2)}</span></div>
                   {orderType === "DELIVERY" && <div className="flex justify-between text-slate-600"><span>Delivery:</span><span>S/ {deliveryFee.toFixed(2)}</span></div>}
