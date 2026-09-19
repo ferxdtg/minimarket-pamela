@@ -10,18 +10,23 @@ export default function MisPamelasPage() {
   const [customerData, setCustomerData] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || phone.length < 6) {
-      alert("Por favor ingresa un número de celular válido.");
+    setErrorMsg("");
+    
+    const cleanPhone = phone.trim();
+    if (!cleanPhone || cleanPhone.length !== 9 || !cleanPhone.startsWith("9")) {
+      setErrorMsg("Ingresa un número de celular peruano válido (9 dígitos, empezando con 9).");
       return;
     }
+    
     setLoading(true);
     setSearched(false);
 
     try {
-      const docRef = doc(db, "customers", phone.trim());
+      const docRef = doc(db, "customers", cleanPhone);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
@@ -32,7 +37,7 @@ export default function MisPamelasPage() {
       setSearched(true);
     } catch (error) {
       console.error("Error al buscar monedas:", error);
-      alert("Hubo un error al consultar el sistema.");
+      setErrorMsg("Hubo un problema al consultar el sistema. Por favor intenta nuevamente.");
     } finally {
       setLoading(false);
     }
@@ -72,32 +77,37 @@ export default function MisPamelasPage() {
               <p className="text-xs text-slate-400 mt-1">Digita tu número de celular para descubrir tus recompensas acumuladas.</p>
             </div>
 
+            {errorMsg && (
+              <div className="p-3 bg-red-950/40 border border-red-500/50 text-red-400 rounded-xl text-xs font-bold text-left animate-in fade-in">
+                ⚠️ {errorMsg}
+              </div>
+            )}
+
             <form onSubmit={handleSearch} className="space-y-3">
               <input
                 type="tel"
+                maxLength={9}
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => { setPhone(e.target.value); setErrorMsg(""); }}
                 placeholder="Ej. 950000000"
+                autoComplete="tel"
                 className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-center text-amber-400 font-black text-lg focus:outline-none focus:border-amber-500 shadow-inner tracking-wider"
                 required
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 font-black rounded-2xl shadow-[0_10px_30px_rgba(245,158,11,0.3)] transition-all active:scale-95 cursor-pointer text-sm uppercase tracking-wider"
+                className="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 font-black rounded-2xl shadow-[0_10px_30px_rgba(245,158,11,0.3)] transition-all active:scale-95 cursor-pointer text-sm uppercase tracking-wider disabled:opacity-50"
               >
                 {loading ? "Buscando billetera..." : "Consultar mis monedas ✨"}
               </button>
             </form>
           </div>
         ) : (
-          /* ✨ PANTALLA DE SORPRESA CON EFECTOS Y BRILLOS TIPO CINTURÓN DE PREMIOS ✨ */
           <div className="bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 backdrop-blur-2xl border-2 border-amber-500/50 p-8 sm:p-10 rounded-[3rem] shadow-[0_0_60px_rgba(245,158,11,0.25)] space-y-6 animate-in zoom-in-95 fade-in duration-500 relative overflow-hidden">
             
-            {/* Destello decorativo superior */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-24 bg-amber-500/30 blur-3xl pointer-events-none"></div>
 
-            {/* Monedita rebotando con destello */}
             <div className="relative mx-auto w-20 h-20">
               <div className="absolute inset-0 bg-amber-400 rounded-full animate-ping opacity-30"></div>
               <div className="relative w-full h-full bg-gradient-to-br from-amber-400 to-yellow-600 text-slate-950 rounded-full flex items-center justify-center text-4xl font-black shadow-[0_0_30px_rgba(245,158,11,0.7)] border-2 border-white/50 animate-bounce">

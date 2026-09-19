@@ -29,7 +29,6 @@ export default function Hero() {
       const currentMinute = limaDate.getMinutes();
       const currentTotalMinutes = currentHour * 60 + currentMinute;
 
-      // Obtener hora de apertura y cierre desde Firebase
       const [openH, openM] = (content.openTime || "06:00").split(":").map(Number);
       const [closeH, closeM] = (content.closeTime || "23:59").split(":").map(Number);
       
@@ -38,10 +37,8 @@ export default function Hero() {
 
       let isOpen = false;
       if (openTotalMinutes < closeTotalMinutes) {
-         // Horario normal (Ej: 06:00 a 22:00)
          isOpen = currentTotalMinutes >= openTotalMinutes && currentTotalMinutes <= closeTotalMinutes;
       } else {
-         // Horario trasnoche (Ej: 18:00 a 02:00)
          isOpen = currentTotalMinutes >= openTotalMinutes || currentTotalMinutes <= closeTotalMinutes;
       }
 
@@ -87,25 +84,24 @@ export default function Hero() {
     if (section) section.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Convertir formato militar (ej: "18:00") a formato 12 hrs (ej: "06:00 P.M.") para el texto de cerrado
   const formatOpenTimeText = (timeStr: string) => {
     if (!timeStr) return "06:00 A.M.";
     const [h, m] = timeStr.split(":");
     let hour = parseInt(h);
     const ampm = hour >= 12 ? 'P.M.' : 'A.M.';
     hour = hour % 12;
-    hour = hour ? hour : 12; // La hora '0' debe ser '12'
+    hour = hour ? hour : 12;
     return `${hour.toString().padStart(2, '0')}:${m} ${ampm}`;
   };
 
   return (
-    <section className="relative w-full bg-[#F8F9FA] overflow-hidden pt-20 pb-16 md:pt-28 md:pb-24">
+    <section className="relative w-full bg-[#F8F9FA] overflow-hidden pt-12 pb-12 md:pt-28 md:pb-24">
       <div className="absolute top-0 left-[-10%] w-[600px] h-[600px] bg-red-600/10 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse" style={{ animationDuration: '4s' }}></div>
       <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 grid md:grid-cols-[1.1fr_0.9fr] lg:grid-cols-[1.2fr_0.8fr] gap-8 lg:gap-12 items-center">
         
-        <div className="text-center md:text-left space-y-6 md:pr-4 lg:pr-8">
+        <div className="text-center md:text-left space-y-5 md:pr-4 lg:pr-8">
           
           <div className="h-10 flex items-center justify-center md:justify-start">
             {!storeStatus.loading && (
@@ -131,44 +127,46 @@ export default function Hero() {
             {content.heroSubtitle}
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 justify-center md:justify-start pt-4">
+          <div className="flex flex-col sm:flex-row items-center gap-3 justify-center md:justify-start pt-2">
             <button onClick={() => handleAction("todos")} className="w-full sm:w-auto px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black text-sm uppercase tracking-wider transition-all duration-300 shadow-[0_8px_25px_rgba(220,38,38,0.3)] hover:shadow-[0_12px_30px_rgba(220,38,38,0.4)] hover:-translate-y-1 active:scale-95 cursor-pointer flex items-center justify-center gap-3 group">
               Hacer mi pedido <span className="text-lg transition-transform group-hover:translate-x-1">🛵</span>
             </button>
-            <button onClick={() => handleAction("ofertas")} className="w-full sm:w-auto px-8 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all duration-300 active:scale-95 text-center cursor-pointer flex items-center justify-center gap-3">
+            <button onClick={() => handleAction("ofertas")} className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-slate-100 text-slate-700 rounded-2xl font-bold text-sm uppercase tracking-wider transition-all duration-300 border border-slate-200 shadow-sm active:scale-95 text-center cursor-pointer flex items-center justify-center gap-3">
               Ver ofertas <span className="text-lg opacity-80">🔥</span>
             </button>
           </div>
 
-          <div className="pt-6 flex items-center justify-center md:justify-start gap-6 text-slate-400 text-[11px] font-black uppercase tracking-widest">
+          <div className="pt-3 flex items-center justify-center md:justify-start gap-6 text-slate-400 text-[11px] font-black uppercase tracking-widest">
             <span className="flex items-center gap-1.5"><span className="text-emerald-500 text-sm">✓</span> Pago Seguro</span>
             <span className="flex items-center gap-1.5"><span className="text-emerald-500 text-sm">✓</span> Frescura Total</span>
+            <span className="flex items-center gap-1.5"><span className="text-emerald-500 text-sm">✓</span> Pamela Coins 🪙</span>
           </div>
 
         </div>
 
-        <div className="hidden md:flex justify-end relative perspective-1000 w-full">
-          <div onClick={() => handleAction("ofertas")} className="relative w-full max-w-[340px] lg:max-w-sm bg-white/70 backdrop-blur-2xl border border-white p-8 rounded-[3rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] transform rotate-2 hover:rotate-0 hover:-translate-y-2 transition-all duration-500 cursor-pointer group ml-auto">
+        {/* TARJETA PROMO: Visible en Escritorio Y en Móvil */}
+        <div className="flex justify-center md:justify-end relative perspective-1000 w-full mt-4 md:mt-0">
+          <div onClick={() => handleAction("ofertas")} className="relative w-full max-w-[320px] sm:max-w-[340px] lg:max-w-sm bg-white/80 backdrop-blur-2xl border border-slate-100 p-6 sm:p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.06)] md:transform md:rotate-2 hover:rotate-0 hover:-translate-y-2 transition-all duration-500 cursor-pointer group mx-auto md:ml-auto">
             
-            <div className="absolute -top-5 -right-5 bg-gradient-to-br from-amber-400 to-orange-500 text-white text-xs font-black px-4 py-2 rounded-full shadow-[0_4px_15px_rgba(245,158,11,0.4)] transform rotate-12 group-hover:rotate-6 transition-transform">
+            <div className="absolute -top-3 -right-2 sm:-top-4 sm:-right-4 bg-gradient-to-br from-amber-400 to-orange-500 text-white text-[10px] sm:text-xs font-black px-3.5 py-1.5 rounded-full shadow-[0_4px_15px_rgba(245,158,11,0.4)] transform rotate-6 group-hover:rotate-3 transition-transform">
               {content.promoCardBadge}
             </div>
             
-            <div className="mb-5 flex items-center justify-center h-28">
+            <div className="mb-4 flex items-center justify-center h-24 sm:h-28">
               {content.promoCardImage ? (
-                <div className="relative w-28 h-28 group-hover:scale-110 transition-transform duration-500 drop-shadow-md">
+                <div className="relative w-24 h-24 sm:w-28 sm:h-28 group-hover:scale-110 transition-transform duration-500 drop-shadow-md">
                   <Image src={content.promoCardImage} alt={content.promoCardTitle} fill className="object-contain" />
                 </div>
               ) : (
-                <div className="text-7xl group-hover:scale-110 group-hover:-translate-y-2 transition-all duration-500 drop-shadow-sm">🛍️</div>
+                <div className="text-6xl sm:text-7xl group-hover:scale-110 group-hover:-translate-y-2 transition-all duration-500 drop-shadow-sm">🛍️</div>
               )}
             </div>
 
-            <h3 className="text-2xl font-black text-slate-900 text-center mb-2 tracking-tight">{content.promoCardTitle}</h3>
-            <p className="text-slate-500 text-center text-sm mb-6 font-medium leading-relaxed">{content.promoCardDesc}</p>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 text-center mb-1.5 tracking-tight">{content.promoCardTitle}</h3>
+            <p className="text-slate-500 text-center text-xs sm:text-sm mb-5 font-medium leading-relaxed">{content.promoCardDesc}</p>
             
-            <button className="w-full py-4 bg-slate-50 group-hover:bg-red-50 text-slate-400 group-hover:text-red-600 font-black rounded-2xl transition-colors duration-300 border border-slate-100 shadow-inner active:scale-95 pointer-events-none uppercase tracking-wider text-xs">
-              Explorar Canasta →
+            <button className="w-full py-3.5 bg-red-50 group-hover:bg-red-600 text-red-600 group-hover:text-white font-black rounded-2xl transition-colors duration-300 border border-red-100 shadow-sm active:scale-95 uppercase tracking-wider text-xs flex items-center justify-center gap-2">
+              Explorar Ofertas <span>→</span>
             </button>
           </div>
         </div>
