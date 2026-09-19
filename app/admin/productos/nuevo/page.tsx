@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc, getDocs, writeBatch } from "firebase/firestore";
 import { getAuth, signOut } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
 import Image from "next/image";
@@ -315,6 +315,38 @@ export default function AdminPage() {
       await deleteDoc(doc(db, "products", String(id)));
     } catch (error: any) {
       alert(`Error al eliminar: ${error.message}`);
+    }
+  };
+
+  // ⚠️ Limpiar TODOS los productos para volver a cargarlos desde cero (Mantiene categorías)
+  const handleClearAllProducts = async () => {
+    const confirmation = window.confirm(
+      "⚠️ ¿Estás seguro de que deseas ELIMINAR TODOS los productos del catálogo?\n\nEsta acción dejará el inventario en CERO para que puedas cargar tus productos reales desde el principio.\n\n(Las categorías se mantendrán intactas)."
+    );
+    if (!confirmation) return;
+
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, "products"));
+      if (snap.empty) {
+        alert("El inventario ya está vacío (0 productos).");
+        setLoading(false);
+        return;
+      }
+
+      const batch = writeBatch(db);
+      snap.docs.forEach((docSnap) => {
+        batch.delete(doc(db, "products", docSnap.id));
+      });
+      await batch.commit();
+
+      // Limpiar estado local
+      setProducts([]);
+      alert(`✅ ¡Éxito! Se eliminaron todos los ${snap.docs.length} productos.\nEl inventario está en cero y listo para que cargues tus nuevos productos.`);
+    } catch (err: any) {
+      alert("Error al vaciar productos: " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1223,8 +1255,22 @@ export default function AdminPage() {
 
                 <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-zinc-800 pb-2">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5 flex-wrap">
                       <h2 className="text-xs font-black text-white">Inventario Activo ({filteredProducts.length})</h2>
+                      
+                      {products.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearAllProducts}
+                          disabled={loading}
+                          className="bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-300 px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-xs"
+                          title="Eliminar todos los productos para reiniciar el catálogo en cero"
+                        >
+                          <span>🗑️</span>
+                          <span>Vaciar Todo (0)</span>
+                        </button>
+                      )}
+
                       {filterOrphanOnly && (
                         <button 
                           onClick={() => setFilterOrphanOnly(false)} 
