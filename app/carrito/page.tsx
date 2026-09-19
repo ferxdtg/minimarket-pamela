@@ -1,15 +1,6 @@
-export default function CarritoPage() {
+import { redirect } from "next/navigation";
 
-    return (
-  
-      <main className="min-h-screen flex items-center justify-center bg-orange-50">
-  
-        <h1 className="text-3xl font-bold text-black">
-          El carrito ahora se abre desde la página principal 🛒
-        </h1>
-  
-      </main>
-  
-    );
-  
-  }
+export default function CarritoPage() {
+  // El carrito ahora es un drawer global, redirigir al inicio
+  redirect("/");
+}

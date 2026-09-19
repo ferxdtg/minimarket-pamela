@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getAuth, signOut } from "firebase/auth";
+import { db, auth } from "@/lib/firebase";
 import Image from "next/image";
 import OrderAlerts from "@/components/OrderAlerts";
 
@@ -49,7 +50,11 @@ export default function AdminPage() {
     promoCardImage: "",
     facebookUrl: "",
     instagramUrl: "",
-    tiktokUrl: ""
+    tiktokUrl: "",
+    whatsappNumber: "51950323959",
+    deliveryFee: 5,
+    address: "Calle 48 634, Comas, Lima",
+    phone: "950 323 959"
   });
   
   const [loading, setLoading] = useState(true);
@@ -125,10 +130,6 @@ export default function AdminPage() {
 
   const todayDateStr = getLimaDateStr();
 
-  const fallbackOrders = [
-    { id: "fallback-1", client: "Pamela Gómez", phone: "9878554", address: "Calle 48 #120", type: "DELIVERY", items: "2x Sopa Maruchan, 1x Coca Cola 1.5L", total: 21.80, status: "PENDIENTE", date: todayDateStr },
-    { id: "fallback-2", client: "Carlos Ruiz", phone: "9123456", address: "Av. Los Álamos 402", type: "RECOJO", items: "1x Aceite Primor 1L, 3x Arroz Costeño", total: 24.50, status: "PENDIENTE", date: todayDateStr }
-  ];
 
   const generateUniqueSku = (existingList: any[]) => {
     const list = Array.isArray(existingList) ? existingList : [];
@@ -165,14 +166,9 @@ export default function AdminPage() {
 
     const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
       const ordList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
-      if (ordList.length > 0) {
-        setOrders([...ordList]);
-      } else {
-        setOrders(fallbackOrders);
-      }
+      setOrders(ordList);
     }, (error) => {
       console.error("Error al escuchar pedidos:", error);
-      setOrders(fallbackOrders);
     });
 
     const unsubscribeSuppliers = onSnapshot(collection(db, "suppliers"), (snapshot) => {
@@ -192,7 +188,7 @@ export default function AdminPage() {
       console.error("Error al escuchar categorías:", error);
     });
 
-    const unsubscribePromos = onSnapshot(collection(db, "promos"), (snapshot) => {
+    const unsubscribePromos = onSnapshot(collection(db, "promotions"), (snapshot) => {
       const pList = snapshot.docs.map(doc => ({ ...(doc.data() as any), id: String(doc.id) }));
       pList.sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
       setPromos(pList);
@@ -620,7 +616,7 @@ export default function AdminPage() {
     e.preventDefault();
     if (!newPromoTitle) return;
     try {
-      await addDoc(collection(db, "promos"), {
+      await addDoc(collection(db, "promotions"), {
         title: newPromoTitle,
         description: newPromoDesc || "",
         discount: newPromoDiscount || "OFERTA",
@@ -630,7 +626,8 @@ export default function AdminPage() {
       setNewPromoTitle(""); setNewPromoDesc(""); setNewPromoDiscount("");
       alert("¡Campaña publicada en la web!");
     } catch (error: any) { 
-      alert(`Error: ${error.message}`); 
+      console.error("Error al crear promo:", error);
+      alert("Error al publicar la campaña. Intenta nuevamente."); 
     }
   };
 
@@ -828,10 +825,17 @@ export default function AdminPage() {
     return days >= 0 && days <= 10;
   });
 
-  const handleLogout = () => {
-    if (window.confirm("¿Cerrar sesión del panel?")) {
-      window.location.href = "/";
+  const handleLogout = async () => {
+    try {
+      // 1. Cerrar sesión en Firebase Auth
+      await signOut(auth);
+    } catch (err) {
+      console.error("Error al cerrar sesión:", err);
     }
+    // 2. Borrar cookie de sesión del middleware
+    document.cookie = "admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict";
+    // 3. Redirigir al inicio
+    window.location.href = "/";
   };
 
   return (
@@ -2219,6 +2223,57 @@ export default function AdminPage() {
                     <div>
                       <label className="block text-zinc-400 font-bold mb-1 text-[10px]">TikTok URL</label>
                       <input type="url" placeholder="https://tiktok.com/..." value={storeSettings.tiktokUrl} onChange={e => setStoreSettings({...storeSettings, tiktokUrl: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* NUEVOS CAMPOS: WhatsApp, Delivery, Contacto */}
+                <div className="space-y-4 bg-zinc-950 p-5 rounded-xl border border-zinc-800 shadow-inner lg:col-span-2">
+                  <h3 className="font-black text-emerald-400 uppercase tracking-widest text-[10px]">5. Configuración de Pedidos y Contacto</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Número WhatsApp del Admin (con código país)</label>
+                      <input
+                        type="text"
+                        placeholder="51950323959"
+                        value={storeSettings.whatsappNumber}
+                        onChange={e => setStoreSettings({...storeSettings, whatsappNumber: e.target.value})}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs"
+                      />
+                      <p className="text-zinc-600 text-[9px] mt-1">Ejemplo: 51950323959 (incluye 51 para Perú)</p>
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Costo de Delivery (S/) — 0 = siempre gratis</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        placeholder="5"
+                        value={storeSettings.deliveryFee}
+                        onChange={e => setStoreSettings({...storeSettings, deliveryFee: parseFloat(e.target.value) || 0})}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs"
+                      />
+                      <p className="text-zinc-600 text-[9px] mt-1">Automáticamente GRATIS si el pedido supera S/ 50</p>
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Dirección de la Tienda</label>
+                      <input
+                        type="text"
+                        placeholder="Calle 48 634, Comas, Lima"
+                        value={storeSettings.address}
+                        onChange={e => setStoreSettings({...storeSettings, address: e.target.value})}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-zinc-400 font-bold mb-1 text-[10px]">Teléfono de contacto (sin código país)</label>
+                      <input
+                        type="text"
+                        placeholder="950 323 959"
+                        value={storeSettings.phone}
+                        onChange={e => setStoreSettings({...storeSettings, phone: e.target.value})}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-white text-xs"
+                      />
                     </div>
                   </div>
                 </div>

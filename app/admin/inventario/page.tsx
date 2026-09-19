@@ -5,6 +5,8 @@ import InventoryTable from "@/components/InventoryTable";
 import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+export const dynamic = "force-dynamic";
+
 export default function AdminInventarioPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

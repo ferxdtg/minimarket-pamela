@@ -4,205 +4,188 @@ import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import ProductCard from "./ProductCard";
-import SectionTitle from "./SectionTitle";
 
-// 🧮 ALGORITMO ANTI-ERRORES ORTOGRÁFICOS (Distancia de Levenshtein)
-const getLevenshteinDistance = (a: string, b: string) => {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
-  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
-  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      if (a[i - 1] === b[j - 1]) matrix[i][j] = matrix[i - 1][j - 1];
-      else matrix[i][j] = Math.min(matrix[i - 1][j - 1], matrix[i][j - 1], matrix[i - 1][j]) + 1;
+// Skeleton de carga
+function ProductSkeleton() {
+  return (
+    <div className="bg-white rounded-2xl p-4 animate-pulse border border-slate-100 shadow-sm h-64">
+      <div className="bg-slate-100 rounded-xl w-full aspect-square mb-3" />
+      <div className="h-3 bg-slate-100 rounded w-2/3 mb-2" />
+      <div className="h-4 bg-slate-100 rounded w-full mb-1" />
+      <div className="h-4 bg-slate-100 rounded w-4/5 mb-3" />
+      <div className="h-8 bg-slate-100 rounded-xl w-full mt-auto" />
+    </div>
+  );
+}
+
+// Levenshtein distance
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  );
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1];
+      else dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
     }
   }
-  return matrix[a.length][b.length];
+  return dp[m][n];
+}
+
+const smartKeywords: Record<string, string[]> = {
+  "coca cola": ["gaseosa", "refresco", "bebida", "cola"],
+  inca: ["inca kola", "gaseosa"],
+  agua: ["agua mineral", "agua sin gas", "agua con gas"],
+  pollo: ["pollo entero", "pechuga", "pierna"],
+  pan: ["pan de molde", "pan de trigo", "panetón"],
+  arroz: ["arroz blanco", "arroz integral"],
+  aceite: ["aceite vegetal", "aceite de oliva"],
+  leche: ["leche evaporada", "leche fresca", "yogurt"],
+  azucar: ["azúcar", "azucar blanca"],
+  café: ["cafe", "nescafe"],
 };
+
+function fuzzyMatch(query: string, productName: string): boolean {
+  const q = query.toLowerCase().trim();
+  const n = productName.toLowerCase();
+  if (n.includes(q)) return true;
+  const synonyms = smartKeywords[q] || [];
+  if (synonyms.some(s => n.includes(s))) return true;
+  const words = q.split(" ");
+  for (const word of words) {
+    if (word.length > 2) {
+      const productWords = n.split(" ");
+      for (const pw of productWords) {
+        if (pw.length > 2 && levenshtein(word, pw) <= 1) return true;
+      }
+    }
+  }
+  return false;
+}
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("todos");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [mounted, setMounted] = useState(false);
+  const [filtered, setFiltered] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState("todos");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    setMounted(true);
+    const unsubscribe = onSnapshot(
+      collection(db, "products"),
+      (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setProducts(list);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error productos:", err);
+        setLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
 
-    const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
-      const productsData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setProducts(productsData);
-      setLoading(false);
+  // Aplicar filtros + ordenamiento
+  useEffect(() => {
+    let list = [...products];
+
+    // Filtro por categoría
+    if (activeCategory !== "todos") {
+      list = list.filter(p =>
+        String(p.category || "").toLowerCase() === activeCategory.toLowerCase()
+      );
+    }
+
+    // Filtro por búsqueda
+    if (searchQuery.trim()) {
+      list = list.filter(p => fuzzyMatch(searchQuery, p.name || ""));
+    }
+
+    // Ordenar: disponibles primero, agotados al final
+    list.sort((a, b) => {
+      const aOut = Number(a.stock) <= 0;
+      const bOut = Number(b.stock) <= 0;
+      if (aOut && !bOut) return 1;
+      if (!aOut && bOut) return -1;
+      return 0;
     });
 
-    const handleFilterCategory = (e: any) => {
-      if (e.detail) {
-        setSelectedCategory(e.detail.toLowerCase().trim());
-        setSearchQuery("");
-      }
-    };
-    window.addEventListener("filter_category", handleFilterCategory as EventListener);
+    setFiltered(list);
+  }, [products, activeCategory, searchQuery]);
 
-    const handleSearchProduct = (e: any) => {
-      if (e.detail !== undefined) {
-        setSearchQuery(e.detail.toLowerCase().trim());
-        setSelectedCategory("todos");
-        const section = document.getElementById("productos-section");
-        if (section) section.scrollIntoView({ behavior: "smooth" });
-      }
+  // Escuchar eventos de filtro
+  useEffect(() => {
+    const handleCategory = (e: CustomEvent) => {
+      setActiveCategory(e.detail || "todos");
     };
-    window.addEventListener("search_product", handleSearchProduct as EventListener);
-
+    const handleSearch = (e: CustomEvent) => {
+      setSearchQuery(e.detail || "");
+    };
+    window.addEventListener("filter_category", handleCategory as EventListener);
+    window.addEventListener("search_product", handleSearch as EventListener);
     return () => {
-      unsubscribe();
-      window.removeEventListener("filter_category", handleFilterCategory as EventListener);
-      window.removeEventListener("search_product", handleSearchProduct as EventListener);
+      window.removeEventListener("filter_category", handleCategory as EventListener);
+      window.removeEventListener("search_product", handleSearch as EventListener);
     };
   }, []);
 
-  if (!mounted) return null;
-
-  // 🧠 CEREBRO SEMÁNTICO (Diccionario Intenciones vs Sinónimos)
-  const smartKeywords: Record<string, string[]> = {
-    "desayuno": ["avena", "cereal", "leche", "cafe", "café", "pan", "mantequilla", "mermelada", "yogur", "yogurt", "queso", "huevo"],
-    "limpiar": ["lejia", "lejía", "poett", "sapolio", "escoba", "trapeador", "detergente", "piso", "limpiador", "cloro", "desinfectante"],
-    "piso": ["lejia", "lejía", "poett", "sapolio", "escoba", "trapeador", "detergente", "cera"],
-    "sed": ["agua", "gaseosa", "coca", "inca", "jugo", "rehidratante", "cerveza", "helado", "refresco", "bebida"],
-    "calor": ["agua", "gaseosa", "helado", "cerveza", "hielo", "jugo", "marciano"],
-    "antojo": ["galleta", "chocolate", "piqueo", "snack", "dulce", "caramelo", "papas", "chizitos", "doritos"],
-    "pelicula": ["cancha", "popcorn", "gaseosa", "snack", "piqueo", "chocolate", "doritos", "papas"],
-    "dulce": ["galleta", "chocolate", "caramelo", "azucar", "azúcar", "manjar", "mermelada"],
-    "fiesta": ["cerveza", "piqueo", "snack", "ron", "pisco", "hielo", "gaseosa", "vodka", "vino", "cigarro"],
-    "reunion": ["cerveza", "piqueo", "snack", "ron", "pisco", "hielo", "gaseosa", "vodka", "vino"],
-    "almuerzo": ["arroz", "aceite", "fideos", "pasta", "atun", "atún", "sal", "sazonador", "sopa", "menestra", "lenteja", "frijol"],
-    "cena": ["arroz", "aceite", "fideos", "pasta", "atun", "atún", "sopa", "huevo", "leche"],
-    "mascota": ["perro", "gato", "ricocan", "ricocat", "pedigree", "comida", "arena", "paté", "mimaskot"],
-    "bebe": ["pañal", "pañales", "leche", "formula", "toallitas", "shampoo", "talco"],
-    "baño": ["papel", "higienico", "jabon", "jabón", "shampoo", "acondicionador", "pasta", "cepillo", "colinos"],
-  };
-
-  // 🧹 Función para limpiar tildes y mayúsculas
-  const normalizeText = (text: string) => 
-    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-  const filteredProducts = products.filter((product) => {
-    const catMatch = selectedCategory === "todos" || product.category?.toLowerCase() === selectedCategory;
-
-    // Si no hay búsqueda, solo filtramos por categoría
-    if (!searchQuery) return catMatch;
-
-    const queryNormalized = normalizeText(searchQuery);
-    const prodName = normalizeText(product.name || "");
-    const prodCat = normalizeText(product.category || "");
-    const prodSku = normalizeText(product.sku || "");
-
-    // 1️⃣ Búsqueda Tradicional Literal (Coincidencia exacta)
-    let matchesSearch = prodName.includes(queryNormalized) || prodSku.includes(queryNormalized) || prodCat.includes(queryNormalized);
-
-    // 2️⃣ Búsqueda Inteligente (Cruce de diccionario y Errores Ortográficos)
-    if (!matchesSearch) {
-      const searchWords = queryNormalized.split(" ").filter(w => w.length > 0);
-      const prodWords = prodName.split(" ").concat(prodCat.split(" ")).filter(w => w.length > 0);
-      
-      for (const word of searchWords) {
-        
-        // A. Intenciones (Si escribe "desayuno", busca los sinónimos)
-        if (smartKeywords[word]) {
-          const isRelated = smartKeywords[word].some(synonym => {
-            const synNorm = normalizeText(synonym);
-            return prodName.includes(synNorm) || prodCat.includes(synNorm);
-          });
-          if (isRelated) {
-            matchesSearch = true;
-            break;
-          }
-        }
-
-        // B. Tolerancia a Errores Ortográficos (Fuzzy Match)
-        // Ejemplo: Si escribe "aloz", lo comparará con "arroz" y verá que solo hay 2 letras de diferencia
-        if (!matchesSearch && word.length >= 3) {
-          // Si la palabra tiene 4 o más letras, perdonamos 2 errores (ej: lichi -> leche). Si tiene 3, perdonamos 1.
-          const maxDistance = word.length >= 4 ? 2 : 1; 
-          
-          for (const pWord of prodWords) {
-            if (pWord.length >= 3 && getLevenshteinDistance(word, pWord) <= maxDistance) {
-              matchesSearch = true;
-              break;
-            }
-          }
-        }
-
-        if (matchesSearch) break; // Si ya hizo match, dejamos de procesar esta palabra
-      }
-    }
-
-    return catMatch && matchesSearch;
-  });
-
   return (
-    <section id="productos-section" className="py-12 px-2 sm:px-6 max-w-7xl mx-auto min-h-screen">
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6 px-2 sm:px-0">
-        <SectionTitle
-          title={
-            searchQuery
-              ? `Buscando: "${searchQuery}"`
-              : selectedCategory === "todos"
-              ? "Nuestros Productos"
-              : `Categoría: ${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}`
-          }
-          subtitle="Calidad y frescura directa a tu hogar"
-        />
-        
-        {(selectedCategory !== "todos" || searchQuery !== "") && (
-          <button
-            onClick={() => {
-              setSelectedCategory("todos");
-              setSearchQuery("");
-            }}
-            className="text-xs font-black bg-red-50 text-red-600 border border-red-100 px-6 py-3 rounded-full hover:bg-red-600 hover:text-white transition-all shadow-sm self-start md:self-auto cursor-pointer flex items-center gap-2 active:scale-95"
-          >
-            <span>Ver todo el catálogo</span>
-            <span className="bg-red-600/10 rounded-full w-5 h-5 flex items-center justify-center">✕</span>
-          </button>
+    <section id="productos-section" className="py-8 px-4 sm:px-6 bg-[#F8F9FA]">
+      <div className="max-w-7xl mx-auto">
+
+        <div className="flex items-end justify-between mb-6">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              {searchQuery
+                ? `Resultados para "${searchQuery}"`
+                : activeCategory !== "todos"
+                ? `📂 ${activeCategory}`
+                : "Todos los Productos"}
+            </h2>
+            {!loading && (
+              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                {filtered.length} {filtered.length === 1 ? "producto" : "productos"} disponibles
+              </p>
+            )}
+          </div>
+          {(activeCategory !== "todos" || searchQuery) && (
+            <button
+              onClick={() => {
+                setActiveCategory("todos");
+                setSearchQuery("");
+                window.dispatchEvent(new CustomEvent("filter_category", { detail: "todos" }));
+              }}
+              className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
+            >
+              Ver todo →
+            </button>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {Array.from({ length: 10 }).map((_, i) => <ProductSkeleton key={i} />)}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-20 space-y-4">
+            <span className="text-6xl">🔍</span>
+            <h3 className="text-xl font-black text-slate-700">Sin resultados</h3>
+            <p className="text-slate-500 text-sm">
+              {searchQuery
+                ? `No encontramos "${searchQuery}". Prueba con otro término.`
+                : "No hay productos en esta categoría aún."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+            {filtered.map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
         )}
       </div>
-
-      {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6 px-1 sm:px-0">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-white border border-slate-100 rounded-2xl sm:rounded-[2rem] p-3 sm:p-5 flex flex-col h-full animate-pulse shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-              <div className="w-full aspect-square bg-slate-100 rounded-xl sm:rounded-2xl mb-4"></div>
-              <div className="w-3/4 h-4 sm:h-5 bg-slate-200 rounded-full mb-3"></div>
-              <div className="w-1/2 h-3 sm:h-4 bg-slate-100 rounded-full mb-6"></div>
-              <div className="w-full h-10 sm:h-12 bg-slate-100 rounded-xl sm:rounded-2xl mt-auto"></div>
-            </div>
-          ))}
-        </div>
-      ) : filteredProducts.length === 0 ? (
-        <div className="text-center py-24 bg-white rounded-[3rem] border border-dashed border-slate-200 shadow-sm mx-2 sm:mx-0">
-          <div className="text-6xl mb-4 opacity-50">🛒</div>
-          <p className="text-xl font-black text-slate-800 tracking-tight">No encontramos lo que buscas.</p>
-          <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">Prueba buscando por categoría o usando otras palabras.</p>
-          <button 
-            onClick={() => { setSelectedCategory("todos"); setSearchQuery(""); }}
-            className="mt-6 px-8 py-3 bg-slate-900 text-white font-black rounded-full hover:bg-black transition-colors cursor-pointer active:scale-95 shadow-lg"
-          >
-            Volver al inicio
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6 px-1 sm:px-0">
-          {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
-      )}
     </section>
   );
 }

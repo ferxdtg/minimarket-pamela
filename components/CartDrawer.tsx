@@ -6,7 +6,7 @@ import { useCartUI } from "@/lib/CartUIContext";
 import CheckoutModal from "./CheckoutModal";
 import Image from "next/image";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, doc, getDoc, updateDoc, setDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, updateDoc, setDoc, addDoc, runTransaction, onSnapshot } from "firebase/firestore";
 
 export default function CartDrawer() {
   const { cart, addToCart, increaseQuantity, decreaseQuantity, removeFromCart, total: cartTotal } = useCart();
@@ -14,12 +14,8 @@ export default function CartDrawer() {
   
   const [showCheckout, setShowCheckout] = useState(false);
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
-
-  // ESTADOS PARA LA ANIMACIÓN Y EL FORMULARIO
   const [showForm, setShowForm] = useState(false);
   const [isAnimatingBtn, setIsAnimatingBtn] = useState(false);
-
-  // ESTADOS DE CLIENTE Y COINS
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientAddress, setClientAddress] = useState("");
@@ -27,32 +23,67 @@ export default function CartDrawer() {
   const [loading, setLoading] = useState(false);
   const [clientPoints, setClientPoints] = useState(0);
   const [useCoins, setUseCoins] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
+  
+  // Store settings from Firebase
+  const [adminWhatsApp, setAdminWhatsApp] = useState("51950323959");
+  const [deliveryFeeBase, setDeliveryFeeBase] = useState(5.00);
 
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // CÁLCULOS MATEMÁTICOS UNIFICADOS
-  const deliveryFee = orderType === "DELIVERY" ? 5.00 : 0.00;
+  // Delivery is FREE if cart total >= 50 soles
+  const isFreeDelivery = orderType === "DELIVERY" && cartTotal >= 50;
+  const deliveryFee = orderType === "DELIVERY" ? (isFreeDelivery ? 0 : deliveryFeeBase) : 0;
   const discountFromCoins = useCoins ? Math.min(cartTotal + deliveryFee, clientPoints / 100) : 0;
   const finalTotal = Math.max(0, cartTotal + deliveryFee - discountFromCoins);
-  
-  // 🪙 REGLA EXACTA: 1 Sol de compra en productos = 1 Pamela Coin (Sincronizado con el Panel Admin)
   const coinsEarned = Math.floor(cartTotal);
 
+  // Load store settings from Firebase
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, "settings", "store"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.whatsappNumber) setAdminWhatsApp(data.whatsappNumber);
+        if (data.deliveryFee !== undefined) setDeliveryFeeBase(Number(data.deliveryFee) || 5);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Smart suggestions: products from same categories as cart items
   useEffect(() => {
     async function fetchSuggestions() {
       try {
         const querySnapshot = await getDocs(collection(db, "products"));
-        const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const list = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
         const cartIds = cart.map(i => String(i.id));
-        const filtered = list.filter((p: any) => !cartIds.includes(String(p.id)) && Number(p.stock) > 0);
-        setSuggestedProducts(filtered.slice(0, 2));
+        const cartCategories = new Set(cart.map(i => (i as any).category).filter(Boolean));
+        
+        // Priority: same category as cart items, or isFeatured, with stock > 0
+        const available = list.filter((p: any) => !cartIds.includes(String(p.id)) && Number(p.stock) > 0);
+        
+        let suggestions = available.filter((p: any) => 
+          cartCategories.size > 0 ? cartCategories.has(p.category) : p.isFeatured
+        );
+        
+        // Fallback to featured or first available
+        if (suggestions.length < 2) {
+          const featured = available.filter((p: any) => p.isFeatured && !suggestions.find((s: any) => s.id === p.id));
+          suggestions = [...suggestions, ...featured];
+        }
+        if (suggestions.length < 2) {
+          const rest = available.filter((p: any) => !suggestions.find((s: any) => s.id === p.id));
+          suggestions = [...suggestions, ...rest];
+        }
+        
+        setSuggestedProducts(suggestions.slice(0, 2));
       } catch (e) {
         console.error(e);
       }
     }
     if (cartOpen) {
       fetchSuggestions();
-      setShowForm(false); 
+      setShowForm(false);
       setIsAnimatingBtn(false);
     }
   }, [cartOpen, cart]);
@@ -68,9 +99,17 @@ export default function CartDrawer() {
   };
 
   const handlePhoneBlur = async () => {
-    if (!clientPhone || clientPhone.length < 6) return;
+    const phone = clientPhone.trim();
+    // Validate Peruvian mobile: 9 digits starting with 9
+    if (phone.length > 0 && (phone.length !== 9 || !phone.startsWith("9"))) {
+      setPhoneError("Ingresa un celular peruano válido (9 dígitos, empieza con 9)");
+      setClientPoints(0);
+      return;
+    }
+    setPhoneError("");
+    if (phone.length < 6) return;
     try {
-      const docRef = doc(db, "customers", clientPhone.trim());
+      const docRef = doc(db, "customers", phone);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setClientPoints(Number(docSnap.data().points || 0));
@@ -82,16 +121,16 @@ export default function CartDrawer() {
     }
   };
 
-  // 📍 FUNCIÓN PARA OBTENER GPS AUTOMÁTICO
   const handleGetLocation = () => {
     if ("geolocation" in navigator) {
       setClientAddress("📍 Buscando ubicación...");
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          setClientAddress(`📍 https://maps.google.com/?q=${latitude},${longitude}`);
+          // Show human-readable format with coords
+          setClientAddress(`📍 Ubicación GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
         },
-        (error) => {
+        () => {
           setClientAddress("");
           alert("No pudimos acceder a tu GPS. Por favor, escribe tu dirección manualmente.");
         }
@@ -104,38 +143,46 @@ export default function CartDrawer() {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
+    
+    // Validate phone before submit
+    const phone = clientPhone.trim();
+    if (phone.length !== 9 || !phone.startsWith("9")) {
+      setPhoneError("Ingresa un celular peruano válido (9 dígitos, empieza con 9)");
+      return;
+    }
+    setPhoneError("");
     setLoading(true);
 
     try {
       const itemsSummary = cart.map(i => `${i.quantity}x ${i.name}`).join(", ");
       const todayStr = new Date().toISOString().split("T")[0];
 
-      // A. Descontar Stock
+      // A. Descontar Stock usando runTransaction para evitar race conditions
       for (const item of cart) {
         if (item.id) {
-          const productRef = doc(db, "products", String(item.id));
-          const productSnap = await getDoc(productRef);
-          if (productSnap.exists()) {
-            const currentStock = Number(productSnap.data().stock || 0);
-            const newStock = Math.max(0, currentStock - item.quantity);
-            await updateDoc(productRef, { stock: newStock });
-          }
+          await runTransaction(db, async (transaction) => {
+            const productRef = doc(db, "products", String(item.id));
+            const productSnap = await transaction.get(productRef);
+            if (productSnap.exists()) {
+              const currentStock = Number(productSnap.data().stock || 0);
+              const newStock = Math.max(0, currentStock - item.quantity);
+              transaction.update(productRef, { stock: newStock });
+            }
+          });
         }
       }
 
-      // B. Actualizar Billetera de Pamela Coins
-      const customerRef = doc(db, "customers", clientPhone.trim());
+      // B. Actualizar Pamela Coins
+      const customerRef = doc(db, "customers", phone);
       const customerSnap = await getDoc(customerRef);
       let finalPoints = coinsEarned;
-
       if (customerSnap.exists()) {
         const existingPoints = Number(customerSnap.data().points || 0);
         const spentPoints = useCoins ? Math.floor(discountFromCoins * 100) : 0;
         finalPoints = Math.max(0, existingPoints - spentPoints) + coinsEarned;
       }
-
       await setDoc(customerRef, {
-        phone: clientPhone.trim(),
+        phone: phone,
         name: clientName,
         address: clientAddress,
         points: finalPoints,
@@ -145,7 +192,7 @@ export default function CartDrawer() {
       // C. Crear la Orden
       await addDoc(collection(db, "orders"), {
         client: clientName,
-        phone: clientPhone,
+        phone: phone,
         address: clientAddress,
         type: orderType,
         items: itemsSummary,
@@ -157,27 +204,29 @@ export default function CartDrawer() {
         createdAt: new Date().toISOString()
       });
 
-      // 🔥 D. ENVIAR A WHATSAPP CON MAPA VISUAL
-      const adminWhatsApp = "51950323959"; 
-      
+      // D. Enviar a WhatsApp
       const googleMapsUrl = "https://www.google.com/maps?svid=CAwSHRIbCgNwdnESFENnMHZaeTh4TVhGeGNuUnJaMTgzGAo&um=1&ie=UTF-8&fb=1&gl=pe&sa=X&ftid=0x9105d1c7300a146d:0xc39811e45f5331ce";
-
       let addressDisplay = "";
       if (orderType === "DELIVERY") {
         addressDisplay = clientAddress;
       } else {
-        addressDisplay = `🏪 Recojo en Tienda\n📍 *Ubicación del local:* bodega bazar pamela ubicada en la calle 48 634, comas.\n\n🗺️ *Ver Mapa:* \n${googleMapsUrl}`;
+        addressDisplay = `🏪 Recojo en Tienda\n📍 *Ubicación del local:* Calle 48 634, Comas.\n🗺️ *Ver Mapa:* ${googleMapsUrl}`;
       }
 
+      const deliveryLine = orderType === "DELIVERY" 
+        ? (isFreeDelivery ? `🎉 *Delivery:* GRATIS (compra > S/ 50)\n` : `🛵 *Delivery:* S/ ${deliveryFee.toFixed(2)}\n`)
+        : "";
+
       const message = encodeURIComponent(
-        `*🛒 ¡NUEVO PEDIDO - MINIMARKET PAMELA!*\n----------------------------------\n👤 *Cliente:* ${clientName}\n📱 *Teléfono:* ${clientPhone}\n🏠 *Dirección:* \n${addressDisplay}\n\n🛵 *Tipo:* ${orderType}\n\n📦 *PRODUCTOS:*\n${cart.map((i) => `- ${i.quantity}x ${i.name} (S/ ${(i.price * i.quantity).toFixed(2)})`).join("\n")}\n\n----------------------------------\n💳 *Subtotal:* S/ ${cartTotal.toFixed(2)}\n${deliveryFee > 0 ? `🛵 *Delivery:* S/ ${deliveryFee.toFixed(2)}\n` : ""}${useCoins ? `🪙 *Descuento Pamela Coins:* -S/ ${discountFromCoins.toFixed(2)}\n` : ""}💰 *TOTAL A PAGAR:* *S/ ${finalTotal.toFixed(2)}*\n----------------------------------\n✨ *Puntos ganados hoy:* +${coinsEarned} Pamela Coins\n🪙 *Tu saldo actual:* ${finalPoints} Coins`
+        `*🛒 ¡NUEVO PEDIDO - MINIMARKET PAMELA!*\n----------------------------------\n👤 *Cliente:* ${clientName}\n📱 *Teléfono:* ${phone}\n🏠 *Dirección:* \n${addressDisplay}\n\n🛵 *Tipo:* ${orderType}\n\n📦 *PRODUCTOS:*\n${cart.map((i) => `- ${i.quantity}x ${i.name} (S/ ${(i.price * i.quantity).toFixed(2)})`).join("\n")}\n\n----------------------------------\n💳 *Subtotal:* S/ ${cartTotal.toFixed(2)}\n${deliveryLine}${useCoins ? `🪙 *Descuento Pamela Coins:* -S/ ${discountFromCoins.toFixed(2)}\n` : ""}💰 *TOTAL A PAGAR:* *S/ ${finalTotal.toFixed(2)}*\n----------------------------------\n✨ *Puntos ganados hoy:* +${coinsEarned} Pamela Coins\n🪙 *Tu saldo actual:* ${finalPoints} Coins`
       );
 
       cart.forEach(item => removeFromCart(item.id));
       closeCart();
       window.open(`https://wa.me/${adminWhatsApp}?text=${message}`, "_blank");
     } catch (error: any) {
-      alert(`Error al procesar el pedido: ${error.message}`);
+      console.error("Error al procesar pedido:", error);
+      alert("Hubo un error al procesar tu pedido. Por favor intenta nuevamente.");
     } finally {
       setLoading(false);
     }
@@ -196,7 +245,7 @@ export default function CartDrawer() {
       
       <div className={`w-full max-w-md h-[100dvh] bg-white text-slate-900 shadow-[-10px_0_40px_rgba(0,0,0,0.2)] p-5 sm:p-6 flex flex-col rounded-l-[2rem] border-l border-slate-200 transform transition-transform duration-500 ease-[cubic-bezier(0.3,0.9,0.4,1)] ${cartOpen ? "translate-x-0" : "translate-x-full"}`}>
         
-        {/* ENCABEZADO VIBRANTE */}
+        {/* ENCABEZADO */}
         <div className="flex justify-between items-center pb-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
@@ -207,7 +256,7 @@ export default function CartDrawer() {
               <p className="text-xs text-red-600 font-bold mt-1 uppercase tracking-widest">{totalItemsCount} {totalItemsCount === 1 ? 'item' : 'items'} listos</p>
             </div>
           </div>
-          <button onClick={closeCart} className="w-9 h-9 rounded-full bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-600 flex items-center justify-center transition-all cursor-pointer font-bold">
+          <button onClick={closeCart} aria-label="Cerrar carrito" className="w-9 h-9 rounded-full bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-600 flex items-center justify-center transition-all cursor-pointer font-bold">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -229,7 +278,7 @@ export default function CartDrawer() {
             </button>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-3 pt-4 pr-1 custom-scrollbar min-h-0">
+          <div className="flex-1 overflow-y-auto space-y-3 pt-4 pr-1 min-h-0">
             {cart.map(item => (
               <div key={item.id} className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col gap-3 shadow-sm hover:border-red-100 transition-colors">
                 <div className="flex gap-3 items-start">
@@ -244,19 +293,18 @@ export default function CartDrawer() {
                     </div>
                   </div>
                 </div>
-
                 <div className="flex items-center justify-between bg-slate-50 rounded-xl p-1 border border-slate-100">
                   <div className="flex items-center gap-1">
-                    <button onClick={() => decreaseQuantity(item.id)} className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-600 font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-sm">-</button>
+                    <button onClick={() => decreaseQuantity(item.id)} aria-label="Reducir cantidad" className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 text-slate-600 font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-sm">-</button>
                     <span className="text-slate-900 font-black w-8 text-center text-sm">{item.quantity}</span>
-                    <button onClick={() => increaseQuantity(item.id)} className="w-8 h-8 rounded-lg bg-white hover:bg-red-50 text-red-600 font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-sm">+</button>
+                    <button onClick={() => increaseQuantity(item.id)} aria-label="Aumentar cantidad" className="w-8 h-8 rounded-lg bg-white hover:bg-red-50 text-red-600 font-black flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-sm">+</button>
                   </div>
                   <button onClick={() => removeFromCart(item.id)} className="text-slate-400 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors cursor-pointer px-3 py-1">Quitar</button>
                 </div>
               </div>
             ))}
 
-            {/* SUGERENCIAS */}
+            {/* SUGERENCIAS INTELIGENTES */}
             {suggestedProducts.length > 0 && !showForm && (
               <div className="mt-6 pt-4 border-t border-dashed border-slate-200">
                 <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">¿Te falta algo para completar tu pedido? 🔥</p>
@@ -281,19 +329,38 @@ export default function CartDrawer() {
           </div>
         )}
 
-        {/* PIE DE PAGO VIBRANTE Y DINÁMICO */}
+        {/* PIE DE PAGO */}
         {cart.length > 0 && (
-          <div className={`mt-2 pt-4 shrink-0 bg-white border-t border-slate-100 space-y-4 transition-all duration-300`}>
+          <div className="mt-2 pt-4 shrink-0 bg-white border-t border-slate-100 space-y-4">
             
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex justify-between items-center shadow-inner">
-              <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Total a Pagar</span>
-              <div className="flex items-start text-red-600 font-black">
-                <span className="text-lg mt-0.5 mr-1">S/</span>
-                <span className="text-3xl tracking-tighter leading-none">{cartTotal.toFixed(2)}</span>
+            {/* TOTAL PANEL - show subtotal + delivery estimate */}
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1.5 shadow-inner">
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Subtotal ({totalItemsCount} items):</span>
+                <span className="font-bold">S/ {cartTotal.toFixed(2)}</span>
+              </div>
+              {orderType === "DELIVERY" && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Delivery:</span>
+                  {isFreeDelivery 
+                    ? <span className="text-emerald-600 font-black">GRATIS 🎉</span>
+                    : <span className="text-slate-600 font-bold">S/ {deliveryFeeBase.toFixed(2)}</span>
+                  }
+                </div>
+              )}
+              {!isFreeDelivery && orderType === "DELIVERY" && cartTotal < 50 && (
+                <p className="text-[10px] text-slate-400">Compra S/ {(50 - cartTotal).toFixed(2)} más para delivery gratis</p>
+              )}
+              <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
+                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Total a Pagar</span>
+                <div className="flex items-start text-red-600 font-black">
+                  <span className="text-lg mt-0.5 mr-1">S/</span>
+                  <span className="text-3xl tracking-tighter leading-none">{(cartTotal + deliveryFee).toFixed(2)}</span>
+                </div>
               </div>
             </div>
 
-            {/* BANNER VISUAL DE PAMELA COINS */}
+            {/* BANNER PAMELA COINS */}
             <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-yellow-500/15 border border-amber-500/40 rounded-xl p-2.5 flex items-center justify-between shadow-sm">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-sm animate-bounce shrink-0 shadow-inner">🪙</div>
@@ -305,7 +372,7 @@ export default function CartDrawer() {
               <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-2 py-1 rounded-lg shadow-sm">+{coinsEarned} Coins</span>
             </div>
 
-            {/* SECCIÓN DINÁMICA: Botón Animado VS Formulario */}
+            {/* BOTÓN O FORMULARIO */}
             {!showForm ? (
               <div className="pt-2 flex flex-col gap-2">
                 <button
@@ -318,7 +385,6 @@ export default function CartDrawer() {
                     Confirmar tu pedido por WhatsApp <span className="text-lg">📱</span>
                   </div>
                 </button>
-                
                 <div className="grid grid-cols-2 gap-2 mt-1">
                   <button type="button" onClick={() => setShowCheckout(true)} className="w-full py-2.5 bg-slate-900 hover:bg-black text-white font-bold rounded-xl transition cursor-pointer text-[10px] active:scale-95 text-center shadow-md">
                     Pagar en Web 💳
@@ -330,7 +396,6 @@ export default function CartDrawer() {
               </div>
             ) : (
               <form onSubmit={handleCheckout} className="space-y-3 animate-in slide-in-from-bottom-6 fade-in duration-300 pb-2">
-                
                 <div className="flex bg-slate-100 p-1 rounded-xl">
                   <button type="button" onClick={() => setOrderType("DELIVERY")} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm cursor-pointer ${orderType === "DELIVERY" ? "bg-white text-red-600" : "text-slate-500 hover:text-slate-700 shadow-none"}`}>🛵 Delivery</button>
                   <button type="button" onClick={() => setOrderType("RECOJO")} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm cursor-pointer ${orderType === "RECOJO" ? "bg-white text-red-600" : "text-slate-500 hover:text-slate-700 shadow-none"}`}>🏪 Recojo Tienda</button>
@@ -339,11 +404,30 @@ export default function CartDrawer() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">Tu Nombre</label>
-                    <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ej. María" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition shadow-sm" required />
+                    <input
+                      type="text"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      placeholder="Ej. María"
+                      autoComplete="given-name"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition shadow-sm"
+                      required
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider ml-1">Celular / WhatsApp</label>
-                    <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} onBlur={handlePhoneBlur} placeholder="950 000 000" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition shadow-sm" required />
+                    <input
+                      type="tel"
+                      value={clientPhone}
+                      onChange={(e) => { setClientPhone(e.target.value); setPhoneError(""); }}
+                      onBlur={handlePhoneBlur}
+                      placeholder="950 000 000"
+                      autoComplete="tel"
+                      maxLength={9}
+                      className={`w-full bg-slate-50 border rounded-lg px-3 py-2 text-xs font-bold focus:outline-none transition shadow-sm ${phoneError ? 'border-red-500 focus:border-red-600' : 'border-slate-200 focus:border-red-600'}`}
+                      required
+                    />
+                    {phoneError && <p className="text-[9px] text-red-500 font-bold ml-1">{phoneError}</p>}
                   </div>
                 </div>
 
@@ -368,13 +452,29 @@ export default function CartDrawer() {
                         📍 <span>Usar GPS</span>
                       </button>
                     </label>
-                    <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Ej. Av. Los Pinos 204, SMP..." className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition shadow-sm" required />
+                    <input
+                      type="text"
+                      value={clientAddress}
+                      onChange={(e) => setClientAddress(e.target.value)}
+                      placeholder="Ej. Av. Los Pinos 204, SMP..."
+                      autoComplete="street-address"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none focus:border-red-600 transition shadow-sm"
+                      required
+                    />
                   </div>
                 )}
 
                 <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl space-y-1 text-[10px]">
                   <div className="flex justify-between text-slate-600"><span>Subtotal:</span><span>S/ {cartTotal.toFixed(2)}</span></div>
-                  {orderType === "DELIVERY" && <div className="flex justify-between text-slate-600"><span>Delivery:</span><span>S/ {deliveryFee.toFixed(2)}</span></div>}
+                  {orderType === "DELIVERY" && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Delivery:</span>
+                      {isFreeDelivery 
+                        ? <span className="text-emerald-600 font-black">GRATIS 🎉</span>
+                        : <span>S/ {deliveryFee.toFixed(2)}</span>
+                      }
+                    </div>
+                  )}
                   {useCoins && <div className="flex justify-between text-amber-600 font-bold"><span>Descuento Coins:</span><span>-S/ {discountFromCoins.toFixed(2)}</span></div>}
                   <div className="flex justify-between font-black text-slate-900 pt-1 border-t border-slate-200 text-xs mt-1"><span>TOTAL A PAGAR:</span><span className="text-red-600">S/ {finalTotal.toFixed(2)}</span></div>
                 </div>
