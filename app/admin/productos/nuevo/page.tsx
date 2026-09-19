@@ -318,33 +318,39 @@ export default function AdminPage() {
     }
   };
 
-  // ⚠️ Limpiar TODOS los productos para volver a cargarlos desde cero (Mantiene categorías)
-  const handleClearAllProducts = async () => {
+  // ⚠️ Limpiar TODO a Cero Kilómetros (Productos, Pedidos, Facturas, Clientes de prueba) — MANTIENE CATEGORÍAS
+  const handleResetToZeroKm = async () => {
     const confirmation = window.confirm(
-      "⚠️ ¿Estás seguro de que deseas ELIMINAR TODOS los productos del catálogo?\n\nEsta acción dejará el inventario en CERO para que puedas cargar tus productos reales desde el principio.\n\n(Las categorías se mantendrán intactas)."
+      "⚠️ ¿DESEAS DEJAR TODO EN CERO KILÓMETROS PARA SALIR A PRODUCCIÓN?\n\nEsta acción eliminará todos los registros de prueba:\n- Productos (0)\n- Pedidos (0)\n- Facturas de proveedores (0)\n- Clientes y Pamela Coins de prueba (0)\n\n✅ Las CATEGORÍAS y la CONFIGURACIÓN DE LA TIENDA se mantendrán intactas."
     );
     if (!confirmation) return;
 
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, "products"));
-      if (snap.empty) {
-        alert("El inventario ya está vacío (0 productos).");
-        setLoading(false);
-        return;
+      const collectionsToClear = ["products", "orders", "suppliers", "customers"];
+      let totalDeleted = 0;
+
+      for (const colName of collectionsToClear) {
+        const snap = await getDocs(collection(db, colName));
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.docs.forEach((docSnap) => {
+            batch.delete(doc(db, colName, docSnap.id));
+            totalDeleted++;
+          });
+          await batch.commit();
+        }
       }
 
-      const batch = writeBatch(db);
-      snap.docs.forEach((docSnap) => {
-        batch.delete(doc(db, "products", docSnap.id));
-      });
-      await batch.commit();
-
-      // Limpiar estado local
+      // Limpiar estados locales
       setProducts([]);
-      alert(`✅ ¡Éxito! Se eliminaron todos los ${snap.docs.length} productos.\nEl inventario está en cero y listo para que cargues tus nuevos productos.`);
+      setOrders([]);
+      setSuppliers([]);
+      setCustomers([]);
+
+      alert(`✅ ¡SISTEMA EN CERO KILÓMETROS!\n\nSe eliminaron ${totalDeleted} registros de prueba con éxito.\n- Productos: 0\n- Pedidos: 0\n- Facturas: 0\n- Clientes: 0\n\nLas categorías y la apariencia están 100% conservadas.`);
     } catch (err: any) {
-      alert("Error al vaciar productos: " + err.message);
+      alert("Error al limpiar datos: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -1075,14 +1081,24 @@ export default function AdminPage() {
             )}
           </div>
 
-          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 bg-zinc-950 border border-zinc-800 px-3 py-2 rounded-xl shadow-inner">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2.5 bg-zinc-950 border border-zinc-800 px-3 py-2 rounded-xl shadow-inner">
+            <button
+              type="button"
+              onClick={handleResetToZeroKm}
+              disabled={loading}
+              className="bg-red-950/80 hover:bg-red-900 border border-red-700 text-red-300 hover:text-white px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-xs"
+              title="Dejar base de datos en 0 KM (elimina productos, pedidos, facturas y clientes de prueba, manteniendo categorías y tienda)"
+            >
+              <span>🧹</span>
+              <span>Reset 0 KM</span>
+            </button>
+            <div className="flex items-center gap-2 border-l border-zinc-800 pl-2.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
-              <span className="text-zinc-300 font-medium truncate max-w-[130px] sm:max-w-none">ferxdtg@gmail.com</span>
+              <span className="text-zinc-300 font-medium truncate max-w-[110px] sm:max-w-none text-xs">ferxdtg@gmail.com</span>
             </div>
             <button
               onClick={handleLogout}
-              className="bg-red-950 hover:bg-red-900 text-red-400 border border-red-900 px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer"
+              className="bg-zinc-900 hover:bg-red-950 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-900 px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer"
               title="Cerrar Sesión"
             >
               Salir
@@ -1261,13 +1277,13 @@ export default function AdminPage() {
                       {products.length > 0 && (
                         <button
                           type="button"
-                          onClick={handleClearAllProducts}
+                          onClick={handleResetToZeroKm}
                           disabled={loading}
                           className="bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-300 px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-xs"
-                          title="Eliminar todos los productos para reiniciar el catálogo en cero"
+                          title="Eliminar todos los productos, pedidos y facturas de prueba para dejar todo en 0 KM"
                         >
-                          <span>🗑️</span>
-                          <span>Vaciar Todo (0)</span>
+                          <span>🧹</span>
+                          <span>Reset 0 KM</span>
                         </button>
                       )}
 
