@@ -1258,84 +1258,95 @@ export default function AdminPage() {
                           const expiryInfo = getExpiryStatus(product.expiryDate);
 
                           return (
-                            <div key={product.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="relative w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-zinc-800">
+                            <div key={product.id} className="bg-zinc-950 border border-zinc-800/90 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                              {/* Fila 1: Imagen + Info de Producto */}
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="relative w-12 h-12 bg-white rounded-xl overflow-hidden shrink-0 border border-zinc-800 shadow-inner">
                                   {product.image ? (
-                                    <Image src={product.image} alt={product.name} fill className="object-contain p-0.5" />
+                                    <Image src={product.image} alt={product.name} fill className="object-contain p-1" />
                                   ) : (
-                                    <span className="text-[8px] text-zinc-400 flex items-center justify-center h-full">N/A</span>
+                                    <span className="text-[10px] text-zinc-400 flex items-center justify-center h-full">📦</span>
                                   )}
                                 </div>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="text-xs font-bold text-white truncate">{product.name}</h3>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-xs font-black text-white leading-snug">{product.name}</h3>
                                     {product.isNewRestock && (
-                                      <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/60 px-2 py-0.5 rounded text-[9px] font-black animate-pulse">
+                                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 px-1.5 py-0.5 rounded text-[8px] font-black animate-pulse">
                                         ✨ ¡Nuevo Ingreso!
                                       </span>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-[10px] text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
-                                    <span className="text-[9px] text-zinc-300 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">SKU: {product.sku || 'N/A'}</span>
+                                  <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                                    <p className="text-xs text-red-400 font-black">S/ {(Number(product.price) ?? 0).toFixed(2)}</p>
+                                    <span className="text-[9px] text-zinc-400 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                                      SKU: {product.sku || 'N/A'}
+                                    </span>
                                     {hasValidCategory ? (
-                                      <span className="text-[9px] text-zinc-500 truncate">({product.category})</span>
+                                      <span className="text-[9px] text-zinc-400 font-medium">({product.category})</span>
                                     ) : (
-                                      <span className="text-[9px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.2 rounded font-bold">⚠️ Sin Categoría</span>
+                                      <span className="text-[8px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold">
+                                        ⚠️ Sin Cat.
+                                      </span>
                                     )}
-                                    <span className={`text-[8px] px-1.5 py-0.2 rounded border font-bold ${expiryInfo.color}`}>
+                                    <span className={`text-[8px] px-1.5 py-0.5 rounded border font-bold ${expiryInfo.color}`}>
                                       {expiryInfo.label}
                                     </span>
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-2">
+                              {/* Fila 2 (Móvil) / Alineado a la derecha (Escritorio): Controles limpios sin colisión */}
+                              <div className="flex items-center justify-between sm:justify-end gap-2 pt-2.5 sm:pt-0 border-t border-zinc-900 sm:border-t-0 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() => handlePrintBarcode(product)}
-                                  className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition cursor-pointer"
+                                  className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-300 transition cursor-pointer flex items-center gap-1 active:scale-95"
                                   title="Generar Etiqueta PDF"
                                 >
-                                  🏷️ Etiqueta
+                                  <span>🏷️</span>
+                                  <span>Etiqueta</span>
                                 </button>
 
-                                <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                                <div className="flex items-center gap-1 bg-zinc-900 px-1 py-0.5 rounded-lg border border-zinc-800">
                                   <button
                                     type="button"
                                     onClick={() => handleStockUpdate(product.id, currentStock, -1)}
-                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs cursor-pointer"
+                                    className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 text-white rounded font-black flex items-center justify-center text-xs cursor-pointer active:scale-95"
+                                    aria-label="Disminuir stock"
                                   >
                                     -
                                   </button>
-                                  <span className="w-5 text-center font-black">{currentStock}</span>
+                                  <span className="w-7 text-center font-black text-xs text-white">{currentStock}</span>
                                   <button
                                     type="button"
                                     onClick={() => handleStockUpdate(product.id, currentStock, 1)}
-                                    className="w-5 h-5 bg-zinc-800 text-white rounded font-bold flex items-center justify-center text-xs cursor-pointer"
+                                    className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 text-white rounded font-black flex items-center justify-center text-xs cursor-pointer active:scale-95"
+                                    aria-label="Aumentar stock"
                                   >
                                     +
                                   </button>
                                 </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => openEditModal(product)}
-                                  className="px-2 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs cursor-pointer"
-                                  title="Editar"
-                                >
-                                  ✏️
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditModal(product)}
+                                    className="w-8 h-8 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-xs flex items-center justify-center cursor-pointer transition active:scale-95 text-zinc-300"
+                                    title="Editar producto"
+                                  >
+                                    ✏️
+                                  </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteProduct(product.id, product.name)}
-                                  className="px-2 py-1 bg-red-950 border border-red-900 rounded-lg text-xs cursor-pointer"
-                                  title="Eliminar"
-                                >
-                                  🗑️
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteProduct(product.id, product.name)}
+                                    className="w-8 h-8 bg-red-950/70 hover:bg-red-900 border border-red-900/80 rounded-lg text-xs flex items-center justify-center cursor-pointer transition active:scale-95 text-red-300"
+                                    title="Eliminar producto"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           );

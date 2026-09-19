@@ -15,11 +15,20 @@ export default function Navbar() {
   
   const [settings, setSettings] = useState({
     storeName: "Pamela Market",
-    logoUrl: ""
+    logoUrl: "",
+    openTime: "06:00",
+    closeTime: "23:59"
+  });
+
+  const [storeStatus, setStoreStatus] = useState({
+    isOpen: true,
+    timeStr: "",
+    loading: true
   });
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Escuchar configuración de la tienda en Firebase
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "settings", "store"), (docSnap) => {
       if (docSnap.exists()) {
@@ -27,21 +36,64 @@ export default function Navbar() {
         setSettings(prev => ({
           ...prev,
           storeName: data.storeName || prev.storeName,
-          logoUrl: data.logoUrl || prev.logoUrl
+          logoUrl: data.logoUrl || prev.logoUrl,
+          openTime: data.openTime || prev.openTime,
+          closeTime: data.closeTime || prev.closeTime
         }));
       }
     });
     return () => unsubscribe();
   }, []);
 
+  // 🕒 Cálculo de hora exacta de Lima y horario de atención
+  useEffect(() => {
+    const updateTime = () => {
+      const limaTimeStr = new Date().toLocaleString("en-US", { timeZone: "America/Lima" });
+      const limaDate = new Date(limaTimeStr);
+      
+      const currentHour = limaDate.getHours();
+      const currentMinute = limaDate.getMinutes();
+      const currentTotalMinutes = currentHour * 60 + currentMinute;
+
+      const [openH, openM] = (settings.openTime || "06:00").split(":").map(Number);
+      const [closeH, closeM] = (settings.closeTime || "23:59").split(":").map(Number);
+      
+      const openTotalMinutes = openH * 60 + openM;
+      const closeTotalMinutes = closeH * 60 + closeM;
+
+      let isOpen = false;
+      if (openTotalMinutes < closeTotalMinutes) {
+        isOpen = currentTotalMinutes >= openTotalMinutes && currentTotalMinutes <= closeTotalMinutes;
+      } else {
+        isOpen = currentTotalMinutes >= openTotalMinutes || currentTotalMinutes <= closeTotalMinutes;
+      }
+
+      const formatter = new Intl.DateTimeFormat('es-PE', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      
+      setStoreStatus({ 
+        isOpen, 
+        timeStr: formatter.format(limaDate), 
+        loading: false 
+      });
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 30000);
+    return () => clearInterval(interval);
+  }, [settings.openTime, settings.closeTime]);
+
   return (
     <>
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 shadow-sm transition-all duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-0 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 shadow-xs transition-all duration-300">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 sm:py-0 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
           
-          {/* LOGO */}
+          {/* LOGO + NOMBRE + ESTADO ABIERTO/CERRADO (Posición exacta marcada por la flecha) */}
           <div
-            className="flex items-center gap-3 cursor-pointer min-w-0 group"
+            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer min-w-0 group"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           >
             <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-red-600 flex items-center justify-center shadow-sm text-white shrink-0 group-hover:scale-105 transition-transform duration-300 overflow-hidden">
@@ -53,24 +105,46 @@ export default function Navbar() {
                 </svg>
               )}
             </div>
+            
             <div className="min-w-0">
-              <h1 className="text-base sm:text-xl font-black text-slate-900 tracking-tight truncate group-hover:text-red-600 transition-colors">
-                {settings.storeName}
-              </h1>
-              <p className="hidden sm:block text-[10px] text-red-500 font-bold uppercase tracking-widest">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base sm:text-xl font-black text-slate-900 tracking-tight truncate group-hover:text-red-600 transition-colors leading-tight">
+                  {settings.storeName}
+                </h1>
+
+                {/* 🟢 PASTILLA INTEGRADA EN CABECERA (Donde marcó el usuario con la flecha) */}
+                {!storeStatus.loading && (
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-black text-[9px] sm:text-[10px] border shadow-xs transition-all ${
+                    storeStatus.isOpen 
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                      : 'bg-red-50 text-red-700 border-red-200'
+                  }`}>
+                    <span className="relative flex h-2 w-2 shrink-0">
+                      {storeStatus.isOpen && (
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      )}
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${storeStatus.isOpen ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    </span>
+                    <span className="uppercase tracking-wider whitespace-nowrap">
+                      {storeStatus.isOpen ? `Abierto • ${storeStatus.timeStr}` : `Cerrado`}
+                    </span>
+                  </span>
+                )}
+              </div>
+
+              <p className="text-[10px] text-red-600 font-extrabold uppercase tracking-widest leading-none mt-0.5">
                 Delivery Express ⚡
               </p>
             </div>
           </div>
 
-          {/* BARRA DE BÚSQUEDA (escritorio) */}
+          {/* BARRA DE BÚSQUEDA (Escritorio) */}
           <div className="flex-1 max-w-xl hidden md:block px-4">
             <SearchBar />
           </div>
 
           {/* ACCIONES ESCRITORIO */}
           <div className="hidden md:flex items-center gap-3 shrink-0">
-            {/* Admin: icono discreto, solo en escritorio */}
             <a
               href="/admin/login"
               className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
@@ -103,20 +177,18 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* SearchBar mobile */}
+        {/* Barra de búsqueda (Móvil) */}
         <div className="px-4 pb-3 md:hidden">
           <SearchBar />
         </div>
       </header>
 
-      {/* ── BARRA INFERIOR MOBILE ─────────────────────────────────────────── */}
-      {/* El icono de Admin se ELIMINÓ del BottomNav para no confundir clientes */}
+      {/* Barra de navegación inferior móvil */}
       <div className="md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur border-t border-slate-200 z-40 flex justify-around items-center h-14 px-2 shadow-[0_-4px_15px_rgba(0,0,0,0.04)]">
-        
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-label="Ir al inicio"
-          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 py-1 px-2"
+          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 py-1 px-2 cursor-pointer"
         >
           <span className="text-lg">🏠</span>
           <span className="text-[9px] font-bold tracking-tight">Inicio</span>
@@ -128,13 +200,12 @@ export default function Navbar() {
             if (section) section.scrollIntoView({ behavior: "smooth" });
           }}
           aria-label="Explorar productos"
-          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 py-1 px-2"
+          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 py-1 px-2 cursor-pointer"
         >
           <span className="text-lg">🔍</span>
           <span className="text-[9px] font-bold tracking-tight">Explorar</span>
         </button>
 
-        {/* Seguimiento de pedido — más útil que Admin para el cliente */}
         <Link
           href="/seguimiento"
           aria-label="Rastrear mi pedido"
@@ -150,7 +221,7 @@ export default function Navbar() {
             else window.dispatchEvent(new CustomEvent('open_cart'));
           }}
           aria-label={`Abrir carrito${totalItems > 0 ? `, ${totalItems} productos` : ''}`}
-          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 relative py-1 px-2"
+          className="flex flex-col items-center gap-0.5 text-slate-400 hover:text-red-600 transition-colors active:scale-95 relative py-1 px-2 cursor-pointer"
         >
           <div className="relative">
             <span className="text-lg">🛒</span>
