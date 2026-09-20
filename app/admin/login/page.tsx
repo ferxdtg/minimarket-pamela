@@ -16,11 +16,11 @@ export const dynamic = 'force-dynamic';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function setSessionCookie() {
-  document.cookie = `admin_session=1; path=/; SameSite=Strict`;
+  document.cookie = `admin_session=1; path=/; SameSite=Strict; Secure`;
 }
 
 function clearSessionCookie() {
-  document.cookie = `admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict`;
+  document.cookie = `admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict; Secure`;
 }
 
 // ─── Generador de sonido hiper-realista de Bóveda de Película ───────────────────
